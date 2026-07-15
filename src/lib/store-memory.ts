@@ -118,13 +118,14 @@ export const memoryStore = {
   getRestock(branch: Branch, weekday: "wed" | "sat"): { rows: RestockRow[]; specialActive: boolean } {
     seed();
     const active = isSpecialActive(branch, weekday);
+    const today = new Date().toISOString().slice(0, 10);
+    const remainMap = new Map(this.getStock(branch, today).map((s) => [s.itemId, s.remainPack]));
     const rows: RestockRow[] = [];
     for (const it of ITEMS) {
       const par = PAR[it.id]?.[branch] ?? null;
       if (par == null) continue;                    // "-" ไม่ stock
       if (it.isSpecial && !active) continue;         // special เข้าเฉพาะวันของสาขา
-      const rec = latestUpto(branch, it.id, "9999-99-99");
-      const remain = rec?.remainPack ?? 0;
+      const remain = remainMap.get(it.id) ?? 0;
       rows.push({
         itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par, remain, need: restockNeed(par, remain), isSpecial: it.isSpecial,
@@ -149,17 +150,17 @@ export const memoryStore = {
   getCups(branch: Branch, date: string): CupRow[] {
     seed();
     const sizes: CupSize[] = ["P", "S", "BOWL", "14OZ"];
+    // ตั้งต้น/รับเข้า/คงเหลือ ดึงจากยอดถ้วยในหน้าสต็อก (แพ็ค×จำนวน/แพ็ค + เศษ) · sold กรอกเอง
+    const stockById = new Map(this.getStock(branch, date).map((s) => [s.itemId, s]));
     return sizes.map((size) => {
+      const it = ITEMS.find((i) => i.isCup && i.cupSize === size);
+      const s = it ? stockById.get(it.id) : undefined;
+      const conv = it?.gramsPerUOM || 50;
+      const start = s ? s.carryPack * conv + s.carryG : 0;
+      const inQ = s ? s.inPack * conv + s.inG : 0;
+      const remain = s ? s.remainPack * conv + s.remainG : 0;
       const rec = cups.get(ck(date, branch, size));
-      if (rec) { const { date: _d, branch: _b, ...row } = rec; return row; }
-      // start = คงเหลือถ้วยเมื่อวาน (carry)
-      let prev: CupRec | undefined;
-      for (const c of cups.values()) {
-        if (c.branch === branch && c.size === size && c.date < date) {
-          if (!prev || c.date > prev.date) prev = c;
-        }
-      }
-      return { size, start: prev?.remain ?? 0, in: 0, remain: prev?.remain ?? 0, sold: 0 };
+      return { size, start, in: inQ, remain, sold: rec?.sold ?? 0 };
     });
   },
 

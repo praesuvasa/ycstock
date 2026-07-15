@@ -87,10 +87,10 @@ export const supabaseStore = {
   async getRestock(branch: Branch, weekday: "wed" | "sat") {
     const { items, par } = await this.getMeta();
     const active = isSpecialActive(branch, weekday);
-    const { data: latest } = await sb().from("stock_daily")
-      .select("item_id,remain_pack,date").eq("branch_id", branch).order("date");
-    const remainMap = new Map<string, number>();
-    for (const r of latest ?? []) remainMap.set(r.item_id, r.remain_pack);
+    // ดึงคงเหลือปัจจุบันจาก getStock (carry-forward ให้แล้ว) — ใช้ตรรกะเดียวกับหน้ากรอกสต็อก
+    const today = new Date().toISOString().slice(0, 10);
+    const stock = await this.getStock(branch, today);
+    const remainMap = new Map<string, number>(stock.map((s) => [s.itemId, s.remainPack]));
     const rows: RestockRow[] = [];
     for (const it of items) {
       const p = par[it.id]?.[branch] ?? null;
@@ -117,12 +117,19 @@ export const supabaseStore = {
   },
 
   async getCups(branch: Branch, date: string): Promise<CupRow[]> {
-    const { data } = await sb().from("cup_reconcile").select("*").eq("branch_id", branch).eq("date", date);
-    const map = new Map((data ?? []).map((r: any) => [r.size, r]));
+    // ตั้งต้น/รับเข้า/คงเหลือ ดึงจากยอดถ้วยในหน้าสต็อก · sold กรอกเองที่หน้า reconcile
+    const meta = await this.getMeta();
+    const stockById = new Map((await this.getStock(branch, date)).map((s) => [s.itemId, s]));
+    const { data } = await sb().from("cup_reconcile").select("size,sold_qty").eq("branch_id", branch).eq("date", date);
+    const soldMap = new Map((data ?? []).map((r: any) => [r.size as CupSize, Number(r.sold_qty)]));
     return sizes.map((size) => {
-      const r = map.get(size) as any;
-      return r ? { size, start: r.start_qty, in: r.in_qty, remain: r.remain_qty, sold: r.sold_qty }
-               : { size, start: 0, in: 0, remain: 0, sold: 0 };
+      const it = meta.items.find((i) => i.isCup && i.cupSize === size);
+      const s = it ? stockById.get(it.id) : undefined;
+      const conv = it?.gramsPerUOM || 50;
+      const start = s ? s.carryPack * conv + s.carryG : 0;
+      const inQ = s ? s.inPack * conv + s.inG : 0;
+      const remain = s ? s.remainPack * conv + s.remainG : 0;
+      return { size, start, in: inQ, remain, sold: soldMap.get(size) ?? 0 };
     });
   },
 

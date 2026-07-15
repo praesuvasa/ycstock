@@ -110,6 +110,7 @@ export default function CupsPage() {
       </GlassCard>
 
       <p className="mb-3 px-1 text-[12px] text-brand-ink/55">
+        📦 ตั้งต้น/รับเข้า/คงเหลือ ดึงจากหน้าสต็อก (แพ็ค×50 + เศษ) อัตโนมัติ · กรอกแค่ <b>ขายจริง</b><br />
         ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ · diff = ใช้จริง − ขาย
       </p>
 
@@ -129,13 +130,10 @@ export default function CupsPage() {
                 </Badge>
               </div>
               <div className="grid grid-cols-4 gap-2">
-                <NumberField label="ตั้งต้น" value={r.start}
-                  onChange={(v) => setField(r.size, "start", v)} />
-                <NumberField label="รับเข้า" value={r.in}
-                  onChange={(v) => setField(r.size, "in", v)} />
-                <NumberField label="คงเหลือ" value={r.remain}
-                  onChange={(v) => setField(r.size, "remain", v)} />
-                <NumberField label="ขายจริง" value={r.sold}
+                <NumberField label="ตั้งต้น (stock)" value={r.start} readOnly tone="ro" />
+                <NumberField label="รับเข้า (stock)" value={r.in} readOnly tone="ro" />
+                <NumberField label="คงเหลือ (stock)" value={r.remain} readOnly tone="ro" />
+                <NumberField label="ขายจริง (กรอก)" value={r.sold}
                   onChange={(v) => setField(r.size, "sold", v)} />
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
