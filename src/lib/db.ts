@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
 
@@ -36,6 +36,20 @@ export const db = {
 
   getDashboard: (date: string) =>
     useSupabase ? supabaseStore.getDashboard(date) : Promise.resolve(memoryStore.getDashboard(date)),
+
+  // ── auth / users / audit ──
+  getUserByPasscode: (pin: string) =>
+    useSupabase ? supabaseStore.getUserByPasscode(pin) : Promise.resolve(memoryStore.getUserByPasscode(pin)),
+  listUsers: () =>
+    useSupabase ? supabaseStore.listUsers() : Promise.resolve(memoryStore.listUsers()),
+  createUser: (input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }) =>
+    useSupabase ? supabaseStore.createUser(input) : Promise.resolve(memoryStore.createUser(input)),
+  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }) =>
+    useSupabase ? supabaseStore.updateUser(id, patch) : Promise.resolve(memoryStore.updateUser(id, patch)),
+  writeAudit: (e: Omit<AuditEntry, "id" | "ts">) =>
+    useSupabase ? supabaseStore.writeAudit(e) : Promise.resolve(memoryStore.writeAudit(e)),
+  listAudit: (filter: { userId?: string; branch?: string; action?: string; limit?: number }) =>
+    useSupabase ? supabaseStore.listAudit(filter) : Promise.resolve(memoryStore.listAudit(filter)),
 };
 
 // helper สำหรับ BFF validate branch

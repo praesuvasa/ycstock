@@ -1,9 +1,18 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
+import { verifyPasscode, hashPasscode } from "./auth";
+
+// ── users + audit (memory) ──
+interface UserRec extends User { passcodeHash: string; }
+const users: UserRec[] = [
+  { id: "u-admin", name: "แพร (Admin)", role: "admin", branchScope: "all", active: true,
+    passcodeHash: "e5a917c2ddfbda72c4473e37bb1fc5b9:69412f814f7f4838e05f09fa2ba1e4cd02a51be249c2efc25f50f0289afb37f8" }, // PIN 2538
+];
+const auditRows: AuditEntry[] = [];
 
 interface StockRec extends StockRow { date: string; branch: Branch; }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
@@ -193,5 +202,49 @@ export const memoryStore = {
       varianceAlerts.push({ branch: b, count });
     }
     return { lowStock, salesToday, varianceAlerts };
+  },
+
+  // ── auth / users ──
+  getUserByPasscode(pin: string): User | null {
+    const u = users.find((x) => x.active && verifyPasscode(pin, x.passcodeHash));
+    if (!u) return null;
+    const { passcodeHash, ...pub } = u;
+    return pub;
+  },
+  listUsers(): User[] {
+    return users.map(({ passcodeHash, ...pub }) => pub);
+  },
+  createUser(input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }): User {
+    const u: UserRec = {
+      id: "u-" + Math.abs(Date.now() % 1_000_000).toString(36) + users.length,
+      name: input.name, role: input.role, branchScope: input.branchScope, active: true,
+      passcodeHash: hashPasscode(input.passcode),
+    };
+    users.push(u);
+    const { passcodeHash, ...pub } = u;
+    return pub;
+  },
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }): User | null {
+    const u = users.find((x) => x.id === id);
+    if (!u) return null;
+    if (patch.name !== undefined) u.name = patch.name;
+    if (patch.role !== undefined) u.role = patch.role;
+    if (patch.branchScope !== undefined) u.branchScope = patch.branchScope;
+    if (patch.active !== undefined) u.active = patch.active;
+    if (patch.passcode) u.passcodeHash = hashPasscode(patch.passcode);
+    const { passcodeHash, ...pub } = u;
+    return pub;
+  },
+
+  // ── audit ──
+  writeAudit(e: Omit<AuditEntry, "id" | "ts">): void {
+    auditRows.unshift({ ...e, id: "a" + auditRows.length, ts: new Date().toISOString() });
+  },
+  listAudit(filter: { userId?: string; branch?: string; action?: string; limit?: number }): AuditEntry[] {
+    let rows = auditRows;
+    if (filter.userId) rows = rows.filter((r) => r.userId === filter.userId);
+    if (filter.branch) rows = rows.filter((r) => r.branch === filter.branch);
+    if (filter.action) rows = rows.filter((r) => r.action === filter.action);
+    return rows.slice(0, filter.limit ?? 200);
   },
 };

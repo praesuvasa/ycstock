@@ -77,3 +77,35 @@ export interface RestockRow {
   need: number | null;
   isSpecial: boolean;
 }
+
+// ── Auth / RBAC / Audit (v1.2) ──
+export type Role = "user" | "admin";
+export type BranchScope = "all" | "SND" | "NVP";
+
+export interface User {
+  id: string;
+  name: string;
+  role: Role;
+  branchScope: BranchScope;
+  active: boolean;
+}
+
+export interface Session {
+  userId: string;
+  name: string;
+  role: Role;
+  branchScope: BranchScope;
+  exp: number; // epoch ms
+}
+
+export interface AuditEntry {
+  id: string;
+  ts: string;        // ISO
+  userId: string;
+  userName: string;
+  action: string;    // login | save_stock | save_sales | save_cups | update_item | create_user | update_user | ...
+  branch: string | null;
+  date: string | null;
+  entity: string | null;
+  detail: string;    // สรุปสั้น
+}

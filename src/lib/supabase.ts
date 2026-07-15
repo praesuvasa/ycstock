@@ -1,8 +1,9 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
+import { verifyPasscode, hashPasscode } from "./auth";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
 function sb(): SupabaseClient {
@@ -167,6 +168,61 @@ export const supabaseStore = {
       varianceAlerts.push({ branch: b, count: (vrows ?? []).length });
     }
     return { lowStock, salesToday, varianceAlerts };
+  },
+
+  // ── auth / users ──
+  async getUserByPasscode(pin: string): Promise<User | null> {
+    const { data } = await sb().from("users").select("*").eq("active", true);
+    for (const r of data ?? []) {
+      if (verifyPasscode(pin, r.passcode_hash)) {
+        return { id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active };
+      }
+    }
+    return null;
+  },
+  async listUsers(): Promise<User[]> {
+    const { data } = await sb().from("users").select("id,name,role,branch_scope,active").order("created_at");
+    return (data ?? []).map((r: any) => ({ id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active }));
+  },
+  async createUser(input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }): Promise<User> {
+    const id = "u-" + Math.abs(Date.now() % 1_000_000).toString(36);
+    const { error } = await sb().from("users").insert({
+      id, name: input.name, role: input.role, branch_scope: input.branchScope,
+      passcode_hash: hashPasscode(input.passcode), active: true, created_by: input.createdBy,
+    });
+    if (error) throw error;
+    return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true };
+  },
+  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }): Promise<User | null> {
+    const upd: any = {};
+    if (patch.name !== undefined) upd.name = patch.name;
+    if (patch.role !== undefined) upd.role = patch.role;
+    if (patch.branchScope !== undefined) upd.branch_scope = patch.branchScope;
+    if (patch.active !== undefined) upd.active = patch.active;
+    if (patch.passcode) upd.passcode_hash = hashPasscode(patch.passcode);
+    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active").maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return { id: data.id, name: data.name, role: data.role, branchScope: data.branch_scope, active: data.active };
+  },
+
+  // ── audit ──
+  async writeAudit(e: Omit<AuditEntry, "id" | "ts">): Promise<void> {
+    await sb().from("audit_log").insert({
+      user_id: e.userId, user_name: e.userName, action: e.action,
+      branch: e.branch, date: e.date, entity: e.entity, detail: e.detail,
+    });
+  },
+  async listAudit(filter: { userId?: string; branch?: string; action?: string; limit?: number }): Promise<AuditEntry[]> {
+    let q = sb().from("audit_log").select("*").order("ts", { ascending: false }).limit(filter.limit ?? 200);
+    if (filter.userId) q = q.eq("user_id", filter.userId);
+    if (filter.branch) q = q.eq("branch", filter.branch);
+    if (filter.action) q = q.eq("action", filter.action);
+    const { data } = await q;
+    return (data ?? []).map((r: any) => ({
+      id: String(r.id), ts: r.ts, userId: r.user_id, userName: r.user_name,
+      action: r.action, branch: r.branch, date: r.date, entity: r.entity, detail: r.detail ?? "",
+    }));
   },
 };
 

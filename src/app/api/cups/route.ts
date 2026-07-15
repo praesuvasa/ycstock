@@ -2,15 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { cupReconcile } from "@/lib/calc";
 import type { CupRow, CupSize } from "@/lib/types";
+import { requireAdmin, authErrorResponse } from "@/lib/authz";
+import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SIZES: CupSize[] = ["P", "S", "BOWL", "14OZ"];
+const cupFail = (e: unknown, msg: string) => {
+  const a = authErrorResponse(e);
+  return NextResponse.json(a ? a.body : { error: (e as any)?.message ?? msg }, { status: a ? a.status : 500 });
+};
 
 // GET /api/cups?branch=NVP&date=2026-07-15 → { rows: CupRow[], summary }
 export async function GET(req: NextRequest) {
   try {
+    await requireAdmin();
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
@@ -25,13 +32,14 @@ export async function GET(req: NextRequest) {
     const summary = cupReconcile(rows);
     return NextResponse.json({ rows, summary });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "cups failed" }, { status: 500 });
+    return cupFail(e, "cups failed");
   }
 }
 
 // POST /api/cups { branch, date, rows: CupRow[] } → { ok }
 export async function POST(req: NextRequest) {
   try {
+    const s = await requireAdmin();
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json({ error: "body ไม่ถูกต้อง" }, { status: 400 });
@@ -67,8 +75,9 @@ export async function POST(req: NextRequest) {
     });
 
     const res = await db.saveCups(branch, date, rows);
+    await writeAudit(s, "save_cups", { branch, date, detail: "บันทึก reconcile ถ้วย" });
     return NextResponse.json({ ...res });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "save cups failed" }, { status: 500 });
+    return cupFail(e, "save cups failed");
   }
 }

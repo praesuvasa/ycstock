@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
+import { requireAdmin, authErrorResponse } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/restock?branch=NVP&day=wed → { rows: RestockRow[], specialActive: boolean }
 export async function GET(req: NextRequest) {
   try {
+    await requireAdmin();
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
@@ -19,6 +21,7 @@ export async function GET(req: NextRequest) {
     const { rows, specialActive } = await db.getRestock(branch, day);
     return NextResponse.json({ rows, specialActive });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "restock failed" }, { status: 500 });
+    const a = authErrorResponse(e);
+    return NextResponse.json(a ? a.body : { error: e?.message ?? "restock failed" }, { status: a ? a.status : 500 });
   }
 }
