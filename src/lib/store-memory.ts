@@ -75,9 +75,13 @@ export const memoryStore = {
     return { branches: BRANCHES, items: ITEMS, par: PAR };
   },
 
-  setItemConfig(itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number }) {
+  setItemConfig(itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) {
     const it = ITEMS.find((x) => x.id === itemId);
-    if (it) { it.hasRemainder = cfg.hasRemainder; it.gramsPerUOM = cfg.gramsPerUOM; }
+    if (it) {
+      it.hasRemainder = cfg.hasRemainder;
+      it.gramsPerUOM = cfg.gramsPerUOM;
+      it.remainderGroup = cfg.remainderGroup && cfg.remainderGroup.trim() ? cfg.remainderGroup.trim() : undefined;
+    }
     return { ok: true };
   },
 

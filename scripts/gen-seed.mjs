@@ -8,10 +8,10 @@ const bool = (b) => (b ? "true" : "false");
 const nn = (v) => (v == null ? "null" : v);
 
 let out = "-- generated from src/lib/seed-data.ts\n";
-out += "insert into items (id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,sort) values\n";
+out += "insert into items (id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort) values\n";
 out += ITEMS.map((it) =>
-  `('${it.id}','${esc(it.name)}','${esc(it.category)}','${esc(it.unit)}',${bool(it.isSpecial)},${bool(it.isCup)},${it.cupSize ? `'${it.cupSize}'` : "null"},${bool(it.hasRemainder)},${it.gramsPerUOM},${it.sort})`
-).join(",\n") + "\non conflict (id) do update set has_remainder=excluded.has_remainder, grams_per_uom=excluded.grams_per_uom;\n\n";
+  `('${it.id}','${esc(it.name)}','${esc(it.category)}','${esc(it.unit)}',${bool(it.isSpecial)},${bool(it.isCup)},${it.cupSize ? `'${it.cupSize}'` : "null"},${bool(it.hasRemainder)},${it.gramsPerUOM},${it.remainderGroup ? `'${esc(it.remainderGroup)}'` : "null"},${it.sort})`
+).join(",\n") + "\non conflict (id) do update set has_remainder=excluded.has_remainder, grams_per_uom=excluded.grams_per_uom, remainder_group=excluded.remainder_group;\n\n";
 
 out += "insert into par_levels (item_id,branch_id,level) values\n";
 const rows = [];

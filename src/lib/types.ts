@@ -15,7 +15,8 @@ export interface Item {
   isCup: boolean;       // ถ้วยเสิร์ฟ (reconcile)
   cupSize?: CupSize;
   hasRemainder: boolean; // ขายแบบแกะ (นับเศษ g) · false = ขายเต็มแพ็ค/กล่อง
-  gramsPerUOM: number;   // กรัมต่อ 1 แพ็ค (ใช้เมื่อ hasRemainder) · 0 = ไม่ใช้
+  gramsPerUOM: number;   // กรัมต่อ 1 แพ็ค (แกะ) หรือ กรัมต่อ 1 กล่อง (สมาชิกกลุ่มเศษรวม)
+  remainderGroup?: string; // กลุ่มเศษรวม (Strawberry/Blueberry) — สมาชิกกลุ่มเดียวแชร์เศษก้อนเดียว
   sort: number;
 }
 
@@ -23,6 +24,7 @@ export interface Item {
 export interface ItemConfig {
   hasRemainder: boolean;
   gramsPerUOM: number;
+  remainderGroup?: string;
 }
 
 export interface ParMap {

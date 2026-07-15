@@ -88,20 +88,58 @@ export default function StockPage() {
   const shownItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const total = shownItems.length;
 
-  // นับ กรอกแล้ว + รายการที่เกิน (คงเหลือรวมเกินของที่มี / variance)
+  const itemById = React.useMemo(
+    () => new Map((meta?.items ?? []).map((it) => [it.id, it] as const)),
+    [meta],
+  );
+  // กลุ่มเศษรวม → รายชื่อ item id (เรียงตาม sort) ที่ stock ในสาขานี้
+  const groupIds = React.useMemo(() => {
+    const m = new Map<string, string[]>();
+    if (!meta) return m;
+    const gs = meta.items
+      .filter((it) => it.remainderGroup && meta.par[it.id]?.[branch] != null)
+      .sort((a, b) => a.sort - b.sort);
+    for (const it of gs) {
+      const g = it.remainderGroup!;
+      if (!m.has(g)) m.set(g, []);
+      m.get(g)!.push(it.id);
+    }
+    return m;
+  }, [meta, branch]);
+
+  // ยอดรวมของกลุ่ม (กรัม): Σ(คงเหลือกล่อง×ขนาด) + เศษรวม(ที่ leader) ≤ ของที่มี
+  const groupTotals = React.useCallback((groupName: string) => {
+    const ids = groupIds.get(groupName) ?? [];
+    const leaderId = ids[0];
+    let availG = 0, remainG = 0;
+    for (const id of ids) {
+      const it = itemById.get(id); const r = rows[id];
+      if (!it || !r) continue;
+      availG += (r.carryPack + r.inPack) * it.gramsPerUOM;
+      remainG += r.remainPack * it.gramsPerUOM;
+    }
+    const lr = rows[leaderId];
+    if (lr) { availG += lr.carryG + lr.inG; remainG += lr.remainG; }
+    const usedG = availG - remainG;
+    return { leaderId, availG, remainG, usedG, overG: usedG < 0 ? -usedG : 0 };
+  }, [groupIds, itemById, rows]);
+
+  // นับ กรอกแล้ว + รายการที่เกิน (คงเหลือรวมเกินของที่มี / variance / กลุ่มเกิน)
   const { filledCount, errorCount } = React.useMemo(() => {
     let filled = 0, error = 0;
     for (const it of shownItems) {
       const r = rows[it.id];
       if (!r) continue;
       if (isFilled(r)) filled++;
+      if (it.remainderGroup) continue; // กลุ่มเช็คแยกด้านล่าง
       const bad = it.hasRemainder
         ? derive(r, it.gramsPerUOM).usedTotalG < 0
         : varianceOf(r) !== 0;
       if (bad) error++;
     }
+    for (const [g] of groupIds) if (groupTotals(g).overG > 0) error++;
     return { filledCount: filled, errorCount: error };
-  }, [shownItems, rows]);
+  }, [shownItems, rows, groupIds, groupTotals]);
 
   type NumField = "inPack" | "used" | "remainPack" | "inG" | "usedG" | "remainG";
   function setField(itemId: string, field: NumField, raw: string, N: number) {
@@ -213,6 +251,10 @@ export default function StockPage() {
                 const filled = isFilled(row);
                 const v = varianceOf(row);
                 const su = it.isCup ? "ชิ้น" : "g"; // หน่วยย่อย: ถ้วยนับชิ้น · อื่นเป็นกรัม
+                const grp = it.remainderGroup;
+                const isLeader = !!grp && groupIds.get(grp)?.[0] === it.id;
+                const gt = grp ? groupTotals(grp) : null;
+                const leaderName = gt ? itemById.get(gt.leaderId)?.name ?? "" : "";
 
                 return (
                   <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -221,22 +263,42 @@ export default function StockPage() {
                       <Badge>{it.unit}</Badge>
                     </div>
 
-                    {it.hasRemainder && (
+                    {(it.hasRemainder || grp) && (
                       <div className="mb-1 text-[11px] font-medium text-brand-ink/50">
-                        เต็ม (แพ็ค){N > 0 ? ` · 1 แพ็ค = ${N} ${su}` : ""}
+                        {grp ? "เต็ม (กล่อง)" : "เต็ม (แพ็ค)"}{N > 0 ? ` · 1 ${grp ? "กล่อง" : "แพ็ค"} = ${N} ${su}` : ""}
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <NumberField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
                       <NumberField label="รับเข้า" value={blankZero(row.inPack)}
                         onChange={(x) => setField(it.id, "inPack", x, N)} />
-                      <NumberField label={it.hasRemainder ? "แกะ/ออก" : "ขาย/ใช้"} value={blankZero(row.used)}
+                      <NumberField label={it.hasRemainder || grp ? "แกะ/ออก" : "ขาย/ใช้"} value={blankZero(row.used)}
                         onChange={(x) => setField(it.id, "used", x, N)} />
                       <NumberField label="คงเหลือ" value={row.remainPack}
                         onChange={(x) => setField(it.id, "remainPack", x, N)} tone="auto" />
                     </div>
 
-                    {it.hasRemainder && (
+                    {/* เศษ: กลุ่ม (เฉพาะ leader) / แกะปกติ */}
+                    {grp ? (
+                      isLeader ? (
+                        <>
+                          <div className="mb-1 mt-2 text-[11px] font-medium text-brand-ink/50">
+                            🔗 เศษรวมกลุ่ม {grp} (g) — กรอกที่รายการนี้ที่เดียว
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <NumberField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
+                            <NumberField label="รับเข้า g" value={blankZero(row.inG)}
+                              onChange={(x) => setField(it.id, "inG", x, N)} />
+                            <NumberField label="เศษคงเหลือ g" value={row.remainG}
+                              onChange={(x) => setField(it.id, "remainG", x, N)} tone="auto" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-2 rounded-lg bg-black/[.03] px-2.5 py-1.5 text-[11px] text-brand-ink/50">
+                          🔗 เศษรวมกลุ่ม {grp} — กรอกที่ “{leaderName}”
+                        </div>
+                      )
+                    ) : it.hasRemainder ? (
                       <>
                         <div className="mb-1 mt-2 text-[11px] font-medium text-brand-ink/50">
                           {it.isCup ? `เศษ (${su}) — ถ้วยเปิดแพ็ค` : `เศษ (${su}) — Sale Unit`}
@@ -251,10 +313,22 @@ export default function StockPage() {
                             onChange={(x) => setField(it.id, "remainG", x, N)} tone="auto" />
                         </div>
                       </>
-                    )}
+                    ) : null}
 
                     {/* validation */}
-                    {it.hasRemainder ? (
+                    {grp ? (
+                      isLeader && gt ? (
+                        gt.overG > 0 ? (
+                          <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
+                            ⚠️ เศษรวมกลุ่ม {grp} เกินของที่มี (เกิน {gt.overG} g)
+                          </div>
+                        ) : (
+                          <div className="mt-2 rounded-lg bg-ok/15 px-2.5 py-1.5 text-xs font-medium text-ok">
+                            ✓ กลุ่ม {grp}: ใช้ไปรวม {gt.usedG} g · คงเหลือรวม {gt.remainG} g (มี {gt.availG} g)
+                          </div>
+                        )
+                      ) : null
+                    ) : it.hasRemainder ? (
                       d.overG > 0 ? (
                         <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
                           ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG} {su}){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}

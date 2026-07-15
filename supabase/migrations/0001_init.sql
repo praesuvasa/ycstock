@@ -15,7 +15,8 @@ create table if not exists items (
   is_cup         boolean not null default false,
   cup_size       text,               -- 'P'|'S'|'BOWL'|'14OZ'
   has_remainder  boolean not null default false,  -- true = ขายแบบแกะ (นับเศษ g)
-  grams_per_uom  numeric not null default 0,      -- กรัมต่อ 1 แพ็ค (ใช้เมื่อ has_remainder)
+  grams_per_uom  numeric not null default 0,      -- กรัม/แพ็ค (แกะ) หรือ กรัม/กล่อง (กลุ่มเศษรวม)
+  remainder_group text,                            -- กลุ่มเศษรวม (Strawberry/Blueberry)
   sort           int not null default 0
 );
 

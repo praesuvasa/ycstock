@@ -18,7 +18,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,sort");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -27,7 +27,8 @@ export const supabaseStore = {
     const mapped: Item[] = items.map((r: any) => ({
       id: r.id, name: r.name, category: r.category, unit: r.unit,
       isSpecial: r.is_special, isCup: r.is_cup, cupSize: r.cup_size ?? undefined,
-      hasRemainder: r.has_remainder, gramsPerUOM: Number(r.grams_per_uom ?? 0), sort: r.sort,
+      hasRemainder: r.has_remainder, gramsPerUOM: Number(r.grams_per_uom ?? 0),
+      remainderGroup: r.remainder_group ?? undefined, sort: r.sort,
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = { SND: null, NVP: null };
@@ -38,10 +39,14 @@ export const supabaseStore = {
     return { branches: BRANCHES, items: mapped, par };
   },
 
-  async setItemConfig(itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number }) {
+  async setItemConfig(itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) {
     const { error } = await sb()
       .from("items")
-      .update({ has_remainder: cfg.hasRemainder, grams_per_uom: cfg.gramsPerUOM })
+      .update({
+        has_remainder: cfg.hasRemainder,
+        grams_per_uom: cfg.gramsPerUOM,
+        remainder_group: cfg.remainderGroup && cfg.remainderGroup.trim() ? cfg.remainderGroup.trim() : null,
+      })
       .eq("id", itemId);
     if (error) throw error;
     return { ok: true };

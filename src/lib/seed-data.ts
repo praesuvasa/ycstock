@@ -166,10 +166,18 @@ const UOM1_QTY: Record<string, number> = {
   "ปีโป้": 40, "ปีโป้ลิ้นจี่": 560, "พิสตาชิโอ้เครป": 400, "พิสตาชิโอ้บัตเตอร์": 570, "พิสตาชิโอ้ท๊อปปิ้ง": 470,
 };
 
+// กลุ่มเศษรวม (default) — สินค้าหลายขนาดที่แกะแล้วเศษปนกัน แชร์เศษก้อนเดียว (กรัมต่อกล่อง = ขนาด)
+// [group, gramsPerBox]
+const REMAINDER_GROUP: Record<string, [string, number]> = {
+  "Strawberry (250g)": ["Strawberry", 250], "Strawberry (500g)": ["Strawberry", 500],
+  "Blueberry (125g)": ["Blueberry", 125], "Blueberry (300g)": ["Blueberry", 300], "Blueberry (500g)": ["Blueberry", 500],
+};
+
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
 
 export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
   const qty = UOM1_QTY[name];
+  const grp = REMAINDER_GROUP[name];
   const hasRemainder = qty != null; // UOM=1 = ขายแบบแกะ (มีเศษ)
   return {
     id: slug(i),
@@ -180,7 +188,9 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     isCup: name in CUP_MAP,
     cupSize: CUP_MAP[name],
     hasRemainder,
-    gramsPerUOM: hasRemainder ? qty : 0,
+    // grouped item: gramsPerUOM = ขนาดกล่อง (ใช้คิดเศษรวม) แม้ UOM=2
+    gramsPerUOM: hasRemainder ? qty : grp ? grp[1] : 0,
+    remainderGroup: grp ? grp[0] : undefined,
     sort: i,
   };
 });

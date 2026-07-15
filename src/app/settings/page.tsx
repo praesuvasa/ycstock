@@ -6,7 +6,7 @@ import {
   GlassCard, Badge, Button, Segmented, Accordion, NumberField, PageTitle,
 } from "@/components/ui";
 
-type Draft = { hasRemainder: boolean; gramsPerUOM: number };
+type Draft = { hasRemainder: boolean; gramsPerUOM: number; remainderGroup: string };
 
 export default function SettingsPage() {
   const [meta, setMeta] = React.useState<Meta | null>(null);
@@ -21,7 +21,7 @@ export default function SettingsPage() {
       .then((m: Meta) => {
         setMeta(m);
         const d: Record<string, Draft> = {};
-        for (const it of m.items) d[it.id] = { hasRemainder: it.hasRemainder, gramsPerUOM: it.gramsPerUOM };
+        for (const it of m.items) d[it.id] = { hasRemainder: it.hasRemainder, gramsPerUOM: it.gramsPerUOM, remainderGroup: it.remainderGroup ?? "" };
         setDraft(d);
       })
       .catch((e) => setErr(String(e?.message ?? e)));
@@ -46,7 +46,7 @@ export default function SettingsPage() {
 
   function dirty(it: Item): boolean {
     const d = draft[it.id];
-    return !!d && (d.hasRemainder !== it.hasRemainder || d.gramsPerUOM !== it.gramsPerUOM);
+    return !!d && (d.hasRemainder !== it.hasRemainder || d.gramsPerUOM !== it.gramsPerUOM || d.remainderGroup !== (it.remainderGroup ?? ""));
   }
 
   async function save(it: Item) {
@@ -58,12 +58,17 @@ export default function SettingsPage() {
       const res = await fetch("/api/items/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId: it.id, hasRemainder: d.hasRemainder, gramsPerUOM: d.gramsPerUOM }),
+        body: JSON.stringify({ itemId: it.id, hasRemainder: d.hasRemainder, gramsPerUOM: d.gramsPerUOM, remainderGroup: d.remainderGroup }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
       // อัปเดต meta ในหน่วยความจำให้ตรง
-      setMeta((m) => m && ({ ...m, items: m.items.map((x) => x.id === it.id ? { ...x, ...d } : x) }));
+      setMeta((m) => m && ({
+        ...m,
+        items: m.items.map((x) => x.id === it.id
+          ? { ...x, hasRemainder: d.hasRemainder, gramsPerUOM: d.gramsPerUOM, remainderGroup: d.remainderGroup || undefined }
+          : x),
+      }));
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     } finally {
@@ -111,9 +116,9 @@ export default function SettingsPage() {
                           setDraft((prev) => ({ ...prev, [it.id]: { ...d, hasRemainder: v === "open" } }))
                         }
                       />
-                      <div className={d.hasRemainder ? "" : "opacity-40 pointer-events-none"}>
+                      <div>
                         <NumberField
-                          label="กรัมต่อ 1 แพ็ค (g/UOM)"
+                          label={d.remainderGroup ? "กรัมต่อ 1 กล่อง (ขนาด)" : "กรัมต่อ 1 แพ็ค (g/UOM)"}
                           value={d.gramsPerUOM === 0 ? "" : d.gramsPerUOM}
                           onChange={(x) =>
                             setDraft((prev) => ({ ...prev, [it.id]: { ...d, gramsPerUOM: parseFloat(x) || 0 } }))
@@ -121,6 +126,17 @@ export default function SettingsPage() {
                         />
                       </div>
                     </div>
+                    <label className="mt-2 flex flex-col gap-1">
+                      <span className="text-[11px] text-brand-ink/50">กลุ่มเศษรวม (เว้นว่าง = ไม่มี · เศษปนกัน เช่น Strawberry)</span>
+                      <input
+                        className="field text-left"
+                        placeholder="เช่น Strawberry, Blueberry"
+                        value={d.remainderGroup}
+                        onChange={(e) =>
+                          setDraft((prev) => ({ ...prev, [it.id]: { ...d, remainderGroup: e.target.value } }))
+                        }
+                      />
+                    </label>
                     {dirty(it) && (
                       <div className="mt-2">
                         <Button variant="ghost" onClick={() => save(it)} disabled={savingId === it.id}>
