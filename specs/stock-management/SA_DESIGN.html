@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="th"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SA Design — YC Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--red:#F2565C;--blue:#84D7FF;--orange:#FF8C33;--ink:#2A2A2E;--muted:#6d6d75}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:'Kanit',system-ui,sans-serif;color:var(--ink);min-height:100vh;
+ background:radial-gradient(60vw 60vw at 10% -10%,rgba(132,215,255,.30),transparent 60%),radial-gradient(55vw 55vw at 110% 0%,rgba(255,140,51,.24),transparent 58%),radial-gradient(60vw 60vw at 50% 120%,rgba(242,86,92,.20),transparent 60%),#FBF7F0;background-attachment:fixed}
+.wrap{max-width:1080px;margin:0 auto;padding:30px 20px 80px}
+.glass{background:rgba(255,255,255,.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.7);border-radius:20px;box-shadow:0 8px 32px rgba(20,15,10,.08)}
+.soft{background:rgba(255,255,255,.45);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.6);border-radius:14px}
+h1{font-size:1.9rem;margin:0 0 .1em}h2{font-size:1.3rem;margin:0 0 .5em}
+.kick{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--red);font-weight:600}
+.sub{color:var(--muted)}
+.pad{padding:20px 22px}.mt{margin-top:16px}
+.tag{display:inline-block;font-size:.72rem;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.06);border-radius:99px;padding:3px 11px;margin:2px 4px 2px 0}
+code,.mono{font-family:'JetBrains Mono',monospace}
+.mono{display:block;white-space:pre;overflow-x:auto;font-size:.8rem;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.7);border-radius:12px;padding:14px 16px;line-height:1.5}
+table{border-collapse:collapse;width:100%;font-size:.85rem}th,td{text-align:left;padding:8px 10px;border-bottom:1px solid rgba(0,0,0,.07);vertical-align:top}
+th{font-size:.74rem;color:var(--muted);font-weight:500}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+.flow{display:flex;flex-direction:column;gap:8px;align-items:center}
+.node{width:100%;max-width:640px;text-align:center;padding:12px 14px;border-radius:14px}
+.n-cli{background:rgba(132,215,255,.25)}.n-bff{background:rgba(255,140,51,.22)}.n-db{background:rgba(242,86,92,.18)}.n-store{background:rgba(255,255,255,.6)}
+.node b{display:block}.node span{font-size:.76rem;color:var(--muted)}
+.arw{color:var(--orange);font-weight:700}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;padding:6px 12px;border-radius:10px;background:rgba(255,255,255,.7);border:1px solid rgba(0,0,0,.05);margin:3px}
+.sw{width:14px;height:14px;border-radius:5px;display:inline-block;vertical-align:-2px;margin-right:5px;border:1px solid rgba(0,0,0,.08)}
+.mod{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.mod .k{font-weight:600;min-width:150px}.mod:last-child{border:none}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:99px;background:rgba(47,163,107,.15);color:#2FA36B}
+</style></head>
+<body><div class="wrap">
+<div class="kick">System Architecture · SA Design</div>
+<h1>YC Stock — การออกแบบระบบ</h1>
+<p class="sub">Next.js 14 · TypeScript · Tailwind (glassmorphism) · Supabase · BFF · Deploy Vercel · v1.0</p>
+<div>
+  <span class="tag">Vercel</span><span class="tag">Supabase (Postgres)</span><span class="tag">BFF = Route Handlers</span>
+  <span class="tag">Tailwind + React glass</span><span class="tag">mobile-first</span><span class="tag">memory fallback</span>
+</div>
+
+<div class="glass pad mt">
+  <div class="kick">Architecture (BFF)</div>
+  <h2>ชั้นการทำงาน</h2>
+  <div class="flow">
+    <div class="node n-cli"><b>Browser · React client (glass, mobile)</b><span>iPad / มือถือ — เรียกเฉพาะ /api/*</span></div>
+    <div class="arw">▼ fetch /api/*</div>
+    <div class="node n-bff"><b>BFF · Next.js Route Handlers (app/api/*/route.ts)</b><span>validate + shape response ให้ตรงหน้า · try/catch</span></div>
+    <div class="arw">▼ call</div>
+    <div class="node n-store"><b>lib/db.ts (facade)</b><span>สลับด้วย env USE_SUPABASE</span></div>
+    <div style="display:flex;gap:10px;width:100%;max-width:640px">
+      <div class="node n-store" style="flex:1">store-memory.ts<span>seeded · dev/test</span></div>
+      <div class="node n-db" style="flex:1">supabase.ts<span>production</span></div>
+    </div>
+    <div class="arw">▼</div>
+    <div class="node n-db"><b>Supabase Postgres</b><span>migrations + seed</span></div>
+  </div>
+  <p class="sub" style="font-size:.85rem">Business logic อยู่ <code>lib/calc.ts</code> (pure) — ใช้ทั้ง BFF และ UI (คำนวณสดขณะพิมพ์). Client ไม่แตะ Supabase ตรง = หลัก BFF.</p>
+</div>
+
+<div class="grid g2 mt">
+  <div class="glass pad">
+    <div class="kick">Data · ERD</div>
+    <h2>ตาราง + ความสัมพันธ์</h2>
+    <div class="mono">branches(id PK, name)              SND · NVP
+items(id PK, name, category, unit,
+      is_special, is_cup, cup_size,
+      has_remainder, sort)
+par_levels(item_id→items, branch_id→branches,
+      level)  PK(item_id,branch_id)   -- null = "-"
+stock_daily(id PK, date, branch_id→,
+      item_id→, carry_pack, carry_g,
+      in_pack, in_g, used, remain_pack,
+      remain_g, returned, note, variance)
+      UNIQUE(date,branch_id,item_id)
+sales_daily(id PK, date, branch_id→,
+      cash, qr, edc, grab, lineman)
+      UNIQUE(date,branch_id)
+cup_reconcile(id PK, date, branch_id→,
+      size, start_qty, in_qty,
+      remain_qty, sold_qty)
+      UNIQUE(date,branch_id,size)</div>
+  </div>
+  <div class="glass pad">
+    <div class="kick">Business logic · lib/calc</div>
+    <h2>สูตร (pure)</h2>
+    <div class="mono">remainPieces = MAX(carry+in−used, 0)
+remainGrams  = MAX(carryG+inG−used, 0)
+variance     = carry+in−used−returned−remain
+restockNeed  = par==null ? null
+             : MAX(par−remain, 0)
+isSpecialActive(branch,day):
+   SND & sat  |  NVP & wed
+cupReconcile(rows):
+   used = start+in−remain
+   diff = used − sold
+   swapLikely = !balanced && Σdiff==0</div>
+    <p class="sub" style="font-size:.82rem">7 special: Shake แช่แข็ง · Wake up call · Energy Sip · Yellow Madness · Ready to Glow · R-ACAI Bowl · S-ACAI Cup</p>
+  </div>
+</div>
+
+<div class="glass pad mt">
+  <div class="kick">BFF · API Contract</div>
+  <h2>Route Handlers</h2>
+  <table>
+    <thead><tr><th>Method · Route</th><th>เรียก lib/db</th><th>Response</th></tr></thead>
+    <tbody>
+      <tr><td>GET /api/meta</td><td>getMeta()</td><td>{branches, items, par}</td></tr>
+      <tr><td>GET /api/stock?branch&date</td><td>getStock()</td><td>{rows: StockRow[]}</td></tr>
+      <tr><td>POST /api/stock</td><td>saveStock()</td><td>{ok,updated,inserted}</td></tr>
+      <tr><td>GET /api/restock?branch&day</td><td>getRestock()</td><td>{rows, specialActive}</td></tr>
+      <tr><td>GET·POST /api/sales</td><td>getSales/saveSales</td><td>{row,inStore,delivery,total}</td></tr>
+      <tr><td>GET·POST /api/cups</td><td>getCups/saveCups</td><td>{rows, summary}</td></tr>
+      <tr><td>GET /api/dashboard?date</td><td>getDashboard()</td><td>{lowStock,salesToday,varianceAlerts}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="glass pad mt">
+  <div class="kick">Design System · glass</div>
+  <h2>Tokens & Components</h2>
+  <div>
+    <span class="chip"><span class="sw" style="background:#F2565C"></span>red #F2565C</span>
+    <span class="chip"><span class="sw" style="background:#84D7FF"></span>blue #84D7FF</span>
+    <span class="chip"><span class="sw" style="background:#FF8C33"></span>orange #FF8C33</span>
+    <span class="chip"><span class="sw" style="background:#2A2A2E"></span>ink</span>
+    <span class="chip"><span class="sw" style="background:#FBF7F0"></span>cream</span>
+    <span class="chip">Kanit</span>
+  </div>
+  <div class="soft mt" style="padding:14px 16px">
+    <code style="font-size:.78rem">glass = bg-white/60 backdrop-blur-xl border border-white/70 rounded-2xl shadow-glass</code>
+  </div>
+  <div class="mt"><span class="tag">AppShell/TopBar/BottomNav</span><span class="tag">GlassCard</span><span class="tag">Segmented</span><span class="tag">Accordion</span><span class="tag">NumberField</span><span class="tag">Stat</span><span class="tag">Badge</span><span class="tag">Button</span><span class="tag">SaveBar</span></div>
+  <p class="sub" style="font-size:.83rem">mobile-first: ปุ่ม/ช่อง ≥40px · inputMode numeric · bottom tab nav · sticky SaveBar</p>
+</div>
+
+<div class="glass pad mt">
+  <div class="kick">Modules · Dev fan-out</div>
+  <h2>6 module</h2>
+  <div class="mod"><div class="k">M0 Foundation <span class="badge">PM/SA</span></div><div>scaffold · lib (types/calc/db/supabase/memory/seed) · glass UI kit · layout/nav · schema+seed</div></div>
+  <div class="mod"><div class="k">M1 Stock <span class="badge">Dev</span></div><div><code>/stock</code> + <code>/api/stock</code> — ฟอร์มสิ้นวัน · ยกมา · เต็ม+เศษ · variance · upsert</div></div>
+  <div class="mod"><div class="k">M2 Restock <span class="badge">Dev</span></div><div><code>/restock</code> + <code>/api/restock</code> — Par · ต้องเติม · filter สาขา×วัน 7 special</div></div>
+  <div class="mod"><div class="k">M3 Sales <span class="badge">Dev</span></div><div><code>/sales</code> + <code>/api/sales</code> — ยอดขายแยกช่องทาง · รวมอัตโนมัติ</div></div>
+  <div class="mod"><div class="k">M4 Cups <span class="badge">Dev</span></div><div><code>/cups</code> + <code>/api/cups</code> — reconcile ถ้วย · size-swap</div></div>
+  <div class="mod"><div class="k">M5 Dashboard <span class="badge">Dev</span></div><div><code>/</code> + <code>/api/dashboard</code> — ของใกล้หมด · ยอดวันนี้ · variance alert</div></div>
+</div>
+
+<div class="glass pad mt">
+  <div class="kick">Deploy</div>
+  <h2>Vercel + Supabase</h2>
+  <div class="mono">1) Supabase: รัน 0001_init.sql + seed.sql + (gen-seed → seed-items.sql)
+2) Vercel env: USE_SUPABASE=1 · SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY
+3) push GitHub → Vercel auto build (next build)
+* ไม่ตั้ง env → memory store (seeded) รันได้ทันที (preview/demo)</div>
+</div>
+
+<p class="sub mt" style="text-align:center;font-size:.8rem">SA Design · YC Stock v1.0 · คู่กับ SA_DESIGN.md · PRD.html</p>
+</div></body></html>

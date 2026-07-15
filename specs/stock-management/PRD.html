@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRD — ระบบจัดการสต็อก Yogurt Culture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--red:#F2565C;--blue:#84D7FF;--orange:#FF8C33;--black:#010101;--cream:#FBF7F0;--ink:#2A2A2E;--muted:#7A7A82;--line:#ECE7DE;--ok:#2FA36B;--okbg:#E7F6EE;--warn:#E0483F;--warnbg:#FCE9E7}
+*{box-sizing:border-box}html,body{margin:0}
+body{font-family:'Kanit',system-ui,sans-serif;background:var(--cream);color:var(--ink);line-height:1.6}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:0}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--line);padding:22px 16px;background:#fff}
+aside .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+aside .logo .m{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--red),var(--orange));display:grid;place-items:center;color:#fff;font-weight:700}
+aside .logo b{font-size:.95rem}aside .logo span{display:block;font-size:.7rem;color:var(--muted);font-weight:300}
+aside a{display:block;padding:7px 11px;border-radius:8px;color:var(--ink);text-decoration:none;font-size:.86rem;font-weight:400}
+aside a:hover{background:var(--cream)}aside a.on{background:var(--black);color:#fff}
+aside .grp{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px 11px}
+main{padding:36px 40px 90px;min-width:0}
+h1{font-size:1.8rem;margin:0 0 .1em}h2{font-size:1.35rem;margin:1.8em 0 .5em;padding-top:.4em;scroll-margin-top:20px}
+h3{font-size:1.05rem;margin:1.3em 0 .3em}
+.sub{color:var(--muted);font-size:.9rem;margin-bottom:1.5em}
+p{margin:.5em 0}code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:.05em .4em;font-size:.85em;font-family:ui-monospace,Menlo,monospace}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:14px 0;box-shadow:0 4px 16px rgba(20,15,10,.05)}
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:.5em 0}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#FAF5EC;font-weight:500;color:var(--muted);font-size:.76rem}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+ul{margin:.4em 0;padding-left:1.15em}li{margin:.22em 0}
+.pill{display:inline-block;font-size:.7rem;border-radius:99px;padding:2px 9px;font-weight:500}
+.p0{background:var(--warnbg);color:var(--warn)}.p1{background:#FFF0E3;color:#c96a1e}.p2{background:#EFEFF2;color:#666}
+.ok{background:var(--okbg);color:var(--ok)}.bl{background:#E6F6FF;color:#1583c0}
+.tag{display:inline-block;font-size:.72rem;background:#fff;border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--muted);margin:2px 4px 2px 0}
+.done{border-left:4px solid var(--ok);background:var(--okbg);border-radius:0 10px 10px 0;padding:10px 14px;margin:10px 0;font-size:.88rem}
+.q{border-left:4px solid var(--blue);background:#F4FAFF;border-radius:0 10px 10px 0;padding:10px 14px;margin:10px 0;font-size:.88rem}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;white-space:pre-wrap;overflow-x:auto}
+.hd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+@media(max-width:820px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-right:none;border-bottom:1px solid var(--line)}main{padding:24px 18px 70px}}
+</style></head>
+<body>
+<div class="wrap">
+<aside>
+  <div class="logo"><div class="m">YC</div><div><b>PRD — ระบบสต็อก</b><span>Yogurt Culture · v1.1</span></div></div>
+  <a href="#top" class="on">📄 ปก + สถานะ</a>
+  <div class="grp">ปัญหา & เป้า</div>
+  <a href="#problem">1 · Problem</a><a href="#goals">2 · Goals / Non-Goals</a><a href="#users">3 · Users + Stories</a>
+  <div class="grp">สเปก</div>
+  <a href="#req">4 · Requirements (P0-P2)</a><a href="#modules">5 · Module Breakdown</a><a href="#data">6 · Data Model</a><a href="#rules">7 · Business Rules</a>
+  <div class="grp">ปิดท้าย</div>
+  <a href="#metrics">8 · Success Metrics</a><a href="#open">9 · Open / Decisions</a><a href="#road">10 · Roadmap</a><a href="#v11">11 · v1.1 ล่าสุด</a>
+  <div class="grp">ที่เกี่ยวข้อง</div>
+  <a href="review.html">↗ review.html (interactive)</a>
+</aside>
+<main>
+  <span id="top"></span>
+  <div class="hd"><span class="pill ok">v1.1 · Deploy production แล้ว</span><span class="tag">2 สาขา SND · NVP</span><span class="tag">yc-stock.vercel.app</span><span class="tag">อัปเดต 2026-07-15</span></div>
+  <h1>ระบบจัดการสต็อก Yogurt Culture</h1>
+  <p class="sub">Product Requirements Document · จัดทำโดยทีมพัฒนา (PM + BA/SA/Dev/Tester) · ที่มาข้อมูล: BackOffice (YC BOM, Par Stock, YC_Stock_Tracker)</p>
+  <div class="card">
+    <b>สรุป 30 วินาที</b>
+    <p>ยก "ระบบสต็อก Excel + สคริปต์" เป็น <b>เว็บแอปกรอกผ่าน iPad/มือถือ</b> — พนักงานกรอกสต็อกสิ้นวัน ระบบยกยอด + คำนวณ + เช็กความถูกต้องให้เอง, บอกเจ้าของว่ารอบเติมของ (พุธ/เสาร์) ต้องเติมอะไรเท่าไร, บันทึกยอดขาย และ reconcile ถ้วยเสิร์ฟ</p>
+    <div class="hd"><span class="tag">Next.js 14</span><span class="tag">TypeScript</span><span class="tag">Tailwind · glass</span><span class="tag">Supabase</span><span class="tag">BFF (Route Handlers)</span><span class="tag">Deploy: Vercel</span></div>
+  </div>
+
+  <h2 id="problem">1 · Problem Statement</h2>
+  <p>ร้านจัดการสต็อก 2 สาขาบน Excel + สคริปต์ Python ที่ต้องรันเอง — พนักงานกรอกยาก, มี manual step (copy→paste), path สคริปต์ผูก sandbox รันเครื่องจริงไม่ได้, ไฟล์ xlsx พังง่ายบน Excel Mac. ผล: ข้อมูลไม่ real-time, เสี่ยงกรอกผิด, เจ้าของต้องลงมือเองทุกวัน — ยิ่งขยายสาขายิ่งไม่ scale.</p>
+
+  <h2 id="goals">2 · Goals / Non-Goals</h2>
+  <h3>Goals</h3>
+  <ul>
+    <li>พนักงานกรอกสต็อกสิ้นวันจบใน <b>≤ 5 นาที/สาขา</b> ผ่าน iPad/มือถือ</li>
+    <li>ตัด manual step ทั้งหมด (<b>0 ครั้ง</b> copy/paste หรือรันสคริปต์)</li>
+    <li>ยกมา + คำนวณคงเหลือ + Variance <b>อัตโนมัติ 100%</b></li>
+    <li>รอบเติม (พุธ/เสาร์) เห็น "ต้องเติมกี่ชิ้นให้ถึง Par" ต่อสาขาทันที</li>
+    <li>เจ้าของเห็นสต็อก + ยอดขายทุกสาขา real-time</li>
+  </ul>
+  <h3>Non-Goals (v1)</h3>
+  <ul>
+    <li>Auto-deduct สต็อกจากยอดขายผ่าน BOM (Phase 2)</li>
+    <li>ระบบสั่งซื้อ/PO ส่งซัพพลายเออร์</li>
+    <li>ตารางพนักงาน / เงินเดือน · POS ตัดเงินหน้าร้าน</li>
+    <li>แอป native (App Store/Play) — v1 เป็นเว็บ responsive</li>
+  </ul>
+
+  <h2 id="users">3 · Target Users + User Stories</h2>
+  <div class="tw"><table>
+    <thead><tr><th>ผู้ใช้</th><th>ต้องการ</th></tr></thead>
+    <tbody>
+    <tr><td><b>พนักงานหน้าร้าน</b><br><span class="tag">คนกรอก</span></td><td>เลือกสาขา+วันที่ แล้วกรอกขาย/ใช้ + คงเหลือบนมือถือได้เร็ว · ยกมาขึ้นเอง · เห็น variance แดงก่อนส่ง · กรอกเป็นหมวด ๆ</td></tr>
+    <tr><td><b>แพร</b><br><span class="tag">เจ้าของ</span></td><td>เห็นของ &lt; Par ต่อสาขา · "ต้องเติมกี่ชิ้น" · ยอดขายแยกช่องทาง · เทียบคงเหลือวันนี้ vs เมื่อวาน</td></tr>
+    <tr><td><b>ผู้ช่วยหลังบ้าน</b><br><span class="tag">อนาคต</span></td><td>วิเคราะห์ trend · forecast การสั่งของ</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="req">4 · Requirements</h2>
+  <h3><span class="pill p0">P0</span> Must-Have</h3>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>ความสามารถ</th><th>Acceptance Criteria (ย่อ)</th></tr></thead>
+    <tbody>
+    <tr><td>P0-1</td><td>เลือกสาขา + วันที่</td><td>เลือก NVP + วันที่ → เห็นรายการสาขานั้น + ยกมาของวันนั้น</td></tr>
+    <tr><td>P0-2</td><td>ฟอร์ม 114 รายการ จัดกลุ่ม 20 หมวด</td><td>ทุกรายการมี ยกมา(auto)/รับเข้า/ขาย-ใช้/คงเหลือ/หน่วย/หมายเหตุ; หมวดพับได้</td></tr>
+    <tr><td>P0-3</td><td>ยกมา carry-forward อัตโนมัติ</td><td>คงเหลือเมื่อวาน 6 → วันนี้ยกมา = 6 ไม่ต้องพิมพ์</td></tr>
+    <tr><td>P0-4</td><td>คำนวณคงเหลือ 2 หน่วย (ชิ้น+กรัม)</td><td>I=ยกมา+รับเข้า−ใช้ · J=MAX(...,0) real-time</td></tr>
+    <tr><td>P0-5</td><td>Variance check</td><td>ยกมา+รับเข้า−ขาย−ส่งคืน−คงเหลือ ≠ 0 → แดง + เตือน</td></tr>
+    <tr><td>P0-6</td><td>บันทึก upsert ตาม KEY วันที่|สาขา|รายการ</td><td>กรอกซ้ำวันเดิม update; วันใหม่ insert</td></tr>
+    <tr><td>P0-7</td><td>Mobile-responsive iPad/มือถือ</td><td>ปุ่มแตะง่าย ไม่ต้อง zoom คีย์บอร์ดตัวเลขขึ้นเอง</td></tr>
+    <tr><td>P0-8</td><td>มุมมอง Par / ต้องเติม ต่อสาขา</td><td>คงเหลือ vs Par + ต้องเติม = MAX(Par−เหลือ,0); <code>-</code> = ไม่เติม</td></tr>
+    <tr><td>P0-9</td><td>บันทึกยอดขายแยกช่องทาง</td><td>เงินสด+QR+EDC=In-store; Grab+Lineman=Delivery; รวมอัตโนมัติ</td></tr>
+    <tr><td>P0-10</td><td>รอบเติมแยกวัน/สาขา (7 special)</td><td>สาขา×วัน → กรอง 7 special: SND-เสาร์ / NVP-พุธ</td></tr>
+    <tr><td>P0-11</td><td>กรอกเต็ม + เศษ pack</td><td>Greek Yogurt = <code>1</code> box + <code>1500</code> g; เก็บ 2 หน่วยแยก</td></tr>
+    <tr><td>P0-12</td><td>Reconcile ถ้วยเสิร์ฟ + size-swap</td><td>ใช้จริง=ตั้งต้น+รับเข้า−เหลือ; พนง.กรอกถ้วยขายจริง; เช็กรายขนาด + กลุ่มรวม</td></tr>
+    <tr><td>P0-13</td><td>Config โหมดขายต่อ item</td><td>จาก Par Stock UOM(1=แกะ/2=เต็มกล่อง)+จำนวน/แพค; แก้หน้า Settings</td></tr>
+    <tr><td>P0-14</td><td>UOM + Sale Unit (แกะกล่อง)</td><td>เศษเกินเมื่อวานได้; รวม (แพ็ค×N+เศษ) ≤ ของที่มี → เกิน=เตือน</td></tr>
+    <tr><td>P0-15</td><td>กรอกสองทาง ขาย/ใช้ ↔ คงเหลือ</td><td>กรอกช่องไหน อีกช่องคำนวณให้ (แพ็ค+เศษ แยกกัน)</td></tr>
+    <tr><td>P0-16</td><td>กลุ่มเศษรวม (berries หลายขนาด)</td><td>แสดงทุกขนาด; เศษกรอก item เดียว(leader); เช็กยอดรวมกลุ่ม</td></tr>
+    <tr><td>P0-17</td><td>ถ้วยรวม ดึงจาก stock</td><td>ตั้งต้น/รับเข้า/คงเหลือ จากหน้าสต็อก (×50+เศษ); กรอกแค่ขายจริง</td></tr>
+    <tr><td>P0-18</td><td>Par target แสดงต่อ item</td><td>badge <code>Par X</code> ในหน้ากรอกสต็อก</td></tr>
+    <tr><td>P0-19</td><td>ส่งคืน/เสีย + หมายเหตุ</td><td>หักจากคงเหลือ; กรอก&gt;0 → เปิดช่องหมายเหตุ</td></tr>
+    </tbody>
+  </table></div>
+  <h3><span class="pill p1">P1</span> Nice-to-Have · <span class="pill p2">P2</span> Future</h3>
+  <div class="tw"><table>
+    <thead><tr><th>P1 (fast follow)</th><th>P2 (future)</th></tr></thead>
+    <tbody><tr>
+      <td>เทียบคงเหลือ vs เมื่อวาน · Dashboard + export · ประวัติแก้ไข · offline sync</td>
+      <td>BOM auto-deduct · ต้นทุน/กำไรต่อเมนู · forecast · PO อัตโนมัติ · reconcile ถ้วย auto (map เมนู→ถ้วย)</td>
+    </tr></tbody>
+  </table></div>
+
+  <h2 id="modules">5 · Module Breakdown (Dev)</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Module</th><th>Route</th><th>BFF</th><th>ครอบคลุม</th></tr></thead>
+    <tbody>
+    <tr><td><b>M0 Foundation</b></td><td>layout, nav</td><td>lib/db · lib/bff</td><td>scaffold · glass UI kit · Supabase+mock · seed</td></tr>
+    <tr><td><b>M1 Stock Entry</b></td><td><code>/stock</code></td><td><code>/api/stock</code></td><td>ฟอร์มสิ้นวัน · ยกมา · เต็ม+เศษ · variance · upsert</td></tr>
+    <tr><td><b>M2 Restock</b></td><td><code>/restock</code></td><td><code>/api/restock</code></td><td>Par · ต้องเติม · filter สาขา×วัน 7 special</td></tr>
+    <tr><td><b>M3 Sales</b></td><td><code>/sales</code></td><td><code>/api/sales</code></td><td>ยอดขายแยกช่องทาง · รวมอัตโนมัติ</td></tr>
+    <tr><td><b>M4 Cup Reconcile</b></td><td><code>/cups</code></td><td><code>/api/cups</code></td><td>reconcile ถ้วย · size-swap 2 ระดับ</td></tr>
+    <tr><td><b>M5 Dashboard</b></td><td><code>/</code></td><td><code>/api/dashboard</code></td><td>ของใกล้หมด · ยอดวันนี้ · variance alert</td></tr>
+    <tr><td><b>M6 Settings</b></td><td><code>/settings</code></td><td><code>/api/items/config</code></td><td>config ต่อ item: โหมดขาย · จำนวน/UOM · กลุ่มเศษรวม</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="data">6 · Data Model</h2>
+  <div class="mono">Branch        : SND, NVP (เพิ่มได้)
+Item          : id, ชื่อ, หมวด, หน่วยบรรจุ, is_special, is_cup, cup_size,
+                has_remainder(แกะ), grams_per_uom(จำนวน/แพค),
+                remainder_group(กลุ่มเศษรวม), sort   (112 · config แก้หน้า Settings)
+ParLevel      : item × branch → จำนวนขั้นต่ำ (null = "-" ไม่ stock)
+StockDaily    : วันที่ × สาขา × item → ยกมา, รับเข้า, ขาย/ใช้, ส่งคืน/เสีย,
+                คงเหลือ(แพ็ค+เศษ), หมายเหตุ, variance
+SalesDaily    : วันที่ × สาขา → เงินสด, QR, EDC, Grab, Lineman, รวม
+CupReconcile  : วันที่ × สาขา → ต่อขนาด(P/S/Bowl/14oz): ขายจริง(กรอก);
+                ตั้งต้น/รับเข้า/คงเหลือ ดึงจาก StockDaily ถ้วย (แพ็ค×50+เศษ)</div>
+  <p class="sub">รายละเอียด ERD + FK ดูในเอกสาร SA (SA_DESIGN.html)</p>
+
+  <h2 id="rules">7 · Business Rules</h2>
+  <h3>7.1 สูตรคำนวณสต็อก</h3>
+  <div class="mono">คงเหลือ (ชิ้น) = ยกมา + รับเข้า − ขาย/ใช้
+คงเหลือ (กรัม) = MAX(ยกมา + รับเข้า − ใช้, 0)
+Variance       = ยกมา + รับเข้า − ขาย − ส่งคืน − คงเหลือ   (ต้อง = 0)
+ยกมาวันนี้     = คงเหลือวันก่อนหน้าล่าสุด</div>
+  <h3>7.2 รอบเข้าของแยกวัน/สาขา ⭐</h3>
+  <p>7 รายการ special (Shake แช่แข็ง · Wake up call · Energy Sip · Yellow Madness · Ready to Glow · R-ACAI Bowl · S-ACAI Cup) เข้า <b>สาขาละวันเดียว/สัปดาห์</b>:</p>
+  <div class="tw"><table><thead><tr><th>7 special</th><th>SND</th><th>NVP</th></tr></thead>
+    <tbody><tr><td>ตามด้านบน</td><td><span class="pill p1">เสาร์</span></td><td><span class="pill p1">พุธ</span></td></tr></tbody></table></div>
+  <p>รายการอื่น (~103) เข้าทั้งพุธ+เสาร์ · ต้องเผื่อ Par ของ 7 special ให้พอถึงรอบถัดไป (7 วัน)</p>
+  <h3>7.3 กรอกเต็ม + เศษ pack (P0-11)</h3>
+  <p>รายการที่ขายเป็นแพ็ค/กล่องแต่เปิดใช้ทีละส่วน กรอก 2 ค่า: จำนวนเต็ม (ที่ยังไม่เปิด) + เศษที่เหลือ (กรัม) — เช่น Greek Yogurt = <code>1</code> box + <code>1500</code> g; เก็บ 2 หน่วยแยก carry-forward อิสระ</p>
+  <h3>7.4 Reconcile ถ้วยเสิร์ฟ (P0-12)</h3>
+  <div class="mono">ถ้วยใช้จริง (ต่อขนาด)  = ตั้งต้นวัน + รับเข้า − คงเหลือ
+Reconcile (ต่อขนาด)     = ใช้จริง − ขายจริง(พนง.กรอก)
+Reconcile (กลุ่มรวม)    = Σใช้จริง − Σขาย   ← เผื่อสลับขนาด</div>
+  <p>เช็ก 2 ระดับ: (1) รายขนาด flag ถ้าต่าง · (2) กลุ่มรวม — ถ้ารวมตรงแต่รายขนาดเพี้ยน = mark "น่าจะสลับขนาด" (เตือนเบา)</p>
+
+  <h2 id="metrics">8 · Success Metrics</h2>
+  <div class="tw"><table><thead><tr><th>Leading (เร็ว)</th><th>Lagging (ช้า)</th></tr></thead>
+    <tbody><tr>
+      <td>เวลากรอก/สาขา ≤5 นาที · % วันกรอกครบ ≥95% · variance แดงหลุด →0</td>
+      <td>เหตุการณ์ของขาด/เดือน ↓ · มูลค่าของหมดอายุ/เกิน ↓ · เวลาแพรจัดการ/สัปดาห์ ↓</td>
+    </tr></tbody></table></div>
+
+  <h2 id="open">9 · Open Questions / Decisions</h2>
+  <div class="done"><b>✅ ปิดแล้ว (2026-07-15):</b> <code>-</code> Par = ไม่เติม · Par ปรับตามช่วงได้ ใช้ชุดปัจจุบันก่อน · size S ลดครึ่งเฉพาะ Acai · Nuts Combo (ตัด Pistachio, 15g) / Choco Banana (1/2) แก้แล้ว · 7 special แยกวัน/สาขา · เต็ม+เศษ pack · ถ้วยขายจริง = พนง.กรอกเอง (แบบ ก)</div>
+  <div class="q"><b>❓ ยังรอแพร:</b>
+    <ul>
+      <li><b>ปีโป้/ปีโป้ลิ้นจี่</b> (Pepo Shake): ปีโป้เป็นไอติมแท่ง หน่วยควรเป็น "แท่ง" ไม่ใช่ "ฝา/กรัม"? 1 แก้วกี่แท่ง? · ปีโป้ vs ปีโป้ลิ้นจี่ = คนละรสสั่งแยก?</li>
+      <li><b>ที่เก็บข้อมูล</b>: Supabase (แนะนำ — sync หลายสาขา) — v1 ใช้ Supabase + mock fallback ตอน dev</li>
+      <li>สาขา (SND/NVP เท่านั้น?) · ยกมา (วันล่าสุด vs เมื่อวานเป๊ะ) · import ประวัติเก่า (~8,700 แถว)?</li>
+    </ul>
+  </div>
+
+  <h2 id="road">10 · Roadmap</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Phase</th><th>ขอบเขต</th></tr></thead>
+    <tbody>
+    <tr><td><b>1 (v1, P0)</b></td><td>ฟอร์มกรอก mobile + carry-forward + คำนวณ + Variance + Par/เติมของ + ยอดขาย + reconcile ถ้วย</td></tr>
+    <tr><td><b>2 (P1)</b></td><td>Dashboard + เทียบวัน + offline sync + ประวัติแก้ไข</td></tr>
+    <tr><td><b>3 (P2)</b></td><td>BOM auto-deduct + ต้นทุน/กำไร + forecast + PO + reconcile ถ้วย auto</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2 id="v11">11 · v1.1 — สร้างจริง + ปรับตามการใช้งาน (ล่าสุด)</h2>
+  <p class="sub">รอบพัฒนาจริงหลัง v1.0 · ทุกข้อ verify ในเบราว์เซอร์ + deploy production แล้ว</p>
+  <div class="card">
+    <h3>13.1 Config โหมดขายต่อ item (P0-13)</h3>
+    <p>อ่าน <b>Par Stock UOM</b> (1=แกะ / 2=เต็มกล่อง) + <b>จำนวน/แพค</b> → 46 รายการเป็นแกะ (Greek Yogurt 1kg=1000g, Oreo=454g, Cup=50 ชิ้น) · แก้รายตัวหน้า <b>Settings</b> เก็บลง Supabase</p>
+    <h3>13.2 UOM + Sale Unit / กรอกสองทาง (P0-14, P0-15)</h3>
+    <p>เศษคงเหลือ<b>เกินเมื่อวานได้</b> (แกะกล่องใหม่) แต่ <code>รวม(แพ็ค×N+เศษ) ≤ ของที่มี</code> → เกิน=เตือน · ขาย/ใช้ ↔ คงเหลือ กรอกช่องไหนก็ได้</p>
+    <h3>13.3 กลุ่มเศษรวม (P0-16)</h3>
+    <p>Strawberry/Blueberry หลายขนาด เศษปนกัน → แสดงทุกขนาด, เศษกรอก <b>item เดียว (leader)</b> กันซ้ำ, เช็กยอดรวมกลุ่ม (Σกล่อง×ขนาด+เศษ) ≤ ของเมื่อวาน</p>
+    <h3>13.4 ถ้วย — ดึงจาก stock (P0-12, P0-17)</h3>
+    <p>Cup = 50 ชิ้น/แพ็ค · หน้าสต็อกโชว์ "รวม X ชิ้น" ตลอด · หน้า Reconcile <b>ดึงตั้งต้น/รับเข้า/คงเหลือจาก stock</b> อัตโนมัติ กรอกแค่ขายจริง + จับสลับขนาด</p>
+    <h3>13.5 Par badge + ส่งคืน/เสีย + หมายเหตุ (P0-18, P0-19)</h3>
+    <p>ทุก item โชว์ <code>Par X</code> · ช่อง ส่งคืน/เสีย หักจาก stock ทันที · กรอก&gt;0 เปิดช่องหมายเหตุ (บันทึก returned+note)</p>
+    <h3>13.6 Deploy / เทคนิคที่แก้</h3>
+    <p>getMeta คืนว่างบน Vercel → client สด + column ชัด · getRestock คงเหลือ 0 → คิดผ่าน getStock · RLS off (BFF service role) · seed opening stock จาก YC_Stock_Tracker.xlsx (2026-07-13, 221 แถว)</p>
+    <div class="mono">Migrations: 0001_init → seed.sql → seed-items.sql → seed-stock.sql
+           → 0002_fix_rls → 0003_item_config → 0005_remainder_group</div>
+  </div>
+</main>
+</div>
+<script>
+const links=[...document.querySelectorAll('aside a[href^="#"]')];
+const map=links.map(a=>({a,el:document.querySelector(a.getAttribute('href'))})).filter(x=>x.el);
+function onScroll(){let cur=map[0];for(const m of map){if(m.el.getBoundingClientRect().top<120)cur=m;}links.forEach(a=>a.classList.remove('on'));if(cur)cur.a.classList.add('on');}
+document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+</script>
+</body></html>

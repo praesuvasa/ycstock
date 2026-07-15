@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YC Stock App — PRD Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#F2565C; --blue:#84D7FF; --orange:#FF8C33;
+    --black:#010101; --white:#FFFFFF; --cream:#FBF7F0;
+    --ink:#2A2A2E; --muted:#7A7A82; --line:#ECE7DE;
+    --ok:#2FA36B; --okbg:#E7F6EE; --warn:#E0483F; --warnbg:#FCE9E7;
+    --shadow:0 6px 24px rgba(20,15,10,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:'Kanit',system-ui,sans-serif;background:var(--cream);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-weight:600;line-height:1.25;margin:0 0 .4em}
+  h2{font-size:1.5rem} h3{font-size:1.15rem;margin-top:1.4em}
+  p{margin:.4em 0}
+  code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:.05em .4em;font-size:.85em;font-family:ui-monospace,Menlo,monospace}
+  a{color:var(--red);text-decoration:none} a:hover{text-decoration:underline}
+
+  /* header */
+  header{position:sticky;top:0;z-index:50;background:rgba(251,247,240,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .hwrap{max-width:1080px;margin:0 auto;padding:14px 20px}
+  .brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--red),var(--orange));display:grid;place-items:center;color:#fff;font-weight:700;font-size:1.1rem;flex-shrink:0}
+  .brand h1{font-size:1.15rem;margin:0}
+  .brand .sub{font-size:.78rem;color:var(--muted);font-weight:300}
+  .tag{font-size:.68rem;background:#fff;border:1px solid var(--line);border-radius:99px;padding:2px 9px;color:var(--muted)}
+  nav{display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  nav button{font-family:inherit;white-space:nowrap;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:99px;padding:7px 14px;font-size:.85rem;cursor:pointer;transition:.15s;font-weight:400}
+  nav button:hover{border-color:var(--orange)}
+  nav button.active{background:var(--black);color:#fff;border-color:var(--black)}
+
+  main{max-width:1080px;margin:0 auto;padding:26px 20px 80px}
+  section{display:none;animation:fade .3s ease}
+  section.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);margin:16px 0}
+  .lead{font-size:1.05rem;color:var(--ink)}
+  .kicker{display:inline-block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--red);font-weight:600;margin-bottom:.3em}
+  .pill{display:inline-block;font-size:.72rem;border-radius:99px;padding:3px 10px;font-weight:500}
+  .p-ok{background:var(--okbg);color:var(--ok)} .p-warn{background:var(--warnbg);color:var(--warn)}
+  .p-blue{background:#E6F6FF;color:#1583c0} .p-org{background:#FFF0E3;color:#c96a1e}
+  .grid{display:grid;gap:14px}
+  .g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:720px){.g2,.g3{grid-template-columns:1fr}}
+
+  table{border-collapse:collapse;width:100%;font-size:.86rem;margin:.5em 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#FAF5EC;font-weight:500;color:var(--muted);font-size:.78rem;position:sticky;top:0}
+  tbody tr:hover{background:#FCFAF5}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  .menu-name{font-weight:600;color:var(--red)}
+  .base-row td{background:#FFF7F0}
+
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0;font-size:.85rem}
+  .flow .box{background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:10px 14px;text-align:center;min-width:120px}
+  .flow .box b{display:block;font-size:.9rem} .flow .box span{font-size:.72rem;color:var(--muted)}
+  .flow .arw{color:var(--orange);font-weight:700;font-size:1.2rem}
+
+  .review-banner{border-left:4px solid var(--orange);background:#FFF8F1;border-radius:0 12px 12px 0;padding:12px 16px;margin:8px 0}
+  .q{background:#F4FAFF;border:1px dashed var(--blue);border-radius:10px;padding:8px 12px;font-size:.84rem;margin:8px 0}
+  .q b{color:#1583c0}
+
+  ul.clean{margin:.4em 0;padding-left:1.1em} ul.clean li{margin:.25em 0}
+
+  /* phone mock */
+  .stage{display:flex;gap:24px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  .phone{width:340px;max-width:100%;background:#fff;border:10px solid #1b1b1f;border-radius:38px;overflow:hidden;box-shadow:0 20px 50px rgba(20,15,10,.22);flex-shrink:0}
+  .phone .notch{height:26px;background:#1b1b1f;position:relative}
+  .phone .notch::after{content:"";position:absolute;left:50%;top:6px;transform:translateX(-50%);width:120px;height:14px;background:#1b1b1f;border-radius:0 0 12px 12px}
+  .screen{height:620px;overflow-y:auto;background:var(--cream)}
+  .screen::-webkit-scrollbar{width:0}
+  .appbar{background:var(--white);border-bottom:1px solid var(--line);padding:12px 14px;position:sticky;top:0;z-index:5}
+  .appbar .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .appbar h4{margin:0;font-size:1rem}
+  .seg{display:flex;gap:6px;margin-top:8px}
+  .seg .chip{flex:1;text-align:center;font-size:.8rem;padding:6px;border-radius:9px;border:1px solid var(--line);cursor:pointer;background:#fff}
+  .seg .chip.on{background:var(--black);color:#fff;border-color:var(--black)}
+  .metastrip{display:flex;gap:8px;font-size:.72rem;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+  .metastrip b{color:var(--ink)}
+  .appbody{padding:10px 12px}
+  .acc{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .acc>.head{display:flex;justify-content:space-between;align-items:center;padding:11px 13px;cursor:pointer;font-size:.9rem;font-weight:500}
+  .acc>.head .cnt{font-size:.7rem;color:var(--muted);font-weight:400}
+  .acc>.body{display:none;padding:4px 10px 10px;border-top:1px solid var(--line)}
+  .acc.open>.body{display:block}
+  .acc.open>.head{background:#FAF5EC}
+  .item{padding:9px 2px;border-bottom:1px solid #F3EEE4}
+  .item:last-child{border-bottom:none}
+  .item .nm{font-size:.86rem;display:flex;justify-content:space-between;gap:6px}
+  .item .nm .u{font-size:.7rem;color:var(--muted)}
+  .fields{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+  .fld{display:flex;flex-direction:column;gap:2px}
+  .fld label{font-size:.62rem;color:var(--muted)}
+  .fld input{width:100%;border:1px solid var(--line);border-radius:8px;padding:6px 4px;font-family:inherit;font-size:.85rem;text-align:center;background:#fff}
+  .fld input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 2px #FFE7D2}
+  .fld input.ro{background:#F5F2EB;color:var(--muted)}
+  .fld input.res{background:#EAF6FF;font-weight:600;color:#0f6ea3}
+  .varbar{display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:.72rem;padding:4px 8px;border-radius:8px}
+  .varbar.ok{background:var(--okbg);color:var(--ok)} .varbar.bad{background:var(--warnbg);color:var(--warn)}
+  .savebar{position:sticky;bottom:0;background:linear-gradient(#fff8,#fff);padding:10px 12px;border-top:1px solid var(--line)}
+  .btn{width:100%;background:var(--red);color:#fff;border:none;border-radius:12px;padding:12px;font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+
+  /* restock rows */
+  .rs{display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid #F3EEE4;font-size:.84rem}
+  .rs .nm{flex:1}
+  .rs .n{width:42px;text-align:center;font-variant-numeric:tabular-nums}
+  .rs .need{font-weight:700}
+  .rs .need.z{color:var(--muted);font-weight:400}
+  .rs .need.p{color:var(--warn)}
+  .sales .row{display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #F3EEE4;font-size:.86rem;align-items:center}
+  .sales input{width:96px;border:1px solid var(--line);border-radius:8px;padding:6px;text-align:right;font-family:inherit}
+  .sales .tot{font-weight:700;color:var(--red)}
+
+  .capt{text-align:center;font-size:.78rem;color:var(--muted);margin-top:10px;max-width:340px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.76rem;color:var(--muted);margin-top:6px}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:4px;vertical-align:-1px;margin-right:4px}
+  .foot{text-align:center;color:var(--muted);font-size:.78rem;margin-top:30px}
+  .hint{font-size:.78rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hwrap">
+    <div class="brand">
+      <div class="logo">YC</div>
+      <div>
+        <h1>ระบบจัดการสต็อก — PRD Review</h1>
+        <div class="sub">Yogurt Culture · หน้าจอทบทวนก่อนสร้างจริง</div>
+      </div>
+      <span class="tag">Draft v0.1</span>
+      <span class="tag">2 สาขา: SND · NVP</span>
+    </div>
+    <nav id="nav"></nav>
+  </div>
+</header>
+
+<main>
+  <!-- ============ OVERVIEW ============ -->
+  <section id="overview" class="active">
+    <div class="card">
+      <span class="kicker">ภาพรวม</span>
+      <h2>สรุปสั้น ก่อนเริ่มอ่าน</h2>
+      <p class="lead">เราจะยก "ระบบสต็อก Excel + สคริปต์" ปัจจุบัน ขึ้นเป็น <b>เว็บแอปกรอกผ่าน iPad/มือถือ</b> — พนักงานกรอกสต็อกสิ้นวัน ระบบยกยอด+คำนวณ+เช็กความถูกต้องให้เอง และบอกเจ้าของว่ารอบเติมของ (พุธ/เสาร์) ต้องเติมอะไรเท่าไร</p>
+      <div class="review-banner">
+        <b>หน้านี้ให้แพร review 3 อย่าง</b> ก่อนทีมลงมือ — กดแท็บด้านบนได้เลย:
+        <ul class="clean">
+          <li><span class="pill p-org">Review #1</span> &nbsp;สูตรเมนู (BOM) — ผมถอดออกมาถูกไหม</li>
+          <li><span class="pill p-org">Review #2</span> &nbsp;Par Stock — เข้าใจเรื่อง reserve + เติมพุธ/เสาร์ ถูกไหม</li>
+          <li><span class="pill p-org">Review #3</span> &nbsp;Mock Screen — ฟอร์มกรอกบนมือถือ ใช่แบบที่ต้องการไหม</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>ข้อมูลไหลยังไง (ตอนนี้ → หลังทำแอป)</h3>
+      <p class="hint">ปัจจุบัน (Excel):</p>
+      <div class="flow">
+        <div class="box"><b>📝 ฟอร์มกรอก</b><span>พนักงาน 1 สาขา/วัน</span></div>
+        <span class="arw">→</span>
+        <div class="box"><b>รันสคริปต์</b><span>banthuek.py มือ</span></div>
+        <span class="arw">→</span>
+        <div class="box"><b>ฐานข้อมูล</b><span>~8,700 แถว</span></div>
+        <span class="arw">→</span>
+        <div class="box"><b>copy/paste</b><span>ชีตสะสม (มือ)</span></div>
+      </div>
+      <p class="hint" style="margin-top:14px">หลังทำแอป (เป้าหมาย):</p>
+      <div class="flow">
+        <div class="box" style="border-color:var(--orange)"><b>📱 กรอกบนมือถือ</b><span>พนักงาน</span></div>
+        <span class="arw">→</span>
+        <div class="box" style="border-color:var(--orange)"><b>ระบบทำเองหมด</b><span>ยกยอด+คำนวณ+เช็ก</span></div>
+        <span class="arw">→</span>
+        <div class="box" style="border-color:var(--orange)"><b>เจ้าของเห็นสด</b><span>สต็อก+ต้องเติม+ยอดขาย</span></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card" style="margin:0">
+        <h3>สูตรคำนวณหลัก</h3>
+        <ul class="clean">
+          <li>คงเหลือ (ชิ้น): <code>ยกมา + รับเข้า − ขาย/ใช้</code></li>
+          <li>คงเหลือ (กรัม): <code>MAX(ยกมา + รับเข้า − ใช้, 0)</code></li>
+          <li>Variance: <code>ยกมา+รับเข้า−ขาย−ส่งคืน−คงเหลือ</code> → ต้อง = 0</li>
+          <li>ยกมาวันนี้ = คงเหลือวันก่อนหน้า (อัตโนมัติ)</li>
+        </ul>
+      </div>
+      <div class="card" style="margin:0">
+        <h3>ขนาดข้อมูลจริง</h3>
+        <ul class="clean">
+          <li><b>114</b> รายการสต็อก ใน <b>20</b> หมวด</li>
+          <li><b>~110</b> รายการมีระดับ Par ต่อสาขา</li>
+          <li><b>7</b> หมวดเมนู ใน BOM</li>
+          <li><b>2</b> สาขา (SND, NVP) — เพิ่มได้</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DATA MODEL ============ -->
+  <section id="data">
+    <div class="card">
+      <span class="kicker">โครงสร้างข้อมูล</span>
+      <h2>Data Model — entity หลัก</h2>
+      <p>ระบบจะเก็บข้อมูลเป็น 6 กลุ่มนี้ (v1 ใช้ BOM เป็น reference เฉย ๆ ยังไม่ตัดสต็อกอัตโนมัติ)</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Entity</th><th>เก็บอะไร</th><th>คีย์ / ความสัมพันธ์</th></tr></thead>
+          <tbody>
+            <tr><td><b>Branch</b> สาขา</td><td>SND, NVP (เพิ่มได้)</td><td>รหัสสาขา</td></tr>
+            <tr><td><b>Item</b> รายการสต็อก</td><td>ชื่อ, หมวด, หน่วยบรรจุ</td><td>114 รายการ</td></tr>
+            <tr><td><b>ParLevel</b> ขั้นต่ำ</td><td>จำนวนขั้นต่ำที่ต้อง reserve</td><td>item × branch</td></tr>
+            <tr><td><b>StockDaily</b> สต็อกสิ้นวัน</td><td>ยกมา, รับเข้า, ขาย/ใช้, คงเหลือ(ชิ้น+กรัม), ส่งคืน, หมายเหตุ, variance</td><td>วันที่ × สาขา × item</td></tr>
+            <tr><td><b>SalesDaily</b> ยอดขาย</td><td>เงินสด, QR, EDC, Grab, Lineman, รวม</td><td>วันที่ × สาขา</td></tr>
+            <tr><td><b>Menu + BOM</b> สูตร</td><td>menu → [วัตถุดิบ, จำนวน, หน่วย]</td><td>reference (v1)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="q"><b>❓ ต้องเคาะ:</b> เก็บข้อมูลที่ไหน — <b>localStorage</b> (ง่าย เครื่องเดียว) หรือ <b>backend</b> (เช่น Supabase, หลายเครื่อง/สาขา sync กันได้)? เรื่องนี้บล็อกการเริ่ม Dev</div>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW #1 : BOM ============ -->
+  <section id="bom">
+    <div class="card">
+      <span class="kicker">Review #1</span>
+      <h2>สูตรเมนู (BOM) — อ่านมาถูกไหม?</h2>
+      <p>BOM มี <b>7 หมวด โครงเดียวกัน</b>: เมนู → วัตถุดิบ + จำนวน + หน่วย ด้านล่างคือทุกเมนูที่ผมถอดจากไฟล์ <code>YC BOM .xlsx</code> — <b>ช่วยกวาดตาว่าตรงกับสูตรจริงไหม</b></p>
+      <div class="legend"><span><span class="sw" style="background:#FFF7F0;border:1px solid var(--line)"></span>แถวฐาน (base)</span> <span><span class="sw" style="background:var(--red)"></span>ชื่อเมนู</span></div>
+      <div id="bomBox"></div>
+      <div class="review-banner"><b>✅ แก้ตามแพร (2026-07-15)</b>
+        <ul class="clean">
+          <li><b>Nuts Combo Delight</b> — ตัด Pistachio ออก · Walnut / Pecan / Almond = อย่างละ <b>15g</b></li>
+          <li><b>R- Choco Banana</b> — Banana = <b>1/2 ลูก</b></li>
+          <li><b>"ไซส์ S ลดทุกอย่างครึ่งนึง"</b> — เฉพาะ <b>หมวด Acai</b></li>
+        </ul>
+      </div>
+      <div class="q"><b>❓ ขอยืนยันใหม่ให้ชัด — เมนู Pepo Shake:</b> ในไฟล์เขียน <code>ปีโป้ 3 ฝา</code> + <code>ปีโป้ลิ้นจี่ 30 g</code> — <b>(1)</b> ปีโป้เป็นไอติมแท่ง หน่วยควรเป็น "แท่ง/ซอง" ไม่ใช่ "ฝา/กรัม" ใช่ไหม แล้ว 1 แก้วใช้กี่แท่ง? &nbsp;<b>(2)</b> ปีโป้ กับ ปีโป้ลิ้นจี่ = คนละรส สั่งแยกกันใช่ไหม?</div>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW #2 : PAR ============ -->
+  <section id="par">
+    <div class="card">
+      <span class="kicker">Review #2</span>
+      <h2>Par Stock — ยอด reserve + รอบเติม พุธ/เสาร์</h2>
+      <p class="lead">ความเข้าใจของผม: <b>Par = ยอดขั้นต่ำที่ต้องมี (reserve) ต่อสาขา</b> · เติมของ <b>สัปดาห์ละ 2 ครั้ง (ทุกวันพุธ + เสาร์)</b> · แต่ละรอบต้องเติมให้สต็อกกลับมา <b>≥ Par</b></p>
+      <div class="card" style="background:#FFF8F1;border-color:#FFE0C7">
+        <b>ตรรกะที่ระบบจะใช้คำนวณ "ต้องเติมเท่าไร"</b>
+        <p style="font-size:1.05rem;margin:.5em 0"><code>ต้องเติม = MAX( Par(สาขา) − คงเหลือปัจจุบัน , 0 )</code></p>
+        <p class="hint">ลองเล่น: ปรับ "คงเหลือ" แล้วดูช่อง "ต้องเติม" อัปเดตสด (จำลองรอบพุธ/เสาร์ สาขา NVP)</p>
+        <div id="parCalc"></div>
+      </div>
+      <div class="card" style="background:#F4FAFF;border-color:#BEE7FF">
+        <span class="pill p-blue">กฎใหม่ 2026-07-15</span>
+        <h3 style="margin-top:.5em">⭐ รอบเข้าของแยกวัน/สาขา — 7 รายการ special</h3>
+        <p>รายการแช่แข็ง/พรีแพ็ก 7 รายการนี้เข้า <b>สาขาละวันเดียว/สัปดาห์</b> (ไม่ใช่ทั้งพุธและเสาร์):</p>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>7 รายการ special</th><th>SND เข้า</th><th>NVP เข้า</th></tr></thead>
+          <tbody><tr>
+            <td>Shake (แช่แข็ง) · Wake up call · Energy Sip · Yellow Madness · Ready to Glow · R-ACAI Bowl · S-ACAI Cup (mini)</td>
+            <td><span class="pill p-org">วันเสาร์</span></td>
+            <td><span class="pill p-org">วันพุธ</span></td>
+          </tr></tbody>
+        </table></div>
+        <p class="hint">รายการอื่น (~103) เข้าได้ทั้งพุธ+เสาร์ · ลองสลับ สาขา×วัน ในหน้า Mock "ต้องเติม" (Review #3) ดูการกรอง</p>
+      </div>
+      <h3>ตาราง Par เต็ม (จากไฟล์จริง)</h3>
+      <p class="hint"><code>-</code> = สาขานั้นไม่ต้อง stock รายการนี้</p>
+      <div class="tbl-wrap" style="max-height:460px;overflow-y:auto">
+        <table id="parTable">
+          <thead><tr><th>รายการ</th><th>หน่วย</th><th class="num">Par SND</th><th class="num">Par NVP</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="review-banner"><b>✅ ยืนยันตามแพร (2026-07-15):</b> <code>-</code> = <b>ไม่ต้องเติมเลย</b> (สาขานั้นไม่ stock) · Par <b>ปรับได้ตามช่วง</b> แต่ตอนนี้ใช้ชุดนี้ก่อน · เพิ่มกฎรอบเข้าของแยกวัน/สาขา (ด้านบน)</div>
+    </div>
+  </section>
+
+  <!-- ============ REVIEW #3 : MOCK ============ -->
+  <section id="mock">
+    <div class="card">
+      <span class="kicker">Review #3</span>
+      <h2>Mock Screens — หน้าจอจำลอง (กดเล่นได้)</h2>
+      <p>3 หน้าจอหลัก ออกแบบ <b>mobile-first สำหรับ iPad/มือถือ</b> — กดสลับด้วยแถบบนสุดของมือถือ · ทุกช่องคำนวณสดจริง</p>
+      <div class="stage">
+        <div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="appbar">
+                <div class="row"><h4 id="scrTitle">กรอกสต็อกสิ้นวัน</h4><span class="pill p-blue" id="scrDate">15/07/2026</span></div>
+                <div class="seg">
+                  <div class="chip on" data-scr="fill" onclick="switchScr('fill',this)">📝 กรอกสต็อก</div>
+                  <div class="chip" data-scr="restock" onclick="switchScr('restock',this)">📦 ต้องเติม</div>
+                  <div class="chip" data-scr="sales" onclick="switchScr('sales',this)">💰 ยอดขาย</div>
+                </div>
+                <div class="metastrip" id="fillMeta">
+                  <span>สาขา <b>NVP</b></span><span>กรอกแล้ว <b id="doneCnt">0</b>/<b id="totCnt">0</b></span><span>⚠️ ยอดไม่ตรง <b id="badCnt">0</b></span>
+                </div>
+              </div>
+              <div class="appbody" id="scrBody"></div>
+              <div class="savebar" id="saveBar"><button class="btn" onclick="fakeSave()">บันทึกสต็อกวันนี้</button></div>
+            </div>
+          </div>
+          <div class="capt" id="mockCapt">แตะหัวข้อหมวดเพื่อกางรายการ · กรอก "รับเข้า / ขาย-ใช้" แล้ว "คงเหลือ" กับแถบ Variance คำนวณเอง</div>
+        </div>
+        <div class="card" style="max-width:340px;margin-top:0">
+          <h3 style="margin-top:0">รายละเอียดดีไซน์</h3>
+          <ul class="clean" style="font-size:.88rem">
+            <li><b>ยกมา</b> เทา = ระบบเติมให้จากเมื่อวาน (แก้ไม่ได้)</li>
+            <li><b>คงเหลือ</b> ฟ้า = คำนวณอัตโนมัติ (แก้ทับได้ถ้านับจริงต่าง)</li>
+            <li>ช่องตัวเลขเรียกคีย์บอร์ดตัวเลขบน iPad/มือถือ</li>
+            <li>Variance แดง = เตือนก่อนบันทึก</li>
+            <li>หมวดพับได้ (accordion) — ไม่งงกับ 114 รายการ</li>
+            <li>ปุ่มบันทึก sticky ล่างจอ</li>
+            <li>สี/ฟอนต์ตามแบรนด์ (Kanit · แดง/ฟ้า/ส้ม)</li>
+          </ul>
+          <div class="legend">
+            <span><span class="sw" style="background:#F5F2EB"></span>อ่านอย่างเดียว</span>
+            <span><span class="sw" style="background:#EAF6FF"></span>คำนวณอัตโนมัติ</span>
+            <span><span class="sw" style="background:#fff;border:1px solid var(--line)"></span>พนักงานกรอก</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NEXT ============ -->
+  <section id="next">
+    <div class="card">
+      <span class="kicker">ทำอะไรต่อ</span>
+      <h2>Next Steps + คำถามที่รอแพรตอบ</h2>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>#</th><th>งาน</th><th>เจ้าของ</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Review PRD + ตอบคำถามค้าง</td><td><span class="pill p-warn">แพร</span></td></tr>
+            <tr><td>2</td><td>ยืนยันตาราง BOM / Par / ฟอร์ม ในหน้านี้</td><td><span class="pill p-warn">แพร</span></td></tr>
+            <tr><td>3</td><td>เคาะที่เก็บข้อมูล (localStorage vs Supabase)</td><td>แพร + yc-sa</td></tr>
+            <tr><td>4</td><td>ทำ design/spec ละเอียด</td><td><span class="pill p-blue">yc-sa</span></td></tr>
+            <tr><td>5</td><td>build Phase 1</td><td><span class="pill p-org">yc-dev</span></td></tr>
+            <tr><td>6</td><td>test ตาม acceptance criteria</td><td class="p-ok">yc-tester</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>คำถามที่รอแพร (Open Questions)</h3>
+      <ul class="clean">
+        <li>สาขาจริงตอนนี้ SND/NVP เท่านั้น หรือมี Sinthom ด้วย? เพิ่มสาขาบ่อยไหม</li>
+        <li>ยกมา = คงเหลือ "วันล่าสุดที่กรอก" หรือ "เมื่อวานเป๊ะ"?</li>
+        <li>ยอดขายกรอกมือต่อ หรืออยากดึงจาก POS/Grab/Lineman?</li>
+        <li>ต้อง import ประวัติเก่า (~8,700 แถว) หรือเริ่มใหม่?</li>
+        <li>Par ต้องแยกตามวัน (พุธ/เสาร์) ไหม · ชื่อรายการที่ยังไม่นิ่ง ขอ final list</li>
+      </ul>
+      <p class="hint">เอกสารเต็ม: <code>04_Operations/specs/stock-management/PRD.md</code> · ที่มาข้อมูล: <code>BackOffice/_OVERVIEW.md</code></p>
+    </div>
+    <div class="foot">Yogurt Culture · Stock Management PRD · จัดทำโดยทีมพัฒนา (PM + yc-ba/sa/dev/tester)</div>
+  </section>
+</main>
+
+<script>
+/* ---------- NAV ---------- */
+const SECTIONS=[["overview","🏠 ภาพรวม"],["data","🗂️ Data Model"],["bom","🥣 Review #1 · สูตรเมนู"],["par","📦 Review #2 · Par Stock"],["mock","📱 Review #3 · Mock Screen"],["next","✅ ทำอะไรต่อ"]];
+const nav=document.getElementById('nav');
+SECTIONS.forEach(([id,label],i)=>{const b=document.createElement('button');b.textContent=label;if(i===0)b.classList.add('active');b.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo({top:0,behavior:'smooth'});};nav.appendChild(b);});
+
+/* ---------- BOM DATA ---------- */
+const BOM=[
+ {cat:"YOGURT CREATIONS", note:"โบว์ล · ฐาน Greek Yogurt 150g", menus:[
+   ["Crunch Berry Bliss",[["Greek Yogurt",150,"g"],["Strawberry",20,"g"],["Blueberry",20,"g"],["Granola",20,"g"],["Honey",15,"g"],["Flax Seed",1,"g"],["Chia Seed",1,"g"]]],
+   ["Rise and Shine",[["Greek Yogurt",150,"g"],["Banana",0.5,"ลูก"],["Strawberry",20,"g"],["Granola",20,"g"],["Peanut Butter",15,"g"],["Chia Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+   ["Nuts Combo Delight",[["Greek Yogurt",150,"g"],["Walnut",15,"g"],["Pecan",15,"g"],["Almond",15,"g"],["Honey",15,"g"],["Chia Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+   ["Apple Cinnamon",[["Greek Yogurt",150,"g"],["Apple Cinnamon",45,"g"],["Granola",20,"g"],["Caramel",15,"g"],["Chia Seed",1,"g"]]],
+ ]},
+ {cat:"BUILD YOUR OWN", note:"เลือกฐาน + ท็อปปิ้งเอง", menus:[
+   ["Cup S (ฐาน)",[["Greek Yogurt",150,"g"]]],
+   ["Cup P (ฐาน)",[["Greek Yogurt",80,"g"]]],
+   ["Overnight Oats (ฐาน)",[["Overnight Oats",150,"g"]]],
+   ["ท็อปปิ้งที่เลือกได้",[["Banana","1/2","ลูก"],["Apple Cinnamon",30,"g"],["Blueberry",25,"g"],["Strawberry",25,"g"],["Malted Cornflakes",30,"g"],["Granola Chunks",20,"g"],["Cacao Nibs",2,"g"],["Chia Seed",2,"g"],["Flax Seed",2,"g"],["Coconut Chips",10,"g"],["Almond",20,"g"],["Walnut",20,"g"],["Pecan",20,"g"],["Mixed Nuts",20,"g"],["Oreo Crumbs",15,"g"],["Cookies Crumbs",15,"g"],["Chocolate Chips",10,"g"],["Grape Konjac",40,"g"],["Honey Jelly",40,"g"],["Biscoff Sauce",15,"g"],["Salted Caramel",20,"g"],["Honey",20,"g"],["Peanut Butter",20,"g"],["Strawberry Jam",30,"g"],["Chocolate Fudge",20,"g"],["Greek Yogurt",45,"g"],["Flavoured Greek Yogurt",45,"g"]]],
+ ]},
+ {cat:"YOGURT SHAKE", note:"ฐาน Shake แช่แข็ง 1 ถ้วย + ส่วนผสม", menus:[
+   ["Plain Yogurt Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"]]],
+   ["Biscoff Yogurt Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"],["Biscoff Spread",20,"g"],["Biscoff Crumbs",20,"g"]]],
+   ["Peanutbutter Jam Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"],["Peanut Butter",20,"g"],["Strawberry Jam",20,"g"],["Granola",10,"g"]]],
+   ["Oreo Choco Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"],["Chocolate Fudge",20,"g"],["Oreo",20,"g"]]],
+   ["Pepo Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Pepo",3,"ฝา"],["Pepo Lychee",30,"g"]]],
+   ["Banoffee Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"],["Caramel",20,"g"],["Oreo",20,"g"],["กล้วย","1/2","ลูก"]]],
+   ["Peanutbutter Banana Shake",[["Shake แช่แข็ง",1,"ถ้วย"],["Plain Yogurt",60,"g"],["Peanut Butter",20,"g"],["Oreo",20,"g"],["กล้วย","1/2","ลูก"]]],
+ ]},
+ {cat:"ACAI", note:"ฐาน Acai 180g · ไซส์ S ลดทุกอย่างครึ่งนึง", menus:[
+   ["R- Acai Culture",[["Acai",180,"g"],["Banana",0.5,"ลูก"],["Strawberry",20,"g"],["Greek Yogurt",45,"g"],["Granola",15,"g"],["Peanut Butter",20,"g"],["Chia Seed",1,"g"],["Flax Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+   ["R- Aloha",[["Acai",180,"g"],["Blueberry",20,"g"],["Strawberry",20,"g"],["Coconut Chips",10,"g"],["Granola",20,"g"],["Honey",15,"g"],["Chia Seed",1,"g"],["Flax Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+   ["R- Choco Banana",[["Acai",180,"g"],["Banana","1/2","ลูก"],["Oreo",15,"g"],["Chocolate Chip",10,"g"],["Peanut Butter",20,"g"],["Chia Seed",1,"g"],["Flax Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+   ["R- Blueberry Queen",[["Acai",180,"g"],["Granola",20,"g"],["Blueberry",20,"g"],["Honey",15,"g"],["Chia Seed",1,"g"],["Flax Seed",1,"g"],["Cacao Nibs",2,"g"]]],
+ ]},
+ {cat:"SOFT SERVE", note:"ฐาน Soft Serve 150g", menus:[
+   ["Plain Softserve",[["Soft Serve",150,"g"]]],
+   ["Pistachio",[["Soft Serve",150,"g"],["พิสตาชิโอ้บัตเตอร์",35,"g"],["พิสตาชิโอ้เครป",20,"g"],["พิสตาชิโอ้ท๊อปปิ้ง",10,"g"]]],
+ ]},
+ {cat:"OVERNIGHT OAT", note:"ฐาน Biscoff Oats 80g", menus:[
+   ["Biscoff Overnight Oats",[["Biscoff Oats",80,"g"],["Biscoff Crumbs",20,"g"]]],
+   ["Biscoff Overnight Oats + เบอร์รี่",[["Biscoff Oats",80,"g"],["Biscoff Crumbs",20,"g"],["Strawberry",20,"g"],["Blueberry",20,"g"]]],
+ ]},
+ {cat:"YOGURT SMOOTHIES", note:"สมูทตี้ (พรีแพ็ก) 1 แพค + ส่วนผสม", menus:[
+   ["Wake up call",[["Wake up call (pack)",1,"แพค"],["Plain Yogurt",130,"g"],["Cacao Powder",15,"g"],["Peanutbutter",40,"g"],["Choc Chips",20,"g"],["Caramel",10,"g"],["Granola",10,"g"]]],
+   ["Energy Sip",[["Energy Sip (pack)",1,"แพค"],["Plain Yogurt",150,"g"],["Peanutbutter",40,"g"],["Greek Yogurt",20,"g"],["Granola",10,"g"]]],
+   ["Yellow Madness",[["Yellow Madness (pack)",1,"แพค"],["Plain Yogurt",150,"g"],["Camu Camu",3,"g"],["Chia Pudding",50,"g"],["Maqui",2,"g"],["Syrup",2,"g"]]],
+   ["Ready to glow",[["Ready to glow (pack)",1,"แพค"],["Plain Yogurt",150,"g"],["Greek Yogurt",20,"g"],["Maqui",3,"g"],["Chia Pudding",50,"g"],["Syrup",2,"g"]]],
+   ["Chia Pudding (ส่วนผสม)",[["Plain Yogurt",240,"g"],["Honey",20,"g"],["Chia Seeds",30,"g"]]],
+ ]},
+];
+const bomBox=document.getElementById('bomBox');
+BOM.forEach(g=>{
+  let rows="";
+  g.menus.forEach(([mn,ings])=>{
+    ings.forEach((ing,idx)=>{
+      const base=idx===0?' class="base-row"':'';
+      rows+=`<tr${base}><td>${idx===0?`<span class="menu-name">${mn}</span>`:''}</td><td>${ing[0]}</td><td class="num">${ing[1]}</td><td>${ing[2]}</td></tr>`;
+    });
+  });
+  bomBox.insertAdjacentHTML('beforeend',
+    `<h3>${g.cat} <span class="pill p-org" style="font-weight:400">${g.menus.length} เมนู</span></h3><p class="hint">${g.note}</p>
+     <div class="tbl-wrap"><table><thead><tr><th style="width:34%">เมนู</th><th>วัตถุดิบ</th><th class="num">จำนวน</th><th>หน่วย</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+});
+
+/* ---------- PAR DATA ---------- */
+const PAR=[
+["Greek Yogurt 1kg","กระปุก",6,6],["Yuzu","กระปุก",1,1],["Kyoho","กระปุก",1,1],["Mint","กระปุก",1,1],["Vanilla","กระปุก",1,1],["Pineapple","กระปุก",1,1],["Biscoff","กระปุก",2,2],["Overnight oats biscoff","กระปุก",1,1],["Plain Yogurt (ธรรมชาติ)","กระปุก",6,6],["Greek Yogurt 500g","กระปุก",8,12],["Plain Yogurt 500g","กระปุก",2,4],["R-ACAI Bowl","ถ้วย",15,15],["S-ACAI Cup (mini)","ถ้วย",15,15],["น้ำ Ice cream / Soft Serve","แพค","-",4],["Granola โรย Ice cream","แพค","-",1],["Softserve ถ้วยกระดาษ","ถ้วย","-","-"],["Shake (แช่แข็ง)","ถ้วย",80,100],["Peanut Butter","",  "-","-"],["Water น้ำดื่ม","ขวด",12,12],["ถุงสตรอเบอรี่","ห่อ",8,12],["ถุงบลูเบอรี่","ห่อ",8,12],["ถุงธรรมชาติ","ห่อ",10,12],["ถุงลิ้นจี่","ห่อ",8,12],["ถุงยูส","ห่อ",8,12],["ถุงพีช","ห่อ",5,8],["Cornflakes Malt (M)","กระปุก",4,4],["Granola (M)","กระปุก",4,4],["Choc Chip Cookies","","-","-"],["Cookies Crumbs","ห่อ",1,1],["Oreo","ห่อ",2,2],["Choc Chips","ห่อ",1,1],["Cornflakes (Topping)","ถัง",1,1],["Granola (Topping)","ถัง",1,1],["Almond","ห่อ",1,1],["Pecan","ห่อ",1,1],["Walnut","ห่อ",1,1],["Coconut Chips","กรัม",150,150],["Chia Seed","ห่อ",1,1],["Flax Seed","ห่อ",1,1],["Cacao Nibs","ห่อ",1,1],["Grape Jelly","ห่อ",1,1],["Honey Jelly","ห่อ",1,1],["Strawberry (250g)","กล่อง",4,4],["Strawberry (500g)","กล่อง","-","-"],["Blueberry (125g)","กล่อง","-","-"],["Blueberry (300g)","กล่อง",3,3],["Blueberry (500g)","กล่อง","-","-"],["Apple Cinnamon","แพค",1,1],["Banana","","-","-"],["Honey","ขวด",1,1],["Caramel","ห่อ",1,1],["Peanut Butter Sauce","ห่อ",1,1],["Cup P (5oz)","แพค",1,1],["Cup S (9oz)","แพค",2,2],["Small Bowl","แพค",1,1],["Cup (14oz)","แพค",2,2],["Cup 3oz (Topping)","แพค",2,2],["Cup+Lid (Big) 3oz","แพค",2,2],["Cup+Lid (Small) 1oz","แพค",2,2],["Bowl Lid","แพค",2,2],["Smoothies Lid","แพค",2,2],["Lid S (92)","แพค",2,2],["Lid Top / Lid P (75)","แพค",2,2],["Wood Spoon in bag","แพค",1,1],["Wood Spoon","แพค",3,3],["Tester Spoon ช้อนชิม","แพค",1,1],["Short Spoon (ช้อนถ้วยP)","แพค",2,2],["Straw/หลอด - ใหญ่","แพค",2,2],["Straw/หลอด - เล็ก","แพค",1,1],["Fail Bag ถุงฟลอย","แพค",2,2],["ถุงกระดาษแก้วเดี่ยว","อัน",40,40],["ถุงกระดาษแก้วคู่","อัน",40,40],["ถุงกระดาษใหญ่","อัน",30,30],["กระดาษกันหก","แพค",1,1],["ฟอยล์แก้ว","อัน",30,30],["ฐานรองแก้วเดี่ยว","อัน",40,40],["ฐานรองแก้ว (คู่)","อัน",30,30],["Zip Bag Small / ถุงซิป","แพค",1,1],["Bag 4x14","แพค",2,2],["Bag 6x14","แพค",2,2],["Bag 8x14","แพค",2,2],["Bag 9x14","แพค",2,2],["Bag Sticker สติ๊กเกอร์ลิ้น","แผ่น",4,4],["Sticker Roll (สก๊อตเทป)","ม้วน",2,2],["Print Paper กระดาษปริ้น","ม้วน",3,3],["Gloves YG / ถุงมือ","กล่อง",1,1],["Black Bag 30x40 / ถุงขยะ","ห่อ",1,1],["Dry Tissue / ทิชชู่แห้ง","ห่อ",3,3],["Wet Tissue / ทิชชู่เปียก","ห่อ",2,2],["Tissue ทิชชู่ลูกค้า","ห่อ",1,1],["น้ำยาถูพื้น","ขวด",1,1],["น้ำยาตัดไขมัน","ขวด",1,1],["น้ำยาล้างจาน","แพค",1,1],["น้ำยาอเนกประสงค์","ขวด",1,1],["น้ำยาล้างเครื่องไอดิม","ห่อ",1,1],["Wake up call (Banana)","แพค",20,20],["Energy Sip (Straw+Banana)","แพค",20,20],["Yellow Madness","แพค",20,20],["Ready to Glow","แพค",20,20],["ผงโกโก้ (COCOA)","ห่อ",1,1],["ผงมาคิ (MAQUI)","ห่อ",1,1],["ผงคาม (CAMU)","ห่อ",1,1],["น้ำเชื่อม (Syrup)","ขวด",1,1],["Biscoff Spread เล็ก","กระปุก",2,2],["Biscoff Spread ใหญ่","","-","-"],["ซอส Chocolate","แพค",1,1],["ซอส Strawberry","แพค",1,1],["ปีโป้","แพค",1,1],["ปีโป้ลิ้นจี่","กล่อง",1,1],["พิสตาชิโอ้เครป","กรัม","-",300],["พิสตาชิโอ้บัตเตอร์","กรัม","-",300],["พิสตาชิโอ้ท๊อปปิ้ง","กรัม","-",300],
+];
+const ptb=document.querySelector('#parTable tbody');
+PAR.forEach(([n,u,s,v])=>{ptb.insertAdjacentHTML('beforeend',`<tr><td>${n}</td><td class="hint">${u}</td><td class="num">${s}</td><td class="num">${v}</td></tr>`);});
+
+/* PAR calculator demo (NVP) */
+const demoItems=[["Greek Yogurt 1kg",6,4],["Greek Yogurt 500g",12,5],["Shake (แช่แข็ง)",100,62],["ถุงสตรอเบอรี่",12,12],["Water น้ำดื่ม",12,3]];
+const pc=document.getElementById('parCalc');
+pc.innerHTML=`<table><thead><tr><th>รายการ</th><th class="num">Par NVP</th><th class="num">คงเหลือ</th><th class="num">ต้องเติม</th></tr></thead><tbody id="pcBody"></tbody></table>`;
+const pcBody=document.getElementById('pcBody');
+demoItems.forEach((it,i)=>{
+  pcBody.insertAdjacentHTML('beforeend',
+   `<tr><td>${it[0]}</td><td class="num">${it[1]}</td>
+    <td class="num"><input type="number" value="${it[2]}" data-par="${it[1]}" oninput="recalcPar(this,${i})" style="width:64px;text-align:right;border:1px solid var(--line);border-radius:8px;padding:4px;font-family:inherit"></td>
+    <td class="num need" id="need${i}">${Math.max(it[1]-it[2],0)}</td></tr>`);
+});
+function recalcPar(inp,i){const par=+inp.dataset.par;const rem=+inp.value||0;const need=Math.max(par-rem,0);const c=document.getElementById('need'+i);c.textContent=need;c.style.color=need>0?'var(--warn)':'var(--muted)';c.style.fontWeight=need>0?'700':'400';}
+
+/* ---------- MOCK: FILL FORM ---------- */
+const FORM=[
+ ["Yogurt 1kg/Box",[["Greek Yogurt 1kg","1kg/Box"],["Yuzu","1kg/Box"],["Kyoho","1kg/Box"],["Biscoff","1kg/Box"],["Plain Yogurt (ธรรมชาติ)","1kg/Box"]]],
+ ["ACAI",[["R-ACAI Bowl","Bowl"],["S-ACAI Cup (mini)","Cup"]]],
+ ["Shake แข็ง",[["Shake (แช่แข็ง)","ถ้วย"]]],
+ ["Toppings",[["Granola (Topping)","2,000g/box"],["Almond","400g/pack"],["Chia Seed","400g/pack"],["Cacao Nibs","400g/pack"]]],
+ ["CUP/ถ้วย",[["Cup P (5oz)","50/pack"],["Cup S (9oz)","50/pack"],["Cup (14oz)","50/pack"]]],
+];
+let doneSet=new Set(), badSet=new Set(), totalItems=0;
+const yesterday={}; // sample carry-forward
+FORM.forEach((g,gi)=>g[1].forEach((it,ii)=>{yesterday[gi+'-'+ii]=[6,3,15,12,20][(gi+ii)%5];totalItems++;}));
+
+function renderFill(){
+  const body=document.getElementById('scrBody');
+  let html='';
+  FORM.forEach((g,gi)=>{
+    let items='';
+    g[1].forEach((it,ii)=>{
+      const key=gi+'-'+ii, carry=yesterday[key];
+      items+=`<div class="item" data-key="${key}">
+        <div class="nm"><span>${it[0]}</span><span class="u">${it[1]}</span></div>
+        <div class="fields">
+          <div class="fld"><label>ยกมา</label><input class="ro" value="${carry}" readonly></div>
+          <div class="fld"><label>รับเข้า</label><input type="number" inputmode="numeric" placeholder="0" oninput="calcItem('${key}',${carry})"></div>
+          <div class="fld"><label>ขาย/ใช้</label><input type="number" inputmode="numeric" placeholder="0" oninput="calcItem('${key}',${carry})"></div>
+          <div class="fld"><label>คงเหลือ</label><input class="res" data-res inputmode="numeric" oninput="markManual('${key}')"></div>
+        </div>
+        <div class="varbar ok" data-var style="display:none"></div>
+      </div>`;
+    });
+    html+=`<div class="acc${gi===0?' open':''}"><div class="head" onclick="this.parentElement.classList.toggle('open')"><span>${g[0]}</span><span class="cnt">${g[1].length} รายการ</span></div><div class="body">${items}</div></div>`;
+  });
+  body.innerHTML=html;
+  document.getElementById('totCnt').textContent=totalItems;
+  updateMeta();
+}
+function calcItem(key,carry){
+  const el=document.querySelector(`.item[data-key="${key}"]`);
+  const inp=el.querySelectorAll('input');
+  const rec=+inp[1].value||0, sold=+inp[2].value||0;
+  const res=Math.max(carry+rec-sold,0);
+  const resEl=el.querySelector('[data-res]');
+  if(!resEl.dataset.manual) resEl.value=res;
+  // variance
+  const actual=+resEl.value||0;
+  const variance=carry+rec-0-sold-actual; // ส่งคืน=0
+  const vb=el.querySelector('[data-var]');
+  vb.style.display='flex';
+  if(inp[1].value===''&&inp[2].value===''&&!resEl.value){vb.style.display='none';doneSet.delete(key);badSet.delete(key);updateMeta();return;}
+  doneSet.add(key);
+  if(variance===0){vb.className='varbar ok';vb.innerHTML='<span>✓ ยอดตรง</span><span>คงเหลือ '+actual+'</span>';badSet.delete(key);}
+  else{vb.className='varbar bad';vb.innerHTML='<span>⚠️ ไม่ตรง (ต่าง '+variance+')</span><span>ตรวจอีกครั้ง</span>';badSet.add(key);}
+  updateMeta();
+}
+function markManual(key){const el=document.querySelector(`.item[data-key="${key}"]`);const resEl=el.querySelector('[data-res]');resEl.dataset.manual='1';const inp=el.querySelectorAll('input');calcItem(key,+inp[0].value);}
+function updateMeta(){document.getElementById('doneCnt').textContent=doneSet.size;document.getElementById('badCnt').textContent=badSet.size;}
+function fakeSave(){if(badSet.size>0){alert('ยังมี '+badSet.size+' รายการยอดไม่ตรง (แดง) — ตรวจก่อนบันทึกนะ');return;}alert('บันทึกสต็อก NVP 15/07/2026 เรียบร้อย ✓\nยกยอดไปวันพรุ่งนี้ให้อัตโนมัติแล้ว');}
+
+/* ---------- MOCK: RESTOCK (branch × day aware) ---------- */
+let rsBranch='NVP', rsDay='พุธ';
+// name, parSND, parNVP, คงเหลือ
+const RS_REGULAR=[["Greek Yogurt 1kg",6,6,4],["Greek Yogurt 500g",8,12,5],["Plain Yogurt (ธรรมชาติ)",6,6,6],["ถุงสตรอเบอรี่",8,12,12],["Water น้ำดื่ม",12,12,3],["Cup S (9oz)",2,2,1]];
+const RS_SPECIAL=[["Shake (แช่แข็ง)",80,100,62],["R-ACAI Bowl",15,15,9],["S-ACAI Cup (mini)",15,15,15],["Wake up call (Banana)",20,20,8],["Energy Sip (Straw+Banana)",20,20,10],["Yellow Madness",20,20,20],["Ready to Glow",20,20,11]];
+function specialActive(){return (rsBranch==='SND'&&rsDay==='เสาร์')||(rsBranch==='NVP'&&rsDay==='พุธ');}
+function setRs(kind,val){if(kind==='b')rsBranch=val;else rsDay=val;renderRestock();}
+function renderRestock(){
+  const pIdx=rsBranch==='SND'?1:2, act=specialActive(), dateLbl=rsDay==='พุธ'?'พุธ 15/07':'เสาร์ 18/07';
+  const chip=(t,on,cb)=>`<div class="chip ${on?'on':''}" onclick="${cb}">${t}</div>`;
+  let list=RS_REGULAR.map(r=>[r[0],r[pIdx],r[3],false]);
+  if(act) RS_SPECIAL.forEach(r=>list.push([r[0],r[pIdx],r[3],true]));
+  let head=`<div class="seg" style="margin:0 0 6px">${chip('SND',rsBranch==='SND',"setRs('b','SND')")}${chip('NVP',rsBranch==='NVP',"setRs('b','NVP')")}</div>
+    <div class="seg" style="margin:0 0 10px">${chip('วันพุธ',rsDay==='พุธ',"setRs('d','พุธ')")}${chip('วันเสาร์',rsDay==='เสาร์',"setRs('d','เสาร์')")}</div>`;
+  let rows='';
+  list.forEach(([n,par,rem,sp])=>{
+    if(par==='-'){return;}
+    const need=Math.max(par-rem,0);
+    rows+=`<div class="rs"><span class="nm">${n}${sp?' <span class="pill p-org" style="font-size:.6rem;padding:1px 6px">special</span>':''}</span><span class="n hint">${par}</span><span class="n hint">${rem}</span><span class="n need ${need>0?'p':'z'}">${need>0?'+'+need:'✓'}</span></div>`;
+  });
+  const note=act
+    ? `<p class="hint" style="padding:6px 4px 0">รอบนี้รวม <b>7 รายการ special</b> (${rsBranch} เข้า${rsDay==='พุธ'?'วันพุธ':'วันเสาร์'})</p>`
+    : `<p class="hint" style="padding:6px 4px 0">⏭️ รอบนี้ <b>ไม่มี</b> 7 รายการ special — ${rsBranch} รับ special เฉพาะ<b>วัน${rsBranch==='SND'?'เสาร์':'พุธ'}</b></p>`;
+  document.getElementById('scrBody').innerHTML=
+    `<div class="appbody" style="padding:12px 12px 0">${head}</div>
+     <div class="acc open" style="margin:0 12px 10px"><div class="head"><span>รอบเติม · ${dateLbl} · ${rsBranch}</span><span class="cnt">${rows.match(/class="rs"/g)?.length||0} รายการ</span></div><div class="body">
+       <div class="rs" style="font-weight:500;color:var(--muted);font-size:.72rem"><span class="nm">รายการ</span><span class="n">Par</span><span class="n">เหลือ</span><span class="n">เติม</span></div>${rows}</div></div>
+     ${note}<p class="hint" style="padding:0 12px 10px">ต้องเติม = Par − คงเหลือ · ✓ = ถึง Par แล้ว</p>`;
+}
+
+/* ---------- MOCK: SALES ---------- */
+function renderSales(){
+  document.getElementById('scrBody').innerHTML=`<div class="sales">
+   <div class="acc open"><div class="head"><span>In-store</span><span class="cnt">เงินสด · QR · EDC</span></div><div class="body">
+     <div class="row"><span>เงินสด</span><input type="number" inputmode="numeric" value="165" oninput="sumSales()" id="s1"></div>
+     <div class="row"><span>PromptPay / QR</span><input type="number" inputmode="numeric" value="9213" oninput="sumSales()" id="s2"></div>
+     <div class="row"><span>EDC บัตร</span><input type="number" inputmode="numeric" value="0" oninput="sumSales()" id="s3"></div>
+     <div class="row tot"><span>รวม In-store</span><span id="sIn">0</span></div>
+   </div></div>
+   <div class="acc open"><div class="head"><span>Delivery</span><span class="cnt">Grab · Lineman</span></div><div class="body">
+     <div class="row"><span>Grab</span><input type="number" inputmode="numeric" value="1535" oninput="sumSales()" id="s4"></div>
+     <div class="row"><span>Lineman</span><input type="number" inputmode="numeric" value="0" oninput="sumSales()" id="s5"></div>
+     <div class="row tot"><span>รวม Delivery</span><span id="sDe">0</span></div>
+   </div></div>
+   <div class="acc open"><div class="head" style="background:#FFF7F0"><span>รวมทั้งวัน</span><span class="cnt">NVP · 15/07</span></div><div class="body">
+     <div class="row tot" style="font-size:1.1rem"><span>รวมเป็นเงิน</span><span id="sTot">0</span></div>
+   </div></div></div>`;
+  sumSales();
+}
+function sumSales(){const g=id=>+document.getElementById(id).value||0;const ins=g('s1')+g('s2')+g('s3');const de=g('s4')+g('s5');const f=n=>'฿'+n.toLocaleString();document.getElementById('sIn').textContent=f(ins);document.getElementById('sDe').textContent=f(de);document.getElementById('sTot').textContent=f(ins+de);}
+
+/* ---------- SCREEN SWITCH ---------- */
+const CAPTS={fill:'แตะหัวข้อหมวดเพื่อกางรายการ · กรอก "รับเข้า / ขาย-ใช้" แล้ว "คงเหลือ" กับแถบ Variance คำนวณเอง',restock:'มุมมองเจ้าของ · รอบพุธ/เสาร์ ระบบบอกว่าต้องเติมกี่ชิ้นให้ถึง Par',sales:'บันทึกยอดขายแยกช่องทาง · In-store + Delivery รวมให้อัตโนมัติ'};
+const TITLES={fill:'กรอกสต็อกสิ้นวัน',restock:'ต้องเติมรอบนี้',sales:'ยอดขายรายวัน'};
+function switchScr(scr,chip){
+  document.querySelectorAll('.seg .chip').forEach(c=>c.classList.remove('on'));chip.classList.add('on');
+  document.getElementById('scrTitle').textContent=TITLES[scr];
+  document.getElementById('mockCapt').textContent=CAPTS[scr];
+  document.getElementById('fillMeta').style.display=scr==='fill'?'flex':'none';
+  document.getElementById('saveBar').style.display=scr==='fill'?'block':'none';
+  if(scr==='fill')renderFill();else if(scr==='restock')renderRestock();else renderSales();
+}
+renderFill();
+</script>
+</body>
+</html>
