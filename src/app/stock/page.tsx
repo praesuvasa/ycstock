@@ -74,7 +74,8 @@ export default function StockPage() {
   const groups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
-      .filter((it) => meta.par[it.id]?.[branch] != null)
+      // แสดงรายการที่ stock ในสาขานี้ + ทุกสมาชิกกลุ่มเศษรวม (ให้นับกล่องได้ทุกขนาด)
+      .filter((it) => meta.par[it.id]?.[branch] != null || it.remainderGroup)
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
@@ -97,7 +98,7 @@ export default function StockPage() {
     const m = new Map<string, string[]>();
     if (!meta) return m;
     const gs = meta.items
-      .filter((it) => it.remainderGroup && meta.par[it.id]?.[branch] != null)
+      .filter((it) => it.remainderGroup) // ทุกสมาชิกกลุ่ม (ไม่ว่า par จะมีหรือไม่)
       .sort((a, b) => a.sort - b.sort);
     for (const it of gs) {
       const g = it.remainderGroup!;
@@ -141,7 +142,9 @@ export default function StockPage() {
     return { filledCount: filled, errorCount: error };
   }, [shownItems, rows, groupIds, groupTotals]);
 
-  type NumField = "inPack" | "used" | "remainPack" | "inG" | "usedG" | "remainG";
+  type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG";
+  // คงเหลือแพ็ค = ยกมา + รับเข้า − ออก/ขาย − ส่งคืน/เสีย (ส่งคืนหักจากยอด stock)
+  const calcRemainPack = (r: StockRow) => Math.max(r.carryPack + r.inPack - r.used - r.returned, 0);
   function setField(itemId: string, field: NumField, raw: string, N: number) {
     setRows((prev) => {
       const cur = prev[itemId];
@@ -149,17 +152,21 @@ export default function StockPage() {
       const val = toNum(raw);
       const next: StockRow = { ...cur };
       switch (field) {
-        case "inPack": // รับเข้า (แพ็ค) → คงเหลือแพ็ค ปรับตาม (คงค่า ออก/ขาย)
+        case "inPack": // รับเข้า (แพ็ค) → คงเหลือแพ็ค ปรับตาม
           next.inPack = val;
-          next.remainPack = remainPieces(next.carryPack, val, next.used);
+          next.remainPack = calcRemainPack(next);
           break;
         case "used": // ออก/ขาย (แพ็ค) → คำนวณคงเหลือแพ็ค
           next.used = val;
-          next.remainPack = remainPieces(next.carryPack, next.inPack, val);
+          next.remainPack = calcRemainPack(next);
           break;
-        case "remainPack": // คงเหลือแพ็ค → คำนวณ ออก/ขาย ย้อนกลับ
+        case "returned": // ส่งคืน/เสีย (แพ็ค) → หักจากคงเหลือ
+          next.returned = val;
+          next.remainPack = calcRemainPack(next);
+          break;
+        case "remainPack": // คงเหลือแพ็ค → คำนวณ ออก/ขาย ย้อนกลับ (คงค่าส่งคืน)
           next.remainPack = val;
-          next.used = Math.max(next.carryPack + next.inPack - val, 0);
+          next.used = Math.max(next.carryPack + next.inPack - next.returned - val, 0);
           break;
         case "inG": // รับเข้า g (เศษ) → คงเหลือ g เพิ่มตาม
           next.remainG = Math.max(next.remainG + (val - next.inG), 0);
@@ -177,6 +184,14 @@ export default function StockPage() {
       }
       next.variance = varianceOf(next);
       return { ...prev, [itemId]: next };
+    });
+  }
+
+  function setNote(itemId: string, note: string) {
+    setRows((prev) => {
+      const cur = prev[itemId];
+      if (!cur) return prev;
+      return { ...prev, [itemId]: { ...cur, note } };
     });
   }
 
@@ -255,12 +270,16 @@ export default function StockPage() {
                 const isLeader = !!grp && groupIds.get(grp)?.[0] === it.id;
                 const gt = grp ? groupTotals(grp) : null;
                 const leaderName = gt ? itemById.get(gt.leaderId)?.name ?? "" : "";
+                const par = meta?.par[it.id]?.[branch] ?? null;
 
                 return (
                   <div key={it.id} className="glass-soft px-3 py-2.5">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{it.name}</span>
-                      <Badge>{it.unit}</Badge>
+                      <div className="flex flex-shrink-0 items-center gap-1.5">
+                        {par != null && <Badge tone="blue">Par {par}</Badge>}
+                        <Badge>{it.unit}</Badge>
+                      </div>
                     </div>
 
                     {(it.hasRemainder || grp) && (
@@ -276,6 +295,19 @@ export default function StockPage() {
                         onChange={(x) => setField(it.id, "used", x, N)} />
                       <NumberField label="คงเหลือ" value={row.remainPack}
                         onChange={(x) => setField(it.id, "remainPack", x, N)} tone="auto" />
+                    </div>
+
+                    {/* ส่งคืน/เสีย → หักจากยอด stock · ถ้ากรอก ให้ใส่หมายเหตุ */}
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <NumberField label="ส่งคืน/เสีย" value={blankZero(row.returned)}
+                        onChange={(x) => setField(it.id, "returned", x, N)} />
+                      {row.returned > 0 && (
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11px] text-brand-ink/50">หมายเหตุ (ส่งคืน/เสีย)</span>
+                          <input className="field text-left text-sm" placeholder="เหตุผล เช่น หมดอายุ / แตก"
+                            value={row.note} onChange={(e) => setNote(it.id, e.target.value)} />
+                        </label>
+                      )}
                     </div>
 
                     {/* เศษ: กลุ่ม (เฉพาะ leader) / แกะปกติ */}
@@ -333,10 +365,10 @@ export default function StockPage() {
                         <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
                           ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG} {su}){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
                         </div>
-                      ) : filled ? (
+                      ) : (filled || it.isCup) ? (
                         <div className={`mt-2 rounded-lg px-2.5 py-1.5 text-xs font-medium ${it.isCup ? "bg-brand-blue/20 text-sky-700" : "bg-ok/15 text-ok"}`}>
                           {it.isCup
-                            ? `📊 รวมทั้งหมด ${d.remainTotalG} ชิ้น · ใช้/ขาย ${d.usedTotalG} ชิ้น (กระทบยอดกับงานขายที่หน้า "ถ้วย")`
+                            ? `📊 รวมทั้งหมด ${d.remainTotalG} ชิ้น (บันทึกวันนี้) · ใช้/ขาย ${d.usedTotalG} ชิ้น — กระทบยอดที่หน้า "ถ้วย"`
                             : `✓ รวมใช้ไป ${d.usedTotalG} ${su} · คงเหลือรวม ${d.remainTotalG} ${su} (มี ${d.availTotalG} ${su})`}
                         </div>
                       ) : null
