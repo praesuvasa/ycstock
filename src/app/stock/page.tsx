@@ -1,8 +1,10 @@
 "use client";
 // M1: Stock Entry — กรอกสต็อกรายวัน/สาขา (glass, mobile-first)
+// hasRemainder items = UOM (แพ็ค) + Sale Unit (เศษ g). 1 แพ็ค = gramsPerUOM(unit) กรัม
+// เศษคงเหลือเกินเมื่อวานได้ (แกะกล่องใหม่) แต่ยอดรวม (แพ็ค×N + เศษ) วันนี้ ต้องไม่เกิน ของที่มี (ยกมา+รับเข้า)
 import React from "react";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
-import { remainPieces, remainGrams, variance } from "@/lib/calc";
+import { remainPieces, variance } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
   GlassCard, Badge, Button, Segmented, Accordion, NumberField, Stat, SaveBar, PageTitle,
@@ -17,18 +19,29 @@ const toNum = (raw: string): number => {
   const x = parseFloat(raw);
   return Number.isFinite(x) ? x : 0;
 };
-// ช่องกรอกล้วน: 0 → ว่าง (พิมพ์ง่าย) · ช่อง auto/ยกมา: โชว์ตัวเลขจริง
 const blankZero = (v: number): number | string => (v === 0 ? "" : v);
+
+// 1 UOM (แพ็ค) = กี่กรัม — แปลงจากหน่วยบรรจุ เช่น "1kg/Box"→1000, "500g/Box"→500
+function gramsPerUOM(unit: string): number {
+  const m = unit.match(/(\d+(?:\.\d+)?)\s*(kg|g)\b/i);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  return /kg/i.test(m[2]) ? v * 1000 : v;
+}
+
+// ยอดรวมเป็นกรัม (UOM×N + เศษ) — ใช้เช็คว่าคงเหลือวันนี้ไม่เกินของที่มี
+function derive(r: StockRow, N: number) {
+  const availTotalG = (r.carryPack + r.inPack) * N + r.carryG + r.inG;
+  const remainTotalG = r.remainPack * N + r.remainG;
+  const usedTotalG = availTotalG - remainTotalG; // กรัมที่ขาย/ใช้จริงรวม
+  return { availTotalG, remainTotalG, usedTotalG, overG: usedTotalG < 0 ? -usedTotalG : 0 };
+}
 
 const varianceOf = (r: StockRow): number =>
   variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack);
 
-// ขาย/ใช้ (เศษ g) = ยกมา g + รับเข้า g − คงเหลือ g  (ค่าคำนวณจากคงเหลือ, ไม่เก็บแยก)
-const usedGof = (r: StockRow): number =>
-  Math.max(r.carryG + r.inG - r.remainG, 0);
-
 const isFilled = (r: StockRow): boolean =>
-  r.inPack > 0 || r.used > 0 || r.inG > 0 || usedGof(r) > 0;
+  r.inPack > 0 || r.inG > 0 || r.remainPack !== r.carryPack || r.remainG !== r.carryG;
 
 export default function StockPage() {
   const [branch, setBranch] = React.useState<Branch>("NVP");
@@ -39,7 +52,6 @@ export default function StockPage() {
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  // meta โหลดครั้งเดียว
   React.useEffect(() => {
     let alive = true;
     fetch("/api/meta")
@@ -49,7 +61,6 @@ export default function StockPage() {
     return () => { alive = false; };
   }, []);
 
-  // stock โหลดใหม่เมื่อเปลี่ยนสาขา/วันที่
   React.useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -68,7 +79,6 @@ export default function StockPage() {
     return () => { alive = false; };
   }, [branch, date]);
 
-  // รายการที่ stock ในสาขานี้ (par != null) จัดกลุ่มตาม category
   const groups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
@@ -83,44 +93,55 @@ export default function StockPage() {
     return out;
   }, [meta, branch]);
 
-  const shownRows = React.useMemo(
-    () => groups.flatMap((g) => g.items.map((it) => rows[it.id]).filter(Boolean)),
-    [groups, rows],
-  );
-  const total = shownRows.length;
-  const filledCount = shownRows.filter(isFilled).length;
-  const varianceCount = shownRows.filter((r) => varianceOf(r) !== 0).length;
+  const shownItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
+  const total = shownItems.length;
+
+  // นับ กรอกแล้ว + รายการที่เกิน (คงเหลือรวมเกินของที่มี / variance)
+  const { filledCount, errorCount } = React.useMemo(() => {
+    let filled = 0, error = 0;
+    for (const it of shownItems) {
+      const r = rows[it.id];
+      if (!r) continue;
+      if (isFilled(r)) filled++;
+      const bad = it.hasRemainder
+        ? derive(r, gramsPerUOM(it.unit)).usedTotalG < 0
+        : varianceOf(r) !== 0;
+      if (bad) error++;
+    }
+    return { filledCount: filled, errorCount: error };
+  }, [shownItems, rows]);
 
   type NumField = "inPack" | "used" | "remainPack" | "inG" | "usedG" | "remainG";
-  function setField(itemId: string, field: NumField, raw: string) {
+  function setField(itemId: string, field: NumField, raw: string, N: number) {
     setRows((prev) => {
       const cur = prev[itemId];
       if (!cur) return prev;
       const val = toNum(raw);
       const next: StockRow = { ...cur };
       switch (field) {
-        case "inPack": // รับเข้า (แพ็ค) → คงเหลือ ปรับตาม (คงค่า ขาย/ใช้)
+        case "inPack": // รับเข้า (แพ็ค) → คงเหลือแพ็ค ปรับตาม (คงค่า ออก/ขาย)
           next.inPack = val;
           next.remainPack = remainPieces(next.carryPack, val, next.used);
           break;
-        case "used": // ขาย/ใช้ (แพ็ค) → คำนวณคงเหลือ
+        case "used": // ออก/ขาย (แพ็ค) → คำนวณคงเหลือแพ็ค
           next.used = val;
           next.remainPack = remainPieces(next.carryPack, next.inPack, val);
           break;
-        case "remainPack": // คงเหลือ (แพ็ค) → คำนวณ ขาย/ใช้ ย้อนกลับ
+        case "remainPack": // คงเหลือแพ็ค → คำนวณ ออก/ขาย ย้อนกลับ
           next.remainPack = val;
           next.used = Math.max(next.carryPack + next.inPack - val, 0);
           break;
-        case "inG": { // รับเข้า g → คงเหลือ g ปรับตาม (คงค่า ขาย/ใช้ g)
-          const keepUsedG = usedGof(cur);
+        case "inG": // รับเข้า g (เศษ) → คงเหลือ g เพิ่มตาม
+          next.remainG = Math.max(next.remainG + (val - next.inG), 0);
           next.inG = val;
-          next.remainG = remainGrams(next.carryG, val, keepUsedG);
+          break;
+        case "usedG": { // ขาย/ใช้ g รวม → คำนวณคงเหลือ g (รวมกล่องที่แกะ)
+          const openedG = Math.max(next.carryPack + next.inPack - next.remainPack, 0) * N;
+          const availForSale = next.carryG + next.inG + openedG;
+          next.remainG = Math.max(availForSale - val, 0);
           break;
         }
-        case "usedG": // ขาย/ใช้ (เศษ g) → คำนวณคงเหลือ g
-          next.remainG = remainGrams(next.carryG, next.inG, val);
-          break;
-        case "remainG": // คงเหลือ (เศษ g) → ขาย/ใช้ g เป็นค่าคำนวณย้อนกลับ
+        case "remainG": // คงเหลือ g (เศษ) → กรอกอิสระ (เกิน carryG ได้ = แกะกล่องใหม่)
           next.remainG = val;
           break;
       }
@@ -130,19 +151,22 @@ export default function StockPage() {
   }
 
   async function handleSave() {
-    if (varianceCount > 0) {
-      const ok = window.confirm(`มี ${varianceCount} รายการยอดไม่ตรง (variance ≠ 0)\nต้องการบันทึกเลยไหม?`);
+    if (errorCount > 0) {
+      const ok = window.confirm(`มี ${errorCount} รายการที่คงเหลือรวมเกินของที่มี\nต้องการบันทึกเลยไหม?`);
       if (!ok) return;
     }
     setSaving(true);
     try {
-      const payload = shownRows.map((r) => ({ ...r, variance: varianceOf(r) }));
+      const payload = shownItems
+        .map((it) => rows[it.id])
+        .filter(Boolean)
+        .map((r) => ({ ...r, variance: varianceOf(r) }));
       const res = await fetch("/api/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ branch, date, rows: payload }),
       });
-      const data = (await res.json()) as { ok?: boolean; updated?: number; inserted?: number; error?: string };
+      const data = (await res.json()) as { updated?: number; inserted?: number; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
       window.alert(`บันทึกสต็อกแล้ว ✓\nอัปเดต ${data.updated ?? 0} · เพิ่มใหม่ ${data.inserted ?? 0} รายการ`);
     } catch (e: any) {
@@ -156,29 +180,22 @@ export default function StockPage() {
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
       <PageTitle title="กรอกสต็อกรายวัน" right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
 
-      {/* แถบบน: สาขา + วันที่ */}
       <GlassCard className="mb-3">
         <div className="grid gap-3">
           <Segmented options={BRANCH_OPTS} value={branch} onChange={setBranch} />
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">วันที่</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="field"
-            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
           </label>
         </div>
       </GlassCard>
 
-      {/* แถบสรุป */}
       <div className="mb-3 grid grid-cols-2 gap-2.5">
         <Stat label="กรอกแล้ว" value={`${filledCount}/${total}`} />
         <Stat
-          label="ยอดไม่ตรง"
-          value={varianceCount > 0 ? `⚠️ ${varianceCount}` : "—"}
-          tone={varianceCount > 0 ? "warn" : "default"}
+          label="เกิน / ผิด"
+          value={errorCount > 0 ? `⚠️ ${errorCount}` : "—"}
+          tone={errorCount > 0 ? "warn" : "default"}
         />
       </div>
 
@@ -194,18 +211,16 @@ export default function StockPage() {
         <GlassCard><p className="text-sm text-brand-ink/50">ไม่มีรายการสต็อกสำหรับสาขานี้</p></GlassCard>
       ) : (
         groups.map((g, gi) => (
-          <Accordion
-            key={g.category}
-            title={g.category}
-            count={`${g.items.length} รายการ`}
-            defaultOpen={gi === 0}
-          >
+          <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
             <div className="grid gap-2 py-1">
               {g.items.map((it) => {
                 const row = rows[it.id];
                 if (!row) return null;
-                const v = varianceOf(row);
+                const N = gramsPerUOM(it.unit);
+                const d = derive(row, N);
                 const filled = isFilled(row);
+                const v = varianceOf(row);
+
                 return (
                   <div key={it.id} className="glass-soft px-3 py-2.5">
                     <div className="mb-2 flex items-center justify-between gap-2">
@@ -214,54 +229,49 @@ export default function StockPage() {
                     </div>
 
                     {it.hasRemainder && (
-                      <div className="mb-1 text-[11px] font-medium text-brand-ink/50">เต็ม (แพ็ค)</div>
+                      <div className="mb-1 text-[11px] font-medium text-brand-ink/50">
+                        เต็ม (แพ็ค){N > 0 ? ` · 1 แพ็ค = ${N}g` : ""}
+                      </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <NumberField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
-                      <NumberField
-                        label="รับเข้า"
-                        value={blankZero(row.inPack)}
-                        onChange={(x) => setField(it.id, "inPack", x)}
-                      />
-                      <NumberField
-                        label="ขาย/ใช้"
-                        value={blankZero(row.used)}
-                        onChange={(x) => setField(it.id, "used", x)}
-                      />
-                      <NumberField
-                        label="คงเหลือ"
-                        value={row.remainPack}
-                        onChange={(x) => setField(it.id, "remainPack", x)}
-                        tone="auto"
-                      />
+                      <NumberField label="รับเข้า" value={blankZero(row.inPack)}
+                        onChange={(x) => setField(it.id, "inPack", x, N)} />
+                      <NumberField label={it.hasRemainder ? "แกะ/ออก" : "ขาย/ใช้"} value={blankZero(row.used)}
+                        onChange={(x) => setField(it.id, "used", x, N)} />
+                      <NumberField label="คงเหลือ" value={row.remainPack}
+                        onChange={(x) => setField(it.id, "remainPack", x, N)} tone="auto" />
                     </div>
 
                     {it.hasRemainder && (
                       <>
-                        <div className="mb-1 mt-2 text-[11px] font-medium text-brand-ink/50">เศษ (g)</div>
+                        <div className="mb-1 mt-2 text-[11px] font-medium text-brand-ink/50">
+                          เศษ (g) — Sale Unit
+                        </div>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <NumberField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
-                          <NumberField
-                            label="รับเข้า g"
-                            value={blankZero(row.inG)}
-                            onChange={(x) => setField(it.id, "inG", x)}
-                          />
-                          <NumberField
-                            label="ขาย/ใช้ g"
-                            value={blankZero(usedGof(row))}
-                            onChange={(x) => setField(it.id, "usedG", x)}
-                          />
-                          <NumberField
-                            label="คงเหลือ g"
-                            value={row.remainG}
-                            onChange={(x) => setField(it.id, "remainG", x)}
-                            tone="auto"
-                          />
+                          <NumberField label="รับเข้า g" value={blankZero(row.inG)}
+                            onChange={(x) => setField(it.id, "inG", x, N)} />
+                          <NumberField label="ขาย/ใช้ g" value={blankZero(Math.max(d.usedTotalG, 0))}
+                            onChange={(x) => setField(it.id, "usedG", x, N)} />
+                          <NumberField label="คงเหลือ g" value={row.remainG}
+                            onChange={(x) => setField(it.id, "remainG", x, N)} tone="auto" />
                         </div>
                       </>
                     )}
 
-                    {v !== 0 ? (
+                    {/* validation */}
+                    {it.hasRemainder ? (
+                      d.overG > 0 ? (
+                        <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
+                          ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG}g){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
+                        </div>
+                      ) : filled ? (
+                        <div className="mt-2 rounded-lg bg-ok/15 px-2.5 py-1.5 text-xs font-medium text-ok">
+                          ✓ รวมใช้ไป {d.usedTotalG}g · คงเหลือรวม {d.remainTotalG}g (มี {d.availTotalG}g)
+                        </div>
+                      ) : null
+                    ) : v !== 0 ? (
                       <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
                         ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
                       </div>
