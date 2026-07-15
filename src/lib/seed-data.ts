@@ -150,21 +150,27 @@ const SPECIAL_PREFIX = [
 const CUP_MAP: Record<string, CupSize> = {
   "Cup P (5oz)": "P", "Cup S (9oz)": "S", "Small Bowl": "BOWL", "Cup (14oz)": "14OZ",
 };
-// default: ขายแบบแกะ (นับเศษ g) เฉพาะ Yogurt 1kg/Box · ที่เหลือขายเต็มแพ็ค (ตั้งเพิ่มได้หน้า Settings)
-const REMAINDER_CATS = new Set(["Yogurt 1kg/Box"]);
-
-// กรัมต่อ 1 แพ็ค — แปลงจากหน่วยบรรจุ "1kg/Box"→1000, "500g/Box"→500 (default; แก้ได้หน้า Settings)
-function gramsPerUOM(unit: string): number {
-  const m = unit.match(/(\d+(?:\.\d+)?)\s*(kg|g)\b/i);
-  if (!m) return 0;
-  const v = parseFloat(m[1]);
-  return /kg/i.test(m[2]) ? v * 1000 : v;
-}
+// จาก Par Stock.xlsx — UOM=1 (ขายแบบแกะแยกได้) + จำนวน/แพค (หน่วยย่อยต่อ 1 แพ็ค)
+// รายการที่ไม่อยู่ในนี้ = UOM=2 (ขายยกกล่อง/เต็มแพ็ค) · แก้ได้หน้า Settings
+const UOM1_QTY: Record<string, number> = {
+  "Greek Yogurt 1kg": 1000, "Yuzu": 1000, "Kyoho": 1000, "Mint": 1000, "Vanilla": 1000,
+  "Pineapple": 1000, "Biscoff": 1000, "Overnight oats biscoff": 1000, "Plain Yogurt (ธรรมชาติ)": 1000,
+  "น้ำ Ice cream / Soft Serve": 2000, "Granola โรย Ice cream": 1000,
+  "Cookies Crumbs": 750, "Oreo": 454, "Choc Chips": 300, "Cornflakes (Topping)": 1000,
+  "Granola (Topping)": 2000, "Almond": 400, "Pecan": 400, "Walnut": 400, "Coconut Chips": 130,
+  "Chia Seed": 400, "Flax Seed": 400, "Cacao Nibs": 400, "Grape Jelly": 1000, "Honey Jelly": 1000,
+  "Apple Cinnamon": 500, "Honey": 1000, "Caramel": 1000, "Peanut Butter Sauce": 1000,
+  "Cup P (5oz)": 50, "Cup S (9oz)": 50, "Small Bowl": 50, "Cup (14oz)": 50,
+  "ผงโกโก้ (COCOA)": 500, "ผงมาคิ (MAQUI)": 80, "ผงคาม (CAMU)": 100, "น้ำเชื่อม (Syrup)": 720,
+  "Biscoff Spread เล็ก": 400, "Biscoff Spread ใหญ่": 1000, "ซอส Chocolate": 500, "ซอส Strawberry": 500,
+  "ปีโป้": 40, "ปีโป้ลิ้นจี่": 560, "พิสตาชิโอ้เครป": 400, "พิสตาชิโอ้บัตเตอร์": 570, "พิสตาชิโอ้ท๊อปปิ้ง": 470,
+};
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
 
 export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
-  const hasRemainder = REMAINDER_CATS.has(category);
+  const qty = UOM1_QTY[name];
+  const hasRemainder = qty != null; // UOM=1 = ขายแบบแกะ (มีเศษ)
   return {
     id: slug(i),
     name,
@@ -174,7 +180,7 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     isCup: name in CUP_MAP,
     cupSize: CUP_MAP[name],
     hasRemainder,
-    gramsPerUOM: hasRemainder ? gramsPerUOM(unit) : 0,
+    gramsPerUOM: hasRemainder ? qty : 0,
     sort: i,
   };
 });

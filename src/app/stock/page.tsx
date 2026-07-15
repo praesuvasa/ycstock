@@ -212,6 +212,7 @@ export default function StockPage() {
                 const d = derive(row, N);
                 const filled = isFilled(row);
                 const v = varianceOf(row);
+                const su = it.isCup ? "ชิ้น" : "g"; // หน่วยย่อย: ถ้วยนับชิ้น · อื่นเป็นกรัม
 
                 return (
                   <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -222,7 +223,7 @@ export default function StockPage() {
 
                     {it.hasRemainder && (
                       <div className="mb-1 text-[11px] font-medium text-brand-ink/50">
-                        เต็ม (แพ็ค){N > 0 ? ` · 1 แพ็ค = ${N}g` : ""}
+                        เต็ม (แพ็ค){N > 0 ? ` · 1 แพ็ค = ${N} ${su}` : ""}
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -238,15 +239,15 @@ export default function StockPage() {
                     {it.hasRemainder && (
                       <>
                         <div className="mb-1 mt-2 text-[11px] font-medium text-brand-ink/50">
-                          เศษ (g) — Sale Unit
+                          {it.isCup ? `เศษ (${su}) — ถ้วยเปิดแพ็ค` : `เศษ (${su}) — Sale Unit`}
                         </div>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          <NumberField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
-                          <NumberField label="รับเข้า g" value={blankZero(row.inG)}
+                          <NumberField label={`ยกมา ${su}`} value={row.carryG} readOnly tone="ro" />
+                          <NumberField label={`รับเข้า ${su}`} value={blankZero(row.inG)}
                             onChange={(x) => setField(it.id, "inG", x, N)} />
-                          <NumberField label="ขาย/ใช้ g" value={blankZero(Math.max(d.usedTotalG, 0))}
+                          <NumberField label={`ขาย/ใช้ ${su}`} value={blankZero(Math.max(d.usedTotalG, 0))}
                             onChange={(x) => setField(it.id, "usedG", x, N)} />
-                          <NumberField label="คงเหลือ g" value={row.remainG}
+                          <NumberField label={`คงเหลือ ${su}`} value={row.remainG}
                             onChange={(x) => setField(it.id, "remainG", x, N)} tone="auto" />
                         </div>
                       </>
@@ -256,11 +257,13 @@ export default function StockPage() {
                     {it.hasRemainder ? (
                       d.overG > 0 ? (
                         <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
-                          ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG}g){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
+                          ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG} {su}){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
                         </div>
                       ) : filled ? (
-                        <div className="mt-2 rounded-lg bg-ok/15 px-2.5 py-1.5 text-xs font-medium text-ok">
-                          ✓ รวมใช้ไป {d.usedTotalG}g · คงเหลือรวม {d.remainTotalG}g (มี {d.availTotalG}g)
+                        <div className={`mt-2 rounded-lg px-2.5 py-1.5 text-xs font-medium ${it.isCup ? "bg-brand-blue/20 text-sky-700" : "bg-ok/15 text-ok"}`}>
+                          {it.isCup
+                            ? `📊 รวมทั้งหมด ${d.remainTotalG} ชิ้น · ใช้/ขาย ${d.usedTotalG} ชิ้น (กระทบยอดกับงานขายที่หน้า "ถ้วย")`
+                            : `✓ รวมใช้ไป ${d.usedTotalG} ${su} · คงเหลือรวม ${d.remainTotalG} ${su} (มี ${d.availTotalG} ${su})`}
                         </div>
                       ) : null
                     ) : v !== 0 ? (
