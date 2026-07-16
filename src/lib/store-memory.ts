@@ -100,14 +100,14 @@ export const memoryStore = {
       const saved = stock.get(sk(date, branch, it.id));
       if (saved) {
         const { date: _d, branch: _b, ...row } = saved;
-        return row;
+        return { ...row, hasEntry: true };
       }
       const prev = latestBefore(branch, it.id, date);
       const carryPack = prev?.remainPack ?? 0;
       const carryG = prev?.remainG ?? 0;
       return {
         itemId: it.id, carryPack, carryG, inPack: 0, inG: 0, used: 0,
-        remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0,
+        remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0, hasEntry: false,
       };
     });
   },

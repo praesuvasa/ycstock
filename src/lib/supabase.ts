@@ -69,7 +69,7 @@ export const supabaseStore = {
       const p = prevMap.get(it.id);
       const carryPack = p?.remain_pack ?? 0, carryG = p?.remain_g ?? 0;
       return { itemId: it.id, carryPack, carryG, inPack: 0, inG: 0, used: 0,
-        remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0 };
+        remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0, hasEntry: false };
     });
   },
 
@@ -230,6 +230,6 @@ function rowFromDb(s: any): StockRow {
   return {
     itemId: s.item_id, carryPack: s.carry_pack, carryG: s.carry_g, inPack: s.in_pack, inG: s.in_g,
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
-    note: s.note ?? "", variance: s.variance,
+    note: s.note ?? "", variance: s.variance, hasEntry: true,
   };
 }

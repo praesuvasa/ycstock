@@ -61,7 +61,7 @@ export function BranchPicker<T extends string>({ value, onChange, locked, option
 }
 
 export function Accordion({ title, count, defaultOpen = false, children }: {
-  title: string; count?: string; defaultOpen?: boolean; children: React.ReactNode;
+  title: React.ReactNode; count?: string; defaultOpen?: boolean; children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (

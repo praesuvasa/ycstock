@@ -153,9 +153,9 @@ export default function StockPage() {
         const conf: Record<string, boolean> = {};
         for (const row of data.rows ?? []) {
           map[row.itemId] = row;
-          // แถวที่มีข้อมูลจริงติดมาแล้ว (บันทึกไปก่อนหน้า/ต่างจากยกมา) ให้เริ่มเป็น "ยืนยันแล้ว" ทันที
-          // กันไม่ให้กด "✓ เท่ายกมา" เขียนทับข้อมูลจริงกลับเป็นยกมาโดยไม่ตั้งใจตอนเปิดหน้าซ้ำ
-          if (isFilled(row)) conf[row.itemId] = true;
+          // แถวที่มีบันทึกจริงของวันนี้แล้ว (ไม่ว่าค่าจะเท่ายกมาหรือไม่ — เช่นกด "✓ เท่ายกมา" ไปแล้ว)
+          // ให้เริ่มเป็น "ยืนยันแล้ว" ทันที กันไม่ให้เปิดหน้าซ้ำแล้วดูเหมือนยังไม่กรอก
+          if (row.hasEntry) conf[row.itemId] = true;
         }
         setRows(map);
         setConfirmed(conf);
@@ -386,8 +386,23 @@ export default function StockPage() {
       ) : (
         groups.map((g, gi) => {
           const cupSum = cupSummaryByCategory.get(g.category);
+          const categoryIncomplete = g.items.some((it) => rows[it.id] && !confirmed[it.id]);
           return (
-            <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
+            <Accordion
+              key={g.category}
+              title={
+                <span className="flex items-center gap-1.5">
+                  {g.category}
+                  {categoryIncomplete && (
+                    <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                      กรอกไม่ครบ
+                    </span>
+                  )}
+                </span>
+              }
+              count={`${g.items.length} รายการ`}
+              defaultOpen={gi === 0}
+            >
               <div className="grid gap-2 py-1">
                 {cupSum && cupSum.count > 0 && (
                   <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">

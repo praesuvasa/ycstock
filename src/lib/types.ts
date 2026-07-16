@@ -49,6 +49,8 @@ export interface StockRow {
   returned: number;
   note: string;
   variance: number;
+  // true = มีแถวบันทึกจริงของวันนี้แล้ว (ไม่ว่าค่าจะเท่ายกมาหรือไม่) · false/undefined = ยังไม่เคยบันทึก (ค่าที่เห็นเป็นแค่ยกมา default)
+  hasEntry?: boolean;
 }
 
 export interface SalesRow {

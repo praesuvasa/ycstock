@@ -64,7 +64,7 @@ const RAW: Row[] = [
   ["Blueberry (300g)", "Fruits", "300g/box", 3, 3, null],
   ["Blueberry (500g)", "Fruits", "500g/box", null, null, null],
   ["Apple Cinnamon", "Fruits", "500g/pack", 1, 1, null],
-  ["Banana", "Fruits", "ชิ้น", null, null, null],
+  ["กล้วย", "Fruits", "ลูก", 0, 0, null],
   // Sauces
   ["Honey", "Sauces", "1,000g/bottle", 1, 1, null],
   ["Caramel", "Sauces", "1,000g/bottle", 1, 1, null],
