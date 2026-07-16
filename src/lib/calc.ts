@@ -29,20 +29,19 @@ export function restockNeed(par: number | null, remain: unknown): number | null 
   return Math.max(par - n(remain), 0);
 }
 
-// รอบ special ต่อสาขา — สาขาที่ไม่อยู่ใน map นี้ = ยังไม่เปิดรับ special (isSpecialActive คืน false เสมอ)
-const SPECIAL_DAY: Partial<Record<Branch, Weekday>> = { SND: "sat", NVP: "wed" };
+// รอบ special ต่อสาขา (รับได้หลายวัน) — สาขาที่ไม่อยู่ใน map นี้ = ยังไม่เปิดรับ special (isSpecialActive คืน false เสมอ)
+const SPECIAL_DAY: Partial<Record<Branch, Weekday[]>> = { SND: ["sat"], NVP: ["wed"], KCN: ["wed", "sat"] };
 const WEEKDAY_LABEL_TH: Record<Weekday, string> = { wed: "พุธ", sat: "เสาร์" };
 
-/** 7 รายการ special เข้ารอบไหน: SND=เสาร์, NVP=พุธ, สาขาอื่นที่ยังไม่กำหนด=ไม่มีรอบ */
+/** 7 รายการ special เข้ารอบไหน: SND=เสาร์, NVP=พุธ, KCN=พุธ+เสาร์, สาขาอื่นที่ยังไม่กำหนด=ไม่มีรอบ */
 export function isSpecialActive(branch: Branch, weekday: Weekday): boolean {
-  const day = SPECIAL_DAY[branch];
-  return day != null && day === weekday;
+  return SPECIAL_DAY[branch]?.includes(weekday) ?? false;
 }
 
-/** ป้ายวันรอบ special ของสาขา (Thai) — null = สาขานี้ยังไม่มีรอบ special กำหนด (เช่น KCN ตอนนี้) */
+/** ป้ายวันรอบ special ของสาขา (Thai) — null = สาขานี้ยังไม่มีรอบ special กำหนด */
 export function specialDayLabel(branch: Branch): string | null {
-  const day = SPECIAL_DAY[branch];
-  return day ? WEEKDAY_LABEL_TH[day] : null;
+  const days = SPECIAL_DAY[branch];
+  return days && days.length > 0 ? days.map((d) => WEEKDAY_LABEL_TH[d]).join("และ") : null;
 }
 
 export interface CupReconResult {

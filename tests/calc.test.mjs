@@ -29,11 +29,13 @@ test("restockNeed = MAX(par - remain, 0); par null -> null", () => {
   assert.equal(restockNeed(null, 4), null);
 });
 
-test("isSpecialActive: SND=เสาร์, NVP=พุธ", () => {
+test("isSpecialActive: SND=เสาร์, NVP=พุธ, KCN=พุธ+เสาร์", () => {
   assert.equal(isSpecialActive("SND", "sat"), true);
   assert.equal(isSpecialActive("SND", "wed"), false);
   assert.equal(isSpecialActive("NVP", "wed"), true);
   assert.equal(isSpecialActive("NVP", "sat"), false);
+  assert.equal(isSpecialActive("KCN", "wed"), true);
+  assert.equal(isSpecialActive("KCN", "sat"), true);
 });
 
 test("cupReconcile: balanced เมื่อรายขนาดตรงหมด", () => {
