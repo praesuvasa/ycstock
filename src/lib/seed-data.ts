@@ -137,10 +137,10 @@ const RAW: Row[] = [
   ["ซอส Strawberry", "Yogurt Shake", "500/Bag", 1, 1, null],
   ["ปีโป้", "Yogurt Shake", "40 อัน/Bag", 1, 1, null],
   ["ปีโป้ลิ้นจี่", "Yogurt Shake", "กล่อง", 1, 1, null],
-  // Softserve Toppings
-  ["พิสตาชิโอ้เครป", "Softserve Toppings", "กรัม", null, 300, null],
-  ["พิสตาชิโอ้บัตเตอร์", "Softserve Toppings", "กรัม", null, 300, null],
-  ["พิสตาชิโอ้ท๊อปปิ้ง", "Softserve Toppings", "กรัม", null, 300, null],
+  // Softserve Toppings — Par ตั้งเป็น 0 แพ็ค (ไม่ใช่ 300) เพราะระบบยังไม่มี Par แบบกรัมแยกต่างหาก
+  ["พิสตาชิโอ้เครป", "Softserve Toppings", "กรัม", null, 0, null],
+  ["พิสตาชิโอ้บัตเตอร์", "Softserve Toppings", "กรัม", null, 0, null],
+  ["พิสตาชิโอ้ท๊อปปิ้ง", "Softserve Toppings", "กรัม", null, 0, null],
 ];
 
 // 7 รายการ special (รอบเข้าของแยกวัน/สาขา) — match by name prefix

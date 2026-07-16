@@ -443,12 +443,12 @@ insert into par_levels (item_id,branch_id,level) values
 ('it-109','NVP',1),
 ('it-109','KCN',null),
 ('it-110','SND',null),
-('it-110','NVP',300),
+('it-110','NVP',0),
 ('it-110','KCN',null),
 ('it-111','SND',null),
-('it-111','NVP',300),
+('it-111','NVP',0),
 ('it-111','KCN',null),
 ('it-112','SND',null),
-('it-112','NVP',300),
+('it-112','NVP',0),
 ('it-112','KCN',null)
 on conflict (item_id,branch_id) do update set level = excluded.level;
