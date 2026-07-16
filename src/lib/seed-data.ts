@@ -24,8 +24,7 @@ const RAW: Row[] = [
   // Soft Serve / Ice Cream
   ["น้ำ Ice cream / Soft Serve", "Soft Serve / Ice Cream", "2kg/Bag", null, 4],
   ["Granola โรย Ice cream", "Soft Serve / Ice Cream", "g.", null, 1],
-  // Softserve TH
-  ["Softserve ถ้วยกระดาษ", "Softserve TH", "ถ้วย", null, null],
+  ["Softserve ถ้วยกระดาษ", "Soft Serve / Ice Cream", "ถ้วย", 5, 5],
   // Shake แข็ง (special)
   ["Shake (แช่แข็ง)", "Shake แข็ง", "ถ้วย", 80, 100],
   // Drink / แยมกระปุก
