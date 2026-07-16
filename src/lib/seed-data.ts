@@ -51,7 +51,7 @@ const RAW: Row[] = [
   ["Almond", "Toppings", "400g/pack", 1, 1, null],
   ["Pecan", "Toppings", "400g/pack", 1, 1, null],
   ["Walnut", "Toppings", "400g/pack", 1, 1, null],
-  ["Coconut Chips", "Toppings", "130g/box", 150, 150, null],
+  ["Coconut Chips", "Toppings", "130g/box", 0, 0, null], // Par เดิม 150 แพ็ค เป็นข้อมูลผิด (เหมือน Softserve Toppings)
   ["Chia Seed", "Toppings", "400g/pack", 1, 1, null],
   ["Flax Seed", "Toppings", "400g/pack", 1, 1, null],
   ["Cacao Nibs", "Toppings", "400g/pack", 1, 1, null],
