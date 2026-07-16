@@ -390,8 +390,11 @@ export default function StockPage() {
             <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
               <div className="grid gap-2 py-1">
                 {cupSum && cupSum.count > 0 && (
-                  <div className="rounded-lg bg-brand-blue/15 px-2.5 py-1.5 text-xs font-medium text-sky-700">
-                    🥤 รวมแก้วที่ใช้ไปวันนี้ ({cupSum.count} ขนาด): {cupSum.totalUsed} ชิ้น
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
+                    <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
+                    <span className="text-xl font-bold tabular-nums">
+                      {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
+                    </span>
                   </div>
                 )}
                 {g.items.map((it) => {
