@@ -2,6 +2,7 @@
 // Audit Log (admin) — ดูประวัติการกระทำ + กรอง action/สาขา
 import React from "react";
 import type { AuditEntry } from "@/lib/types";
+import { BRANCHES } from "@/lib/types";
 import { GlassCard, Badge, Segmented, PageTitle } from "@/components/ui";
 
 const ACTION_OPTS = [
@@ -14,8 +15,7 @@ const ACTION_OPTS = [
 ];
 const BRANCH_OPTS = [
   { value: "", label: "ทุกสาขา" },
-  { value: "SND", label: "SND" },
-  { value: "NVP", label: "NVP" },
+  ...BRANCHES.map((b) => ({ value: b, label: b })),
 ];
 
 function actionTone(action: string): "ok" | "warn" | "blue" | "orange" | "neutral" {

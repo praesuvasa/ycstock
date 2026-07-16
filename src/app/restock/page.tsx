@@ -4,6 +4,7 @@ import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, PageTitle } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import type { Branch, Weekday, RestockRow } from "@/lib/types";
+import { specialDayLabel } from "@/lib/calc";
 
 const DAY_LABEL: Record<Weekday, string> = { wed: "วันพุธ", sat: "วันเสาร์" };
 const DAY_OPTS = [
@@ -53,7 +54,7 @@ export default function RestockPage() {
   }, [branch, day]);
 
   const dayLabel = DAY_LABEL[day];
-  const ownSpecialDay = branch === "SND" ? "เสาร์" : "พุธ"; // SND=เสาร์, NVP=พุธ
+  const ownSpecialDay = specialDayLabel(branch); // string | null — null = สาขานี้ยังไม่มีรอบ special
 
   return (
     <div>
@@ -117,7 +118,9 @@ export default function RestockPage() {
           <p className="mt-3 text-xs leading-relaxed text-brand-ink/60">
             {specialActive
               ? `รอบนี้รวม 7 รายการ special (${branch} เข้า${dayLabel})`
-              : `รอบนี้ไม่มี 7 รายการ special — ${branch} รับ special เฉพาะวัน${ownSpecialDay}`}
+              : ownSpecialDay
+                ? `รอบนี้ไม่มี 7 รายการ special — ${branch} รับ special เฉพาะวัน${ownSpecialDay}`
+                : `สาขา ${branch} ยังไม่เปิดรับ 7 รายการ special (รอกำหนดรอบเติมของ)`}
           </p>
         )}
       </GlassCard>

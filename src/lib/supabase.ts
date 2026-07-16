@@ -32,9 +32,9 @@ export const supabaseStore = {
       remainderGroup: r.remainder_group ?? undefined, sort: r.sort,
     }));
     const par: ParMap = {};
-    for (const it of mapped) par[it.id] = { SND: null, NVP: null };
+    for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
     for (const p of pars ?? []) {
-      if (!par[p.item_id]) par[p.item_id] = { SND: null, NVP: null };
+      if (!par[p.item_id]) par[p.item_id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
       (par[p.item_id] as any)[p.branch_id] = p.level;
     }
     return { branches: BRANCHES, items: mapped, par };

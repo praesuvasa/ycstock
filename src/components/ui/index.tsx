@@ -1,6 +1,7 @@
 "use client";
 // Glass UI kit — ทุก module ใช้ร่วมกัน (อย่าแก้ signature)
 import React from "react";
+import { BRANCHES } from "@/lib/types";
 
 export function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`glass p-4 sm:p-5 ${className}`}>{children}</div>;
@@ -43,10 +44,10 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 }
 
 // เลือกสาขา — ถ้า locked (user มีสิทธิ์สาขาเดียว) แสดงชิปล็อกแทนปุ่มสลับ
-export function BranchPicker<T extends string>({ value, onChange, locked }: {
+export function BranchPicker<T extends string>({ value, onChange, locked, options }: {
   options?: { value: T; label: string }[]; value: T; onChange: (v: T) => void; locked?: boolean;
 }) {
-  const opts = [{ value: "SND" as T, label: "สาขา SND" }, { value: "NVP" as T, label: "สาขา NVP" }];
+  const opts = options ?? BRANCHES.map((b) => ({ value: b as unknown as T, label: `สาขา ${b}` }));
   if (locked) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-black/5 bg-white/70 px-3 py-2">

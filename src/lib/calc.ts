@@ -29,9 +29,20 @@ export function restockNeed(par: number | null, remain: unknown): number | null 
   return Math.max(par - n(remain), 0);
 }
 
-/** 7 รายการ special เข้ารอบไหน: SND=เสาร์, NVP=พุธ */
+// รอบ special ต่อสาขา — สาขาที่ไม่อยู่ใน map นี้ = ยังไม่เปิดรับ special (isSpecialActive คืน false เสมอ)
+const SPECIAL_DAY: Partial<Record<Branch, Weekday>> = { SND: "sat", NVP: "wed" };
+const WEEKDAY_LABEL_TH: Record<Weekday, string> = { wed: "พุธ", sat: "เสาร์" };
+
+/** 7 รายการ special เข้ารอบไหน: SND=เสาร์, NVP=พุธ, สาขาอื่นที่ยังไม่กำหนด=ไม่มีรอบ */
 export function isSpecialActive(branch: Branch, weekday: Weekday): boolean {
-  return (branch === "SND" && weekday === "sat") || (branch === "NVP" && weekday === "wed");
+  const day = SPECIAL_DAY[branch];
+  return day != null && day === weekday;
+}
+
+/** ป้ายวันรอบ special ของสาขา (Thai) — null = สาขานี้ยังไม่มีรอบ special กำหนด (เช่น KCN ตอนนี้) */
+export function specialDayLabel(branch: Branch): string | null {
+  const day = SPECIAL_DAY[branch];
+  return day ? WEEKDAY_LABEL_TH[day] : null;
 }
 
 export interface CupReconResult {

@@ -3,5 +3,6 @@
 -- (ไฟล์นี้ seed เฉพาะ branches; items/par มาจาก seed-data.ts = single source of truth)
 insert into branches (id, name) values
   ('SND', 'SND'),
-  ('NVP', 'NVP')
+  ('NVP', 'NVP'),
+  ('KCN', 'Kanchanapisek')
 on conflict (id) do nothing;

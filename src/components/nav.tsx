@@ -2,8 +2,9 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import type { Role, BranchScope } from "@/lib/types";
 
-export type Me = { id: string; name: string; role: "user" | "admin"; branchScope: "all" | "SND" | "NVP" };
+export type Me = { id: string; name: string; role: Role; branchScope: BranchScope };
 
 type Tab = { href: string; label: string; icon: string };
 

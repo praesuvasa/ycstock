@@ -1,7 +1,7 @@
 // Shared types — สัญญากลางของทั้งระบบ (BFF + UI ใช้ร่วมกัน)
 
-export type Branch = "SND" | "NVP";
-export const BRANCHES: Branch[] = ["SND", "NVP"];
+export type Branch = "SND" | "NVP" | "KCN";
+export const BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
 
 export type Weekday = "wed" | "sat";
 export type CupSize = "P" | "S" | "BOWL" | "14OZ";
@@ -28,7 +28,7 @@ export interface ItemConfig {
 }
 
 export interface ParMap {
-  [itemId: string]: { SND: number | null; NVP: number | null };
+  [itemId: string]: Partial<Record<Branch, number | null>>;
 }
 
 export interface Meta {
@@ -80,7 +80,7 @@ export interface RestockRow {
 
 // ── Auth / RBAC / Audit (v1.2) ──
 export type Role = "user" | "admin";
-export type BranchScope = "all" | "SND" | "NVP";
+export type BranchScope = "all" | Branch;
 
 export interface User {
   id: string;

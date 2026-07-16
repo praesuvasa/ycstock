@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
+import { BRANCHES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
-      return NextResponse.json({ error: "branch ต้องเป็น SND หรือ NVP" }, { status: 400 });
+      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
     }
     const day = searchParams.get("day");
     if (day !== "wed" && day !== "sat") {

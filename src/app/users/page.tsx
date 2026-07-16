@@ -2,6 +2,7 @@
 // จัดการผู้ใช้ (admin) — สร้าง / toggle active / รีเซ็ตรหัส / แก้ role+สาขา
 import React from "react";
 import type { User, Role, BranchScope } from "@/lib/types";
+import { BRANCHES } from "@/lib/types";
 import { GlassCard, Badge, Button, Segmented, PageTitle } from "@/components/ui";
 
 const ROLE_OPTS: { value: Role; label: string }[] = [
@@ -9,9 +10,8 @@ const ROLE_OPTS: { value: Role; label: string }[] = [
   { value: "admin", label: "ผู้ดูแล" },
 ];
 const SCOPE_OPTS: { value: BranchScope; label: string }[] = [
-  { value: "all", label: "ทุกสาขา" },
-  { value: "SND", label: "SND" },
-  { value: "NVP", label: "NVP" },
+  { value: "all" as BranchScope, label: "ทุกสาขา" },
+  ...BRANCHES.map((b) => ({ value: b as BranchScope, label: b })),
 ];
 
 export default function UsersPage() {

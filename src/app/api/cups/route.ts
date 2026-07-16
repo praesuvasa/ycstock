@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { cupReconcile } from "@/lib/calc";
 import type { CupRow, CupSize } from "@/lib/types";
+import { BRANCHES } from "@/lib/types";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
-      return NextResponse.json({ error: "branch ต้องเป็น SND หรือ NVP" }, { status: 400 });
+      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
     }
     const date = searchParams.get("date");
     if (!date || !ISO_DATE.test(date)) {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
-      return NextResponse.json({ error: "branch ต้องเป็น SND หรือ NVP" }, { status: 400 });
+      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
     }
     const date = body.date;
     if (typeof date !== "string" || !ISO_DATE.test(date)) {

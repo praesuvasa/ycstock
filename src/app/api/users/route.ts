@@ -3,11 +3,12 @@ import { db } from "@/lib/db";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import type { Role, BranchScope } from "@/lib/types";
+import { BRANCHES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 const ROLES: Role[] = ["user", "admin"];
-const SCOPES: BranchScope[] = ["all", "SND", "NVP"];
+const SCOPES: BranchScope[] = ["all", ...BRANCHES];
 
 // GET /api/users → { users } (admin เท่านั้น)
 export async function GET() {
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
     if (!name) return NextResponse.json({ error: "ต้องระบุชื่อ" }, { status: 400 });
     if (!passcode) return NextResponse.json({ error: "ต้องระบุรหัส (PIN)" }, { status: 400 });
     if (!ROLES.includes(role)) return NextResponse.json({ error: "role ไม่ถูกต้อง (user|admin)" }, { status: 400 });
-    if (!SCOPES.includes(branchScope)) return NextResponse.json({ error: "สาขาไม่ถูกต้อง (all|SND|NVP)" }, { status: 400 });
+    if (!SCOPES.includes(branchScope)) return NextResponse.json({ error: `สาขาไม่ถูกต้อง (${SCOPES.join("|")})` }, { status: 400 });
 
     const user = await db.createUser({ name, role, branchScope, passcode, createdBy: s.userId });
     await writeAudit(s, "create_user", { entity: user.id, detail: "สร้าง " + name + " (" + role + ")" });
@@ -61,7 +62,7 @@ export async function PATCH(req: Request) {
       patch.role = body.role;
     }
     if (body.branchScope !== undefined) {
-      if (!SCOPES.includes(body.branchScope)) return NextResponse.json({ error: "สาขาไม่ถูกต้อง (all|SND|NVP)" }, { status: 400 });
+      if (!SCOPES.includes(body.branchScope)) return NextResponse.json({ error: `สาขาไม่ถูกต้อง (${SCOPES.join("|")})` }, { status: 400 });
       patch.branchScope = body.branchScope;
     }
     if (typeof body.active === "boolean") patch.active = body.active;

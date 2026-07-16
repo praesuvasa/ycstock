@@ -2,6 +2,7 @@
 // รัน: node --experimental-strip-types scripts/gen-seed.mjs > supabase/seed-items.sql
 // (seed-data.ts มี import แบบ type-only เท่านั้น จึงถูก strip ได้)
 import { ITEMS, PAR } from "../src/lib/seed-data.ts";
+import { BRANCHES } from "../src/lib/types.ts";
 
 const esc = (s) => String(s).replace(/'/g, "''");
 const bool = (b) => (b ? "true" : "false");
@@ -16,8 +17,7 @@ out += ITEMS.map((it) =>
 out += "insert into par_levels (item_id,branch_id,level) values\n";
 const rows = [];
 for (const it of ITEMS) {
-  rows.push(`('${it.id}','SND',${nn(PAR[it.id].SND)})`);
-  rows.push(`('${it.id}','NVP',${nn(PAR[it.id].NVP)})`);
+  for (const b of BRANCHES) rows.push(`('${it.id}','${b}',${nn(PAR[it.id][b])})`);
 }
 out += rows.join(",\n") + "\non conflict (item_id,branch_id) do update set level = excluded.level;\n";
 

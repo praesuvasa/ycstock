@@ -1,6 +1,7 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
 import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry } from "./types";
+import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
 
@@ -54,5 +55,5 @@ export const db = {
 
 // helper สำหรับ BFF validate branch
 export function parseBranch(v: string | null): Branch | null {
-  return v === "SND" || v === "NVP" ? v : null;
+  return v != null && (BRANCHES as string[]).includes(v) ? (v as Branch) : null;
 }
