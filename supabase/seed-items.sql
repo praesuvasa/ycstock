@@ -111,7 +111,8 @@ insert into items (id,name,category,unit,is_special,is_cup,cup_size,has_remainde
 ('it-109','ปีโป้ลิ้นจี่','Yogurt Shake','กล่อง',false,false,null,true,560,null,108),
 ('it-110','พิสตาชิโอ้เครป','Softserve Toppings','กรัม',false,false,null,true,400,null,109),
 ('it-111','พิสตาชิโอ้บัตเตอร์','Softserve Toppings','กรัม',false,false,null,true,570,null,110),
-('it-112','พิสตาชิโอ้ท๊อปปิ้ง','Softserve Toppings','กรัม',false,false,null,true,470,null,111)
+('it-112','พิสตาชิโอ้ท๊อปปิ้ง','Softserve Toppings','กรัม',false,false,null,true,470,null,111),
+('it-113','Cranberry Cookies','Cereals','กระปุก',false,false,null,false,0,null,112)
 on conflict (id) do update set has_remainder=excluded.has_remainder, grams_per_uom=excluded.grams_per_uom, remainder_group=excluded.remainder_group;
 
 insert into par_levels (item_id,branch_id,level) values
@@ -450,5 +451,8 @@ insert into par_levels (item_id,branch_id,level) values
 ('it-111','KCN',null),
 ('it-112','SND',null),
 ('it-112','NVP',0),
-('it-112','KCN',null)
+('it-112','KCN',null),
+('it-113','SND',null),
+('it-113','NVP',null),
+('it-113','KCN',null)
 on conflict (item_id,branch_id) do update set level = excluded.level;

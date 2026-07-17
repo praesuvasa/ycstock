@@ -141,6 +141,8 @@ const RAW: Row[] = [
   ["พิสตาชิโอ้เครป", "Softserve Toppings", "กรัม", null, 0, null],
   ["พิสตาชิโอ้บัตเตอร์", "Softserve Toppings", "กรัม", null, 0, null],
   ["พิสตาชิโอ้ท๊อปปิ้ง", "Softserve Toppings", "กรัม", null, 0, null],
+  // เพิ่มท้ายสุด (ไม่แทรกกลาง) กัน id ของไอเทมเดิมเลื่อน — เหมือน Choc Chip Cookies (ยังไม่ตั้ง Par)
+  ["Cranberry Cookies", "Cereals", "กระปุก", null, null, null],
 ];
 
 // 7 รายการ special (รอบเข้าของแยกวัน/สาขา) — match by name prefix
