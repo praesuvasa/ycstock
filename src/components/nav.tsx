@@ -17,7 +17,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/stock", label: "สต็อก", icon: "📝" },
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
-  { href: "/cups", label: "ถ้วย", icon: "🥤" },
+  { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },
 ];
 const ADMIN_MENU: Tab[] = [
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "⚙️" },

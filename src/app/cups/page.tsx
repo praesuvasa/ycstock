@@ -243,7 +243,7 @@ export default function CupsPage() {
   return (
     <div>
       <PageTitle
-        title="Reconcile ถ้วย 🥤"
+        title="สรุปจำนวนขายออก 🥤"
         right={<Badge tone="neutral">{thaiDate(date)}</Badge>}
       />
 
@@ -334,7 +334,6 @@ export default function CupsPage() {
 
       {/* ── สรุปยอดขายเทียบ POS (read-only) ───────────────────────────────── */}
       <div className="mt-6 border-t border-black/5 pt-4">
-        <PageTitle title="สรุปยอดขายเทียบ POS 🧾" />
         <p className="mb-3 px-1 text-[12px] text-brand-ink/55">
           เช็คยอดขายจากสต็อกเทียบ POS ได้เร็ว (read-only) · สถานะ ✓ = ยอดตรง · ⚠️ = ยอดไม่ตรง (โชว์ผลต่างจริง)
         </p>
