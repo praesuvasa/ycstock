@@ -5,7 +5,7 @@ import type { Branch, CupRow, CupSize, Item, Meta, StockRow } from "@/lib/types"
 import { cupReconcile, variance } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
-  PageTitle, GlassCard, BranchPicker, NumberField, Stat, Badge, Button, SaveBar,
+  PageTitle, GlassCard, BranchPicker, Stat, Badge, Button, SaveBar,
 } from "@/components/ui";
 import { useMe } from "@/components/nav";
 
@@ -268,38 +268,42 @@ export default function CupsPage() {
         ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ · diff = ใช้จริง − ขาย
       </p>
 
-      {/* แถวรายขนาด */}
-      <div className="space-y-2.5">
-        {rows.map((r) => {
+      {/* แถวรายขนาด — ตารางกระชับ (แทนการ์ดใหญ่เดิม) */}
+      <div className="overflow-hidden rounded-xl border border-black/5">
+        <div className="grid grid-cols-[76px_36px_36px_36px_40px_52px_56px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[9px] font-medium text-brand-ink/50">
+          <span>ขนาด</span>
+          <span className="text-right">ตั้งต้น</span>
+          <span className="text-right">รับเข้า</span>
+          <span className="text-right">เหลือ</span>
+          <span className="text-right">ใช้จริง</span>
+          <span className="text-right">ขาย</span>
+          <span className="text-right">diff</span>
+        </div>
+        {rows.map((r, i) => {
           const ps = perSize.get(r.size);
           const used = ps?.used ?? 0;
           const diff = ps?.diff ?? 0;
-          const diffTone = diff === 0 ? "ok" : "warn";
           return (
-            <GlassCard key={r.size}>
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-[15px] font-semibold">{SIZE_LABEL[r.size]}</span>
-                <Badge tone={diff === 0 ? "ok" : "warn"}>
-                  diff {diff > 0 ? `+${diff}` : diff}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-4 gap-2">
-                <NumberField label="ตั้งต้น (stock)" value={r.start} readOnly tone="ro" />
-                <NumberField label="รับเข้า (stock)" value={r.in} readOnly tone="ro" />
-                <NumberField label="คงเหลือ (stock)" value={r.remain} readOnly tone="ro" />
-                <NumberField label="ขายจริง (กรอก)" value={r.sold}
-                  onChange={(v) => setField(r.size, "sold", v)} />
-              </div>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <NumberField label="ใช้จริง (คำนวณ)" value={used} readOnly tone="auto" />
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] text-brand-ink/50">diff (ใช้−ขาย)</span>
-                  <div className={`field ${diff === 0 ? "bg-ok/10 text-ok" : "bg-warn/10 text-warn"} font-semibold`}>
-                    {diff > 0 ? `+${diff}` : diff}
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
+            <div
+              key={r.size}
+              className={`grid grid-cols-[76px_36px_36px_36px_40px_52px_56px] items-center gap-1 px-2 py-1.5 text-[11px] ${
+                i % 2 ? "bg-white/30" : "bg-white/50"
+              }`}
+            >
+              <span className="truncate font-medium">{SIZE_LABEL[r.size]}</span>
+              <span className="text-right tabular-nums">{r.start}</span>
+              <span className="text-right tabular-nums">{r.in}</span>
+              <span className="text-right tabular-nums">{r.remain}</span>
+              <span className="text-right tabular-nums">{used}</span>
+              <input
+                inputMode="numeric" value={r.sold}
+                onChange={(e) => setField(r.size, "sold", e.target.value)}
+                className="field bg-brand-blue/15 px-1 py-1 text-right text-[11.5px] font-semibold text-sky-800"
+              />
+              <span className={`text-right font-bold tabular-nums ${diff === 0 ? "text-ok" : "text-warn"}`}>
+                {diff > 0 ? `+${diff}` : diff}
+              </span>
+            </div>
           );
         })}
       </div>
