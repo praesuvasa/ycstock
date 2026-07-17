@@ -252,7 +252,7 @@ export default function StockPage() {
     return { filledCount: filled, errorCount: error, unconfirmedCount: unconfirmed };
   }, [shownItems, rows, groupIds, groupTotals, confirmed]);
 
-  type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG";
+  type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG" | "returnedG";
   // คงเหลือแพ็ค = ยกมา + รับเข้า − ออก/ขาย − ส่งคืน/เสีย (ส่งคืนหักจากยอด stock)
   const calcRemainPack = (r: StockRow) => Math.max(r.carryPack + r.inPack - r.used - r.returned, 0);
   function setField(itemId: string, field: NumField, raw: string, N: number) {
@@ -290,6 +290,10 @@ export default function StockPage() {
         }
         case "remainG": // คงเหลือ g (เศษ) → กรอกอิสระ (เกิน carryG ได้ = แกะกล่องใหม่)
           next.remainG = val;
+          break;
+        case "returnedG": // ส่งคืนเศษ (g) → หักจากคงเหลือ g ทันที (เฉพาะ leader กลุ่มเศษรวม)
+          next.remainG = Math.max(next.remainG - (val - (next.returnedG ?? 0)), 0);
+          next.returnedG = val;
           break;
       }
       next.variance = varianceOf(next);
@@ -440,7 +444,9 @@ export default function StockPage() {
                     ? `✓ เท่ายกมา (${row.carryPack} แพ็ค + ${row.carryG} ${su})`
                     : `✓ เท่ายกมา (${row.carryPack} แพ็ค)`;
 
-                  const returnedExpanded = returnOpen[it.id] ?? row.returned > 0;
+                  const returnedExpanded = returnOpen[it.id] ?? (row.returned > 0 || (row.returnedG ?? 0) > 0);
+                  // สมาชิกกลุ่มเศษรวม (Strawberry/Blueberry) — ช่อง "ส่งคืน/เสีย (กล่อง)" จำกัดไม่เกิน 6 กันใส่ผิดช่อง (เผลอใส่เลขกรัม)
+                  const returnedBoxWarn = !!grp && row.returned > 6;
 
                   return (
                     <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -502,10 +508,22 @@ export default function StockPage() {
                       {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) */}
                       <div className="mt-2">
                         {returnedExpanded ? (
-                          <div className="grid grid-cols-2 gap-2">
-                            <CompactField label="ส่งคืน/เสีย" value={blankZero(row.returned)}
-                              onChange={(x) => setField(it.id, "returned", x, N)} />
-                            {row.returned > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <CompactField
+                                label={grp ? "ส่งคืน/เสีย (กล่อง)" : "ส่งคืน/เสีย"} value={blankZero(row.returned)}
+                                maxLength={grp ? 1 : undefined} warn={returnedBoxWarn}
+                                onChange={(x) => setField(it.id, "returned", x, N)}
+                              />
+                              {grp && isLeader && (
+                                <CompactField label="ส่งคืนเศษ (g)" value={blankZero(row.returnedG ?? 0)}
+                                  onChange={(x) => setField(it.id, "returnedG", x, N)} />
+                              )}
+                            </div>
+                            {returnedBoxWarn && (
+                              <div className="text-[10px] font-medium text-warn">⚠️ จำนวนผิด</div>
+                            )}
+                            {(row.returned > 0 || (row.returnedG ?? 0) > 0) && (
                               <label className="flex flex-col gap-0.5">
                                 <span className="text-[8.5px] leading-tight text-brand-ink/50">หมายเหตุ (ส่งคืน/เสีย)</span>
                                 <input className="field px-1.5 py-1 text-left text-xs" placeholder="เหตุผล เช่น หมดอายุ / แตก"

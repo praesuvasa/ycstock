@@ -78,6 +78,7 @@ export const supabaseStore = {
       date, branch_id: branch, item_id: r.itemId,
       carry_pack: r.carryPack, carry_g: r.carryG, in_pack: r.inPack, in_g: r.inG,
       used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
+      returned_g: r.returnedG ?? 0,
       note: r.note, variance: variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack),
     }));
     const { error } = await sb().from("stock_daily").upsert(payload, { onConflict: "date,branch_id,item_id" });
@@ -230,6 +231,7 @@ function rowFromDb(s: any): StockRow {
   return {
     itemId: s.item_id, carryPack: s.carry_pack, carryG: s.carry_g, inPack: s.in_pack, inG: s.in_g,
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
+    returnedG: s.returned_g ?? 0,
     note: s.note ?? "", variance: s.variance, hasEntry: true,
   };
 }

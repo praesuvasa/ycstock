@@ -51,6 +51,8 @@ export interface StockRow {
   variance: number;
   // true = มีแถวบันทึกจริงของวันนี้แล้ว (ไม่ว่าค่าจะเท่ายกมาหรือไม่) · false/undefined = ยังไม่เคยบันทึก (ค่าที่เห็นเป็นแค่ยกมา default)
   hasEntry?: boolean;
+  // ส่งคืน/เสีย เป็นกรัม (เฉพาะ item leader ของกลุ่มเศษรวม เช่น Strawberry/Blueberry) — หักจาก remainG ไม่ใช่ remainPack
+  returnedG?: number;
 }
 
 export interface SalesRow {
