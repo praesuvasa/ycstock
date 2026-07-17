@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
-    assertCanEditDate(s, date); // user ≤ 2 วัน · admin ไม่จำกัด
+    assertCanEditDate(s, date); // user ≤ 3 วัน · admin ไม่จำกัด
     if (!Array.isArray(body.rows)) return NextResponse.json({ error: "rows จำเป็น" }, { status: 400 });
 
     const result = await db.saveStock(branch, date, body.rows);

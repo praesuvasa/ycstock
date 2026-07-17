@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import type { SalesRow } from "@/lib/types";
-import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
+import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +44,7 @@ export async function POST(req: Request) {
     const branch = resolveBranch(s, parseBranch(body?.branch ?? null));
     const date = body?.date ?? null;
     if (!isDate(date)) return NextResponse.json({ error: "date ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    assertCanEditDate(s, date); // user ≤ 3 วัน · admin ไม่จำกัด
     if (!body?.row || typeof body.row !== "object")
       return NextResponse.json({ error: "row ไม่ถูกต้อง" }, { status: 400 });
 

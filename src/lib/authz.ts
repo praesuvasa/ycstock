@@ -37,14 +37,14 @@ export function resolveBranch(session: Session, requested: Branch | null): Branc
   return session.branchScope as Branch;
 }
 
-/** user แก้ย้อนหลังได้ ≤ 2 วัน (วันนี้/เมื่อวาน/2 วันก่อน); admin ไม่จำกัด */
+/** user แก้ย้อนหลังได้ ≤ 3 วัน (สต็อกและยอดขาย); admin ไม่จำกัด */
 export function assertCanEditDate(session: Session, date: string): void {
   if (session.role === "admin") return;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const d = new Date(date + "T00:00:00");
   const diffDays = Math.round((today.getTime() - d.getTime()) / 86400_000);
   if (diffDays < 0) throw new AuthError("แก้ข้อมูลวันในอนาคตไม่ได้", 422);
-  if (diffDays > 2) throw new AuthError("พนักงานแก้ย้อนหลังได้ไม่เกิน 2 วัน", 422);
+  if (diffDays > 3) throw new AuthError("พนักงานแก้ย้อนหลังได้ไม่เกิน 3 วัน", 422);
 }
 
 /** map AuthError → NextResponse-friendly */
