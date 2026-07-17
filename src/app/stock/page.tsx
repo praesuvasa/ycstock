@@ -6,6 +6,7 @@
 // v2 (compact + confirm-gate): ช่อง "คงเหลือ" ทุกไอเทมเริ่มว่าง ต้องกด "✓ เท่ายกมา" หรือพิมพ์ค่าเองก่อน
 // ถึงจะนับว่า "ยืนยันแล้ว" — ปุ่มบันทึกจะ disabled จริงจนกว่าจะยืนยันครบทุกรายการ (คนละเงื่อนไขกับ errorCount/variance เดิม)
 import React from "react";
+import { useRouter } from "next/navigation";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
 import { remainPieces, variance } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
@@ -111,9 +112,12 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
 
 export default function StockPage() {
   const me = useMe();
+  const router = useRouter();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
+  // โชว์ prompt ชวนไปกรอกยอดขายหลังบันทึกสต็อกสำเร็จ
+  const [showSavePrompt, setShowSavePrompt] = React.useState(false);
 
   // ผู้ใช้ที่มีสิทธิ์สาขาเดียว → ล็อกสาขาให้ตรงสิทธิ์
   React.useEffect(() => {
@@ -349,7 +353,7 @@ export default function StockPage() {
       });
       const data = (await res.json()) as { updated?: number; inserted?: number; error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
-      window.alert(`บันทึกสต็อกแล้ว ✓\nอัปเดต ${data.updated ?? 0} · เพิ่มใหม่ ${data.inserted ?? 0} รายการ`);
+      setShowSavePrompt(true); // แทน alert เดิม — ชวนไปกรอกยอดขายต่อ
     } catch (e: any) {
       window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
     } finally {
@@ -635,6 +639,35 @@ export default function StockPage() {
           {saving ? "กำลังบันทึก…" : "บันทึกสต็อกวันนี้"}
         </Button>
       </SaveBar>
+
+      {/* Prompt หลังบันทึกสต็อกสำเร็จ — ชวนไปกรอกยอดขายต่อ (ไม่บังคับ) */}
+      {showSavePrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-end bg-black/35 backdrop-blur-[2px]"
+          onClick={() => setShowSavePrompt(false)}
+        >
+          <div
+            className="w-full rounded-t-2xl bg-white/95 px-5 pb-6 pt-6 shadow-glass backdrop-blur-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-full bg-ok/15 text-lg text-ok">✓</div>
+            <p className="text-center text-[15px] font-semibold">บันทึกสต็อกวันนี้แล้ว</p>
+            <p className="mb-4 text-center text-[13px] text-brand-ink/60">กรอกยอดขายวันนี้เลยไหม?</p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => router.push(`/sales?branch=${branch}&date=${date}`)}>
+                ไปกรอกยอดขาย →
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowSavePrompt(false)}
+                className="rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55"
+              >
+                ปิด (กรอกทีหลัง)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

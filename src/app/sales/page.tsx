@@ -22,11 +22,23 @@ const fromRow = (row: SalesRow): Form => ({
   lineman: String(row.lineman ?? 0),
 });
 
+// อ่านสาขา/วันที่จาก query string ถ้ามี (เช่น มาจาก prompt "ไปกรอกยอดขาย" หลังบันทึกสต็อก)
+// ใช้ window.location ตรงๆ แทน useSearchParams เพื่อเลี่ยงต้องห่อ Suspense
+function fromQuery<T extends string>(key: string, valid: readonly T[], fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  const v = new URLSearchParams(window.location.search).get(key);
+  return (valid as readonly string[]).includes(v ?? "") ? (v as T) : fallback;
+}
+
 export default function SalesPage() {
   const me = useMe();
   const scoped = !!me && me.branchScope !== "all";
-  const [branch, setBranch] = React.useState<Branch>("NVP");
-  const [date, setDate] = React.useState<string>(todayISO());
+  const [branch, setBranch] = React.useState<Branch>(() => fromQuery("branch", ["SND", "NVP", "KCN"] as const, "NVP"));
+  const [date, setDate] = React.useState<string>(() => {
+    if (typeof window === "undefined") return todayISO();
+    const v = new URLSearchParams(window.location.search).get("date");
+    return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : todayISO();
+  });
 
   React.useEffect(() => {
     if (scoped) setBranch(me!.branchScope as Branch);
