@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -124,7 +124,7 @@ export const memoryStore = {
     return { ok: true, updated, inserted };
   },
 
-  getRestock(branch: Branch, weekday: "wed" | "sat"): { rows: RestockRow[]; specialActive: boolean } {
+  getRestock(branch: Branch, weekday: Weekday): { rows: RestockRow[]; specialActive: boolean } {
     seed();
     const active = isSpecialActive(branch, weekday);
     const today = new Date().toISOString().slice(0, 10);

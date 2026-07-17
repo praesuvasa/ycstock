@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -20,7 +20,7 @@ export const db = {
   saveStock: (branch: Branch, date: string, rows: StockRow[]) =>
     useSupabase ? supabaseStore.saveStock(branch, date, rows) : Promise.resolve(memoryStore.saveStock(branch, date, rows)),
 
-  getRestock: (branch: Branch, weekday: "wed" | "sat"): Promise<{ rows: RestockRow[]; specialActive: boolean }> =>
+  getRestock: (branch: Branch, weekday: Weekday): Promise<{ rows: RestockRow[]; specialActive: boolean }> =>
     useSupabase ? supabaseStore.getRestock(branch, weekday) : Promise.resolve(memoryStore.getRestock(branch, weekday)),
 
   getSales: (branch: Branch, date: string): Promise<SalesRow> =>

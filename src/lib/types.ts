@@ -3,7 +3,7 @@
 export type Branch = "SND" | "NVP" | "KCN";
 export const BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
 
-export type Weekday = "wed" | "sat";
+export type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 export type CupSize = "P" | "S" | "BOWL" | "14OZ";
 
 export interface Item {

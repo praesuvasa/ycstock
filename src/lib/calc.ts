@@ -31,7 +31,15 @@ export function restockNeed(par: number | null, remain: unknown): number | null 
 
 // รอบ special ต่อสาขา (รับได้หลายวัน) — สาขาที่ไม่อยู่ใน map นี้ = ยังไม่เปิดรับ special (isSpecialActive คืน false เสมอ)
 const SPECIAL_DAY: Partial<Record<Branch, Weekday[]>> = { SND: ["sat"], NVP: ["wed"], KCN: ["wed", "sat"] };
-const WEEKDAY_LABEL_TH: Record<Weekday, string> = { wed: "พุธ", sat: "เสาร์" };
+const WEEKDAY_LABEL_TH: Record<Weekday, string> = {
+  sun: "อาทิตย์", mon: "จันทร์", tue: "อังคาร", wed: "พุธ", thu: "พฤหัสบดี", fri: "ศุกร์", sat: "เสาร์",
+};
+const WEEKDAY_ORDER: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** แปลงวันที่ (YYYY-MM-DD) เป็นวันในสัปดาห์ — ใช้ตอนเลือกวันที่จัดส่งจริงแทนปุ่มพุธ/เสาร์เดิม */
+export function weekdayFromDate(dateISO: string): Weekday {
+  return WEEKDAY_ORDER[new Date(dateISO + "T00:00:00").getDay()];
+}
 
 /** 7 รายการ special เข้ารอบไหน: SND=เสาร์, NVP=พุธ, KCN=พุธ+เสาร์, สาขาอื่นที่ยังไม่กำหนด=ไม่มีรอบ */
 export function isSpecialActive(branch: Branch, weekday: Weekday): boolean {
