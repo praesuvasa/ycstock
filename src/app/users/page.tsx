@@ -7,8 +7,10 @@ import { GlassCard, Badge, Button, Segmented, PageTitle } from "@/components/ui"
 
 const ROLE_OPTS: { value: Role; label: string }[] = [
   { value: "user", label: "พนักงาน" },
+  { value: "restock", label: "จนท. Restock" },
   { value: "admin", label: "ผู้ดูแล" },
 ];
+const ROLE_LABEL_TH: Record<Role, string> = { user: "พนักงาน", restock: "จนท. Restock", admin: "ผู้ดูแล" };
 const SCOPE_OPTS: { value: BranchScope; label: string }[] = [
   { value: "all" as BranchScope, label: "ทุกสาขา" },
   ...BRANCHES.map((b) => ({ value: b as BranchScope, label: b })),
@@ -136,8 +138,8 @@ export default function UsersPage() {
                   <div className="mb-2.5 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[15px] font-semibold">{u.name}</span>
-                      <Badge tone={u.role === "admin" ? "orange" : "neutral"}>
-                        {u.role === "admin" ? "ผู้ดูแล" : "พนักงาน"}
+                      <Badge tone={u.role === "admin" ? "orange" : u.role === "restock" ? "blue" : "neutral"}>
+                        {ROLE_LABEL_TH[u.role]}
                       </Badge>
                       <Badge tone={u.active ? "ok" : "warn"}>{u.active ? "ใช้งาน" : "ปิด"}</Badge>
                     </div>

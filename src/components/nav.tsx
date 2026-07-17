@@ -24,6 +24,12 @@ const ADMIN_MENU: Tab[] = [
   { href: "/users", label: "ผู้ใช้", icon: "👥" },
   { href: "/audit", label: "Audit Log", icon: "📜" },
 ];
+// role "restock" — เข้าได้แค่หน้าเดียว (เติมของ/สั่งผลิต) ไม่เห็นเมนูอื่นเลย
+const RESTOCK_TABS: Tab[] = [
+  { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "📦" },
+];
+const tabsForRole = (role: Role | undefined): Tab[] =>
+  role === "admin" ? ADMIN_TABS : role === "restock" ? RESTOCK_TABS : USER_TABS;
 
 // context ให้ทุกส่วน (nav + หน้า) แชร์ me (โหลดครั้งเดียว)
 const MeCtx = React.createContext<Me | null>(null);
@@ -32,11 +38,12 @@ export function useMe(): Me | null {
   return React.useContext(MeCtx);
 }
 
+const ROLE_LABEL_TH: Record<Role, string> = { admin: "แอดมิน", user: "พนักงาน", restock: "จนท. Restock" };
 const scopeLabel = (me: Me | null): string =>
   !me ? "ระบบจัดการสต็อก"
     : me.role === "admin" && me.branchScope === "all" ? "ผู้ดูแลระบบ · ทุกสาขา"
-    : me.branchScope !== "all" ? `${me.role === "admin" ? "แอดมิน" : "พนักงาน"} · สาขา ${me.branchScope}`
-    : "พนักงาน · ทุกสาขา";
+    : me.branchScope !== "all" ? `${ROLE_LABEL_TH[me.role]} · สาขา ${me.branchScope}`
+    : `${ROLE_LABEL_TH[me.role]} · ทุกสาขา`;
 
 function useLogout() {
   const router = useRouter();
@@ -110,7 +117,7 @@ function Sidebar() {
   const me = React.useContext(MeCtx);
   const path = usePathname();
   const logout = useLogout();
-  const tabs = me?.role === "admin" ? ADMIN_TABS : USER_TABS;
+  const tabs = tabsForRole(me?.role);
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   return (
@@ -197,7 +204,7 @@ function TopBar() {
 function BottomNav() {
   const me = React.useContext(MeCtx);
   const path = usePathname();
-  const tabs = me?.role === "admin" ? ADMIN_TABS : USER_TABS;
+  const tabs = tabsForRole(me?.role);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden">
       <div className="mx-auto flex max-w-3xl">

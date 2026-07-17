@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-// หน้าที่ user (พนักงาน) เข้าได้ · ที่เหลือ admin-only
+// หน้าที่ user (พนักงาน) เข้าได้ · restock (จนท. Restock) เข้าได้แค่ /restock · ที่เหลือ admin-only
 const USER_PAGES = ["/stock", "/sales"];
+const RESTOCK_PAGES = ["/restock"];
 const PUBLIC = ["/login", "/api/login"];
 
 export async function middleware(req: NextRequest) {
@@ -20,12 +21,20 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // coarse gate: user เข้าได้แค่หน้าที่กำหนด (ด่านละเอียดอยู่ที่ BFF)
+  // coarse gate: user/restock เข้าได้แค่หน้าที่กำหนด (ด่านละเอียดอยู่ที่ BFF)
   if (session.role === "user" && !isApi) {
     const allowed = USER_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (!allowed) {
       const url = req.nextUrl.clone();
       url.pathname = "/stock";
+      return NextResponse.redirect(url);
+    }
+  }
+  if (session.role === "restock" && !isApi) {
+    const allowed = RESTOCK_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
+    if (!allowed) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/restock";
       return NextResponse.redirect(url);
     }
   }

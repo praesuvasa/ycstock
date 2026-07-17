@@ -26,6 +26,13 @@ export async function requireAdmin(): Promise<Session> {
   return s;
 }
 
+/** ใช้กับหน้า/API ที่ role "restock" เข้าได้ด้วย (นอกเหนือจาก admin) — เช่น /api/restock, /api/meta ที่หน้า restock ต้องใช้ */
+export async function requireAdminOrRestock(): Promise<Session> {
+  const s = await requireSession();
+  if (s.role !== "admin" && s.role !== "restock") throw new AuthError("ไม่มีสิทธิ์เข้าถึงส่วนนี้", 403);
+  return s;
+}
+
 /** คืน branch ที่ใช้ได้จริงตาม scope; ถ้า user ขอสาขาอื่น → 403 */
 export function resolveBranch(session: Session, requested: Branch | null): Branch {
   if (session.branchScope === "all") {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
-import { requireAdmin, authErrorResponse } from "@/lib/authz";
+import { requireAdminOrRestock, authErrorResponse } from "@/lib/authz";
 import { BRANCHES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // GET /api/restock?branch=NVP&day=wed → { rows: RestockRow[], specialActive: boolean }
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin();
+    await requireAdminOrRestock();
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {

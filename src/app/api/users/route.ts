@@ -7,7 +7,7 @@ import { BRANCHES } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const ROLES: Role[] = ["user", "admin"];
+const ROLES: Role[] = ["user", "admin", "restock"];
 const SCOPES: BranchScope[] = ["all", ...BRANCHES];
 
 // GET /api/users → { users } (admin เท่านั้น)
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     if (!name) return NextResponse.json({ error: "ต้องระบุชื่อ" }, { status: 400 });
     if (!passcode) return NextResponse.json({ error: "ต้องระบุรหัส (PIN)" }, { status: 400 });
-    if (!ROLES.includes(role)) return NextResponse.json({ error: "role ไม่ถูกต้อง (user|admin)" }, { status: 400 });
+    if (!ROLES.includes(role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
     if (!SCOPES.includes(branchScope)) return NextResponse.json({ error: `สาขาไม่ถูกต้อง (${SCOPES.join("|")})` }, { status: 400 });
 
     const user = await db.createUser({ name, role, branchScope, passcode, createdBy: s.userId });
@@ -58,7 +58,7 @@ export async function PATCH(req: Request) {
     const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string } = {};
     if (typeof body.name === "string") patch.name = body.name.trim();
     if (body.role !== undefined) {
-      if (!ROLES.includes(body.role)) return NextResponse.json({ error: "role ไม่ถูกต้อง (user|admin)" }, { status: 400 });
+      if (!ROLES.includes(body.role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
       patch.role = body.role;
     }
     if (body.branchScope !== undefined) {
