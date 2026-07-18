@@ -43,6 +43,12 @@ export function useMe(): Me | null {
   return React.useContext(MeCtx);
 }
 
+// จำนวนคำขอเบิกที่ยังไม่มีใครเปิดดู — โชว์ badge ที่เมนู "ขอเบิกสินค้า" (เฉพาะ restock/admin)
+const UnseenReqCtx = React.createContext<number>(0);
+export function useUnseenRequisitions(): number {
+  return React.useContext(UnseenReqCtx);
+}
+
 const ROLE_LABEL_TH: Record<Role, string> = { admin: "แอดมิน", user: "พนักงาน", restock: "จนท. Restock" };
 const scopeLabel = (me: Me | null): string =>
   !me ? "ระบบจัดการสต็อก"
@@ -61,6 +67,7 @@ function useLogout() {
 
 export function NavShell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = React.useState<Me | null>(null);
+  const [unseenReq, setUnseenReq] = React.useState(0);
   const path = usePathname();
   React.useEffect(() => {
     fetch("/api/me")
@@ -69,18 +76,29 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       .catch(() => setMe(null));
   }, [path]);
 
+  // เช็คจำนวนคำขอเบิกที่ยังไม่เห็น ทุกครั้งที่เปลี่ยนหน้า (เคลียร์อัตโนมัติหลังเปิดหน้า "ขอเบิกสินค้า")
+  React.useEffect(() => {
+    if (me?.role !== "restock" && me?.role !== "admin") return;
+    fetch("/api/requisitions/unseen-count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setUnseenReq(d.count ?? 0))
+      .catch(() => {});
+  }, [path, me?.role]);
+
   if (path === "/login") return <>{children}</>;
 
   return (
     <MeCtx.Provider value={me}>
-      <Sidebar />
-      <TopBar />
-      <main className="lg:pl-64 print:pl-0">
-        <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
-          {children}
-        </div>
-      </main>
-      <BottomNav />
+      <UnseenReqCtx.Provider value={unseenReq}>
+        <Sidebar />
+        <TopBar />
+        <main className="lg:pl-64 print:pl-0">
+          <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
+            {children}
+          </div>
+        </main>
+        <BottomNav />
+      </UnseenReqCtx.Provider>
     </MeCtx.Provider>
   );
 }
@@ -100,7 +118,7 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
   );
 }
 
-function NavItem({ tab, active, onClick }: { tab: Tab; active: boolean; onClick?: () => void }) {
+function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; onClick?: () => void; badge?: number }) {
   return (
     <Link
       href={tab.href}
@@ -112,7 +130,14 @@ function NavItem({ tab, active, onClick }: { tab: Tab; active: boolean; onClick?
       }`}
     >
       <span className="text-lg leading-none">{tab.icon}</span>
-      <span>{tab.label}</span>
+      <span className="flex-1">{tab.label}</span>
+      {!!badge && (
+        <span className={`grid h-5 min-w-[20px] place-items-center rounded-full px-1 text-[11px] font-semibold ${
+          active ? "bg-white text-brand-red" : "bg-brand-red text-white"
+        }`}>
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -120,6 +145,7 @@ function NavItem({ tab, active, onClick }: { tab: Tab; active: boolean; onClick?
 /* ── Desktop: sidebar แนวตั้ง (≥lg) ── */
 function Sidebar() {
   const me = React.useContext(MeCtx);
+  const unseenReq = React.useContext(UnseenReqCtx);
   const path = usePathname();
   const logout = useLogout();
   const tabs = tabsForRole(me?.role);
@@ -132,7 +158,7 @@ function Sidebar() {
       <nav className="mt-7 flex flex-col gap-1">
         <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
         {tabs.map((t) => (
-          <NavItem key={t.href} tab={t} active={isOn(t.href)} />
+          <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/requisitions" ? unseenReq : undefined} />
         ))}
       </nav>
 
@@ -208,6 +234,7 @@ function TopBar() {
 /* ── Mobile: bottom tab nav (<lg) ── */
 function BottomNav() {
   const me = React.useContext(MeCtx);
+  const unseenReq = React.useContext(UnseenReqCtx);
   const path = usePathname();
   const tabs = tabsForRole(me?.role);
   return (
@@ -215,6 +242,7 @@ function BottomNav() {
       <div className="mx-auto flex max-w-3xl">
         {tabs.map((t) => {
           const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
+          const badge = t.href === "/requisitions" ? unseenReq : 0;
           return (
             <Link
               key={t.href}
@@ -223,7 +251,14 @@ function BottomNav() {
                 on ? "text-brand-red" : "text-brand-ink/55"
               }`}
             >
-              <span className="text-lg leading-none">{t.icon}</span>
+              <span className="relative text-lg leading-none">
+                {t.icon}
+                {badge > 0 && (
+                  <span className="absolute -right-2 -top-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand-red px-0.5 text-[9px] font-bold text-white">
+                    {badge > 9 ? "9+" : badge}
+                  </span>
+                )}
+              </span>
               <span className={on ? "font-semibold" : ""}>{t.label}</span>
             </Link>
           );

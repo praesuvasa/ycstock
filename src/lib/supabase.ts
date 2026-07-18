@@ -272,6 +272,15 @@ export const supabaseStore = {
     if (error) throw error;
     return (data ?? []).map(rowFromReqDb);
   },
+  async countUnseenRequisitions(): Promise<number> {
+    const { count, error } = await sb().from("requisitions").select("id", { count: "exact", head: true }).is("seen_at", null);
+    if (error) throw error;
+    return count ?? 0;
+  },
+  async markAllRequisitionsSeen(): Promise<void> {
+    const { error } = await sb().from("requisitions").update({ seen_at: new Date().toISOString() }).is("seen_at", null);
+    if (error) throw error;
+  },
 
   // ── audit ──
   async writeAudit(e: Omit<AuditEntry, "id" | "ts">): Promise<void> {
@@ -298,6 +307,7 @@ function rowFromReqDb(r: any): Requisition {
     id: String(r.id), branch: r.branch_id, itemId: r.item_id ?? undefined, itemName: r.item_name,
     qty: Number(r.qty), unit: r.unit ?? undefined, note: r.note ?? "",
     requestedBy: r.requested_by, requestedByUserId: r.requested_by_user_id, createdAt: r.created_at,
+    seenAt: r.seen_at ?? undefined,
   };
 }
 

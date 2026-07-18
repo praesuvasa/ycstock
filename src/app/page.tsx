@@ -11,6 +11,11 @@ type Dashboard = {
   varianceAlerts: { branch: Branch; count: number }[];
 };
 
+interface RequisitionPreview {
+  id: string; branch: Branch; itemName: string; qty: number; unit?: string;
+  note: string; requestedBy: string; createdAt: string; seenAt?: string;
+}
+
 const LINKS = [
   { href: "/stock", label: "กรอกสต็อก", icon: "📝" },
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
@@ -44,6 +49,17 @@ export default function DashboardPage() {
     };
   }, [date]);
 
+  const [reqRows, setReqRows] = React.useState<RequisitionPreview[]>([]);
+  const [reqLoading, setReqLoading] = React.useState(true);
+  React.useEffect(() => {
+    fetch("/api/requisitions")
+      .then((r) => r.json())
+      .then((d: { rows?: RequisitionPreview[] }) => setReqRows(d.rows ?? []))
+      .catch(() => {})
+      .finally(() => setReqLoading(false));
+  }, []);
+  const unseenReq = React.useMemo(() => reqRows.filter((r) => !r.seenAt), [reqRows]);
+
   const totalSales = data?.salesToday.reduce((s, x) => s + x.total, 0) ?? 0;
   const salesOf = (b: Branch) => data?.salesToday.find((x) => x.branch === b)?.total ?? 0;
   const lowOf = (b: Branch) => data?.lowStock.filter((x) => x.branch === b) ?? [];
@@ -68,6 +84,40 @@ export default function DashboardPage() {
           <div className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {err}</div>
         </GlassCard>
       )}
+
+      {/* 1.5 คำขอเบิกใหม่ */}
+      <GlassCard className="mb-3">
+        <div className="mb-2.5 flex items-center justify-between">
+          <h2 className="text-[15px] font-semibold">🙋 คำขอเบิกใหม่</h2>
+          <Link href="/requisitions" className="text-xs font-medium text-sky-700 underline underline-offset-2">
+            ดูทั้งหมด →
+          </Link>
+        </div>
+        {reqLoading ? (
+          <div className="py-4 text-center text-sm text-brand-ink/40">กำลังโหลด…</div>
+        ) : unseenReq.length === 0 ? (
+          <div className="py-4 text-center text-sm text-ok">✓ ไม่มีคำขอค้าง</div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {unseenReq.slice(0, 5).map((r) => (
+              <Link
+                key={r.id}
+                href="/requisitions"
+                className="glass-soft flex items-center justify-between gap-2 px-3 py-2 text-sm"
+              >
+                <span className="truncate pr-2">
+                  {r.itemName}{r.unit ? ` (${r.unit})` : ""} × {r.qty}
+                  <span className="ml-1.5 text-xs text-brand-ink/40">— {r.branch}</span>
+                </span>
+                <Badge tone="orange">ใหม่</Badge>
+              </Link>
+            ))}
+            {unseenReq.length > 5 && (
+              <p className="px-0.5 pt-0.5 text-xs text-brand-ink/50">และอีก {unseenReq.length - 5} รายการ</p>
+            )}
+          </div>
+        )}
+      </GlassCard>
 
       {/* 2. ยอดขายวันนี้ */}
       <div className="mb-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">

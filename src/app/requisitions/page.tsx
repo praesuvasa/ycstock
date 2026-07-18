@@ -72,6 +72,12 @@ export default function RequisitionsPage() {
   React.useEffect(() => { loadMine(); }, [loadMine]);
   React.useEffect(() => { loadAll(); }, [loadAll]);
 
+  // เปิดหน้านี้ (list รวม) = ถือว่าเห็นคำขอค้างทั้งหมดแล้ว — เคลียร์ badge ให้ทั้งทีม (restock/admin)
+  React.useEffect(() => {
+    if (!(isRestock || isAdmin)) return;
+    fetch("/api/requisitions/mark-seen", { method: "POST" }).catch(() => {});
+  }, [isRestock, isAdmin]);
+
   async function handleSubmit() {
     const qn = parseFloat(qty);
     if (!qn || qn <= 0) { window.alert("กรอกจำนวนให้ถูกต้อง"); return; }

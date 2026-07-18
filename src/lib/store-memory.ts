@@ -289,6 +289,13 @@ export const memoryStore = {
     if (filter.branch) rows = rows.filter((r) => r.branch === filter.branch);
     return rows.slice(0, filter.limit ?? 100);
   },
+  countUnseenRequisitions(): number {
+    return requisitions.filter((r) => !r.seenAt).length;
+  },
+  markAllRequisitionsSeen(): void {
+    const now = new Date().toISOString();
+    for (const r of requisitions) if (!r.seenAt) r.seenAt = now;
+  },
 
   // ── audit ──
   writeAudit(e: Omit<AuditEntry, "id" | "ts">): void {

@@ -62,6 +62,10 @@ export const db = {
     useSupabase ? supabaseStore.createRequisition(input) : Promise.resolve(memoryStore.createRequisition(input)),
   listRequisitions: (filter: { userId?: string; branch?: string; limit?: number }) =>
     useSupabase ? supabaseStore.listRequisitions(filter) : Promise.resolve(memoryStore.listRequisitions(filter)),
+  countUnseenRequisitions: () =>
+    useSupabase ? supabaseStore.countUnseenRequisitions() : Promise.resolve(memoryStore.countUnseenRequisitions()),
+  markAllRequisitionsSeen: () =>
+    useSupabase ? supabaseStore.markAllRequisitionsSeen() : Promise.resolve(memoryStore.markAllRequisitionsSeen()),
 };
 
 // helper สำหรับ BFF validate branch

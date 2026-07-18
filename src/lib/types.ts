@@ -121,6 +121,7 @@ export interface Requisition {
   requestedBy: string;
   requestedByUserId: string;
   createdAt: string;   // ISO
+  seenAt?: string;     // ISO — undefined/null = ยังไม่มีใครเปิดดู (ใช้ทำ badge เตือนที่เมนู/Dashboard)
 }
 
 export interface AuditEntry {
