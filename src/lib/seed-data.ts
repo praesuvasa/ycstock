@@ -182,8 +182,9 @@ const REMAINDER_GROUP: Record<string, [string, number]> = {
 
 // ความถี่เช็คสต็อก 2025-07-18 (ยืนยันกับแพรแล้ว) — รายการในนี้ = เช็คแค่จันทร์+พฤหัส (ของแห้ง/แพ็คเกจจิ้ง หมุนช้า)
 // รายการที่ไม่อยู่ในนี้ = เช็คทุกวัน (ของสด/ผูกกับยอดขายตรง) — รวม Choc Chip Cookies + Cranberry Cookies ที่ยกเว้นไว้เป็นทุกวันตามที่แพรแจ้ง
+// Water น้ำดื่ม แก้เป็นทุกวัน 2026-07-18 (หมุนไวกว่าที่คิด ของเข้าวันที่ไม่ตรงรอบแล้วกรอกไม่ได้)
 const MON_THU_ITEMS = new Set<string>([
-  "Peanut Butter", "Water น้ำดื่ม",
+  "Peanut Butter",
   "Cookies Crumbs", "Oreo", "Choc Chips", "Cornflakes (Topping)", "Granola (Topping)",
   "Almond", "Pecan", "Walnut", "Coconut Chips", "Chia Seed", "Flax Seed", "Cacao Nibs",
   "Grape Jelly", "Honey Jelly",

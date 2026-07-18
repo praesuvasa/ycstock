@@ -189,13 +189,28 @@ export default function StockPage() {
   const shownItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const total = shownItems.length;
 
-  // จำนวนรายการที่ถูกซ่อนวันนี้เพราะยังไม่ถึงรอบเช็ค (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — โชว์เป็น hint กันงง
-  const hiddenTodayCount = React.useMemo(() => {
-    if (!meta) return 0;
-    return meta.items.filter(
-      (it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && !isCheckDue(it.checkFrequency, weekday)
-    ).length;
+  // รายการที่ไม่ถึงรอบเช็ควันนี้ (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — ซ่อนไว้เป็นค่าเริ่มต้น
+  // แต่ของอาจเข้าสาขาวันไหนก็ได้ (ไม่ผูกกับรอบเช็ค) เลยต้องมีทางกดดู/กรอกได้เผื่อมีของเข้าวันที่ไม่ตรงรอบ
+  const [showHidden, setShowHidden] = React.useState(false);
+  const hiddenGroups = React.useMemo(() => {
+    if (!meta) return [] as { category: string; items: Item[] }[];
+    const shown = meta.items
+      .filter((it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && !isCheckDue(it.checkFrequency, weekday))
+      .sort((a, b) => a.sort - b.sort);
+    const out: { category: string; items: Item[] }[] = [];
+    for (const it of shown) {
+      const catLabel = it.category + " · ไม่ถึงรอบเช็ค";
+      let g = out.find((x) => x.category === catLabel);
+      if (!g) { g = { category: catLabel, items: [] }; out.push(g); }
+      g.items.push(it);
+    }
+    return out;
   }, [meta, branch, weekday]);
+  const hiddenTodayCount = React.useMemo(() => hiddenGroups.reduce((s, g) => s + g.items.length, 0), [hiddenGroups]);
+  const displayGroups = React.useMemo(
+    () => (showHidden ? [...groups, ...hiddenGroups] : groups),
+    [showHidden, groups, hiddenGroups]
+  );
 
   const itemById = React.useMemo(
     () => new Map((meta?.items ?? []).map((it) => [it.id, it] as const)),
@@ -352,7 +367,10 @@ export default function StockPage() {
     }
     setSaving(true);
     try {
-      const payload = shownItems
+      // ส่งทุกรายการที่ "ยืนยันแล้ว" ไม่ใช่แค่รายการที่ถึงรอบเช็ค — กันเคสของเข้าวันที่ไม่ตรงรอบ
+      // (ปุ่มบันทึก disabled จนกว่ารายการที่ถึงรอบจะยืนยันครบ ส่วนรายการที่ซ่อนไว้แล้วกดกรอกเพิ่ม จะยืนยันแล้วก็ส่งไปด้วย)
+      const payload = (meta?.items ?? [])
+        .filter((it) => confirmed[it.id])
         .map((it) => rows[it.id])
         .filter(Boolean)
         .map((r) => ({ ...r, variance: varianceOf(r) }));
@@ -392,9 +410,20 @@ export default function StockPage() {
       </div>
 
       {hiddenTodayCount > 0 && (
-        <p className="mb-3 px-1 text-[11px] text-brand-ink/45">
-          ซ่อนไว้ {hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ (รายการหมุนช้า เช็คเฉพาะวันจันทร์+พฤหัส)
-        </p>
+        <button
+          type="button"
+          onClick={() => setShowHidden((v) => !v)}
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2 text-left text-[11px] text-brand-ink/60"
+        >
+          <span>
+            {showHidden
+              ? `กำลังแสดง ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกได้ปกติถ้ามีของเข้า`
+              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ — มีของเข้าไหม?`}
+          </span>
+          <span className="shrink-0 font-semibold text-sky-700 underline underline-offset-2">
+            {showHidden ? "ซ่อน" : "แสดงรายการ"}
+          </span>
+        </button>
       )}
 
       {err && (
@@ -408,7 +437,7 @@ export default function StockPage() {
       ) : groups.length === 0 ? (
         <GlassCard><p className="text-sm text-brand-ink/50">ไม่มีรายการสต็อกสำหรับสาขานี้</p></GlassCard>
       ) : (
-        groups.map((g, gi) => {
+        displayGroups.map((g, gi) => {
           const cupSum = cupSummaryByCategory.get(g.category);
           const categoryIncomplete = g.items.some((it) => rows[it.id] && !confirmed[it.id]);
           return (

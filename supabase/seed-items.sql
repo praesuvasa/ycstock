@@ -18,7 +18,7 @@ insert into items (id,name,category,unit,is_special,is_cup,cup_size,has_remainde
 ('it-016','Softserve ถ้วยกระดาษ','Soft Serve / Ice Cream','ถ้วย',false,false,null,false,0,null,15,'daily',false),
 ('it-017','Shake (แช่แข็ง)','Shake แข็ง','ถ้วย',true,false,null,false,0,null,16,'daily',false),
 ('it-018','Peanut Butter','Drink / แยมกระปุก','กระปุก',false,false,null,false,0,null,17,'monThu',false),
-('it-019','Water น้ำดื่ม','Drink / แยมกระปุก','ขวด',false,false,null,false,0,null,18,'monThu',false),
+('it-019','Water น้ำดื่ม','Drink / แยมกระปุก','ขวด',false,false,null,false,0,null,18,'daily',false),
 ('it-020','ถุงสตรอเบอรี่','Drink / แยมกระปุก','ถุง',false,false,null,false,0,null,19,'daily',false),
 ('it-021','ถุงบลูเบอรี่','Drink / แยมกระปุก','ถุง',false,false,null,false,0,null,20,'daily',false),
 ('it-022','ถุงธรรมชาติ','Drink / แยมกระปุก','ถุง',false,false,null,false,0,null,21,'daily',false),
