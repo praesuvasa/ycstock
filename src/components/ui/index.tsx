@@ -93,12 +93,15 @@ export function NumberField({ label, value, onChange, readOnly, tone }: {
   );
 }
 
-export function Stat({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "ok" | "warn" | "default" }) {
-  const color = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "text-brand-ink";
+export function Stat({ label, value, tone, size }: {
+  label: string; value: React.ReactNode; tone?: "ok" | "warn" | "default" | "brand"; size?: "default" | "lg";
+}) {
+  const color = tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : tone === "brand" ? "text-brand-red" : "text-brand-ink";
+  const isLg = size === "lg";
   return (
-    <div className="glass-soft px-3.5 py-3">
-      <div className="text-[11px] text-brand-ink/50">{label}</div>
-      <div className={`text-xl font-semibold ${color}`}>{value}</div>
+    <div className={`glass-soft ${isLg ? "px-4 py-4" : "px-3.5 py-3"}`}>
+      <div className={`${isLg ? "text-xs" : "text-[11px]"} text-brand-ink/50`}>{label}</div>
+      <div className={`${isLg ? "text-3xl" : "text-xl"} font-semibold ${color}`}>{value}</div>
     </div>
   );
 }
