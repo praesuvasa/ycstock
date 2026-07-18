@@ -53,10 +53,12 @@ function BlockTag({ text, title }: { text: string; title?: string }) {
 // input ย่อส่วน (field padding/font เล็กลง) สำหรับ grid-cols-4 บังคับ
 function CompactField({ label, value, onChange, readOnly, tone, maxLength, warn }: {
   label?: string; value: number | string; onChange?: (v: string) => void; readOnly?: boolean;
-  tone?: "auto" | "ro"; maxLength?: number; warn?: boolean;
+  tone?: "auto" | "ro" | "green"; maxLength?: number; warn?: boolean;
 }) {
   const toneCls = tone === "auto" ? "bg-brand-blue/15 font-semibold text-sky-800"
-    : tone === "ro" ? "bg-black/5 text-brand-ink/50" : "";
+    : tone === "ro" ? "bg-black/5 text-brand-ink/50"
+    : tone === "green" ? "bg-ok/15 font-semibold text-ok"
+    : "";
   const warnCls = warn ? "border-warn bg-warn/10 text-warn" : "";
   return (
     <label className="flex flex-col gap-0.5">
@@ -414,12 +416,12 @@ export default function StockPage() {
         <button
           type="button"
           onClick={() => setShowHidden((v) => !v)}
-          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2.5 text-left text-sm text-brand-ink/70"
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/5 px-3 py-2.5 text-left text-sm text-brand-ink/70"
         >
           <span>
             {showHidden
               ? `กำลังแสดง ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกได้ปกติถ้ามีของเข้า`
-              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — ต้องการกรอกข้อมูลรับเข้ากดเพื่อแสดงรายการ`}
+              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกข้อมูลรับเข้ากดเพื่อแสดงรายการ`}
           </span>
           <span className="shrink-0 font-semibold text-sky-700 underline underline-offset-2">
             {showHidden ? "ซ่อน" : "แสดงรายการ"}
@@ -450,7 +452,7 @@ export default function StockPage() {
                   {g.category}
                   {isHiddenGroup ? (
                     <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
-                      ยังไม่ถึงรอบเช็ค กรอกจำนวนหากมีสินค้าเข้า
+                      ยังไม่ถึงรอบเช็ค กรอกรับเข้า
                     </span>
                   ) : categoryIncomplete && (
                     <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
@@ -525,6 +527,7 @@ export default function StockPage() {
                             <CompactField
                               label="รับเข้า" value={blankZero(row.inPack)}
                               maxLength={packLimited ? 2 : undefined} warn={inPackWarn}
+                              tone={isHiddenGroup ? "green" : undefined}
                               onChange={(x) => setField(it.id, "inPack", x, N)}
                             />
                             <CompactField
@@ -545,6 +548,7 @@ export default function StockPage() {
                         <div className="grid grid-cols-4 gap-1.5">
                           <CompactField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
                           <CompactField label="รับเข้า" value={blankZero(row.inPack)}
+                            tone={isHiddenGroup ? "green" : undefined}
                             onChange={(x) => setField(it.id, "inPack", x, N)} />
                           <CompactField label="ขาย/ใช้" value={blankZero(row.used)}
                             onChange={(x) => setField(it.id, "used", x, N)} />
@@ -604,6 +608,7 @@ export default function StockPage() {
                             <div className="grid flex-1 grid-cols-3 gap-1.5">
                               <CompactField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
                               <CompactField label="รับเข้า g" value={blankZero(row.inG)}
+                                tone={isHiddenGroup ? "green" : undefined}
                                 onChange={(x) => setField(it.id, "inG", x, N)} />
                               <RemainCell
                                 label="เศษคงเหลือ g" isConfirmed={isConfirmed} value={row.remainG}
@@ -623,6 +628,7 @@ export default function StockPage() {
                           <div className="grid flex-1 grid-cols-4 gap-1.5">
                             <CompactField label={`ยกมา ${su}`} value={row.carryG} readOnly tone="ro" />
                             <CompactField label={`รับเข้า ${su}`} value={blankZero(row.inG)}
+                              tone={isHiddenGroup ? "green" : undefined}
                               onChange={(x) => setField(it.id, "inG", x, N)} />
                             <CompactField label={`ขาย/ใช้ ${su}`} value={blankZero(Math.max(d.usedTotalG, 0))}
                               onChange={(x) => setField(it.id, "usedG", x, N)} />
