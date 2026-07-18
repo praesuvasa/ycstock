@@ -109,6 +109,20 @@ export interface Session {
   exp: number; // epoch ms
 }
 
+// ── ขอเบิกสินค้า (v1.3) — พนักงานสาขาขอของเกิน Par หรือของนอกลิสต์ ไม่มีสถานะติดตาม แค่ list ให้ restock/admin กวาดดู ──
+export interface Requisition {
+  id: string;
+  branch: Branch;
+  itemId?: string;    // ถ้าเลือกจากรายการที่มีอยู่ในระบบ
+  itemName: string;   // ชื่อที่โชว์ (จาก item หรือพิมพ์เอง)
+  qty: number;
+  unit?: string;       // หน่วย (กรอกเองเฉพาะกรณีพิมพ์ชื่อเอง)
+  note: string;         // เหตุผล/โอกาสพิเศษ
+  requestedBy: string;
+  requestedByUserId: string;
+  createdAt: string;   // ISO
+}
+
 export interface AuditEntry {
   id: string;
   ts: string;        // ISO

@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -254,6 +254,25 @@ export const supabaseStore = {
     return { id: data.id, name: data.name, role: data.role, branchScope: data.branch_scope, active: data.active };
   },
 
+  // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──
+  async createRequisition(input: Omit<Requisition, "id" | "createdAt">): Promise<Requisition> {
+    const { data, error } = await sb().from("requisitions").insert({
+      branch_id: input.branch, item_id: input.itemId ?? null, item_name: input.itemName,
+      qty: input.qty, unit: input.unit ?? null, note: input.note,
+      requested_by: input.requestedBy, requested_by_user_id: input.requestedByUserId,
+    }).select().single();
+    if (error) throw error;
+    return rowFromReqDb(data);
+  },
+  async listRequisitions(filter: { userId?: string; branch?: string; limit?: number }): Promise<Requisition[]> {
+    let q = sb().from("requisitions").select("*").order("created_at", { ascending: false }).limit(filter.limit ?? 100);
+    if (filter.userId) q = q.eq("requested_by_user_id", filter.userId);
+    if (filter.branch) q = q.eq("branch_id", filter.branch);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []).map(rowFromReqDb);
+  },
+
   // ── audit ──
   async writeAudit(e: Omit<AuditEntry, "id" | "ts">): Promise<void> {
     await sb().from("audit_log").insert({
@@ -273,6 +292,14 @@ export const supabaseStore = {
     }));
   },
 };
+
+function rowFromReqDb(r: any): Requisition {
+  return {
+    id: String(r.id), branch: r.branch_id, itemId: r.item_id ?? undefined, itemName: r.item_name,
+    qty: Number(r.qty), unit: r.unit ?? undefined, note: r.note ?? "",
+    requestedBy: r.requested_by, requestedByUserId: r.requested_by_user_id, createdAt: r.created_at,
+  };
+}
 
 function rowFromDb(s: any): StockRow {
   return {

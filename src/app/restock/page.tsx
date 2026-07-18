@@ -65,6 +65,15 @@ function downloadCsv(content: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// บันทึก audit log แบบ fire-and-forget — ไม่ block การ export/print จริง ไม่ต้องรอผล
+function logExport(action: string, branch: string, date: string, detail: string) {
+  fetch("/api/export-log", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, branch, date, detail }),
+  }).catch(() => {});
+}
+
 // ── state ที่ "ต้องเติมรายสาขา" เลือกไว้ (ยกขึ้นมาที่ RestockPage เพื่อให้ข้อ 3 อ่านข้ามโหมดได้) ──
 // key = `${branch}|${date}` — คนละ (สาขา,วันที่) = คนละชุดข้อมูล ไม่ทับกัน
 interface RestockEntry { selected: boolean; qty: string; ts: number }
@@ -114,6 +123,118 @@ function SelectableAccordion({
       {open && <div className="border-t border-black/5 px-1.5 py-1">{children}</div>}
     </div>
   );
+}
+
+// ── ใบส่งของพิมพ์ A4 (แยกจาก CSV) — พนักงานหน้าร้านติ๊ก ☐ รับของจริง + เซ็นชื่อ ก่อนเอาตัวเลขไปกรอกหน้าสต็อก ──
+// จัด 2 คอลัมน์อัตโนมัติ (แบ่งที่ขอบหมวดใกล้ครึ่งหนึ่ง กันหมวดเดียวกันขาดคอลัมน์) ให้พอดี A4 ใบเดียว
+type PrintRow = RestockRow & { qty: string };
+const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
+
+function PrintSheet({
+  branch, date, weekdayLabel, printGroups, totalCount,
+}: {
+  branch: Branch; date: string; weekdayLabel: string;
+  printGroups: { category: string; items: PrintRow[] }[]; totalCount: number;
+}) {
+  const half = Math.ceil(totalCount / 2);
+  const col1: typeof printGroups = [];
+  const col2: typeof printGroups = [];
+  let count = 0;
+  for (const g of printGroups) {
+    if (col1.length === 0 || count < half) { col1.push(g); count += g.items.length; }
+    else { col2.push(g); }
+  }
+
+  function renderColumn(colGroups: typeof printGroups, withExtra: boolean) {
+    return (
+      <div className="flex-1">
+        <table className="w-full border-collapse text-[9px]">
+          <thead>
+            <tr className="border-b-2 border-black">
+              <th className="w-3 py-1"></th>
+              <th className="py-1 text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
+              <th className="w-7 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">จำนวน</th>
+              <th className="w-12 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {colGroups.map((g) => (
+              <React.Fragment key={g.category}>
+                <tr>
+                  <td colSpan={4} className="pt-2 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">
+                    {g.category}
+                  </td>
+                </tr>
+                {g.items.map((r) => (
+                  <tr key={r.itemId} className="border-b border-neutral-300">
+                    <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
+                    <td className="py-[3px] text-black">{r.name}</td>
+                    <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
+                    <td className="border-b border-neutral-400 py-[3px]" />
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+        {withExtra && (
+          <div className="mt-3">
+            <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="print-sheet hidden print:block">
+      <style>{"@page { size: A4; margin: 10mm; }"}</style>
+      <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-neutral-500">ใบส่งของเข้าสาขา · Yogurt Culture</div>
+          <div className="text-[32px] font-bold leading-none text-black">{branch}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[19px] font-semibold leading-none text-black">{thaiDateSlash(date)}</div>
+          <div className="text-[11px] text-neutral-600">{weekdayLabel}</div>
+        </div>
+      </div>
+      <div className="mb-2 flex justify-between text-[9.5px] text-neutral-600">
+        <span>รวม {totalCount} รายการ</span>
+        <span>ผู้จัดเตรียม: ____________________</span>
+      </div>
+
+      <div className="flex gap-3.5">
+        {renderColumn(col1, col2.length === 0)}
+        {col2.length > 0 && renderColumn(col2, true)}
+      </div>
+
+      <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
+        <div className="flex-1">
+          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้ส่ง)</div>
+          <div className="mb-1 border-b border-black" />
+          <div className="flex justify-between text-[8px] text-neutral-600">
+            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้รับสินค้า (สาขา)</div>
+          <div className="mb-1 border-b border-black" />
+          <div className="flex justify-between text-[8px] text-neutral-600">
+            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function thaiDateSlash(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
 }
 
 export default function RestockPage() {
@@ -258,10 +379,40 @@ function RestockByBranch({
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
+    logExport("export_restock_csv", branch, date, `export CSV ${selectedRows.length} รายการ`);
+  }
+
+  // ── ใบส่งของพิมพ์ A4 ──
+  const printGroups = React.useMemo(() => {
+    const out: { category: string; items: PrintRow[] }[] = [];
+    for (const g of groups) {
+      const items = g.items
+        .filter((r) => entries[r.itemId]?.selected)
+        .map((r) => ({ ...r, qty: entries[r.itemId]?.qty ?? "0" }));
+      if (items.length > 0) out.push({ category: g.category, items });
+    }
+    return out;
+  }, [groups, entries]);
+  const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
+
+  function printSlip() {
+    if (printTotal === 0) {
+      window.alert("ยังไม่ได้เลือกรายการ — เลือกรายการที่จะเติมก่อนพิมพ์");
+      return;
+    }
+    if (printTotal > PRINT_OVERFLOW_THRESHOLD) {
+      const ok = window.confirm(
+        `รายการที่เลือก ${printTotal} รายการ อาจล้นหน้า A4 ใบเดียว\nต้องการพิมพ์ต่อไหม?`
+      );
+      if (!ok) return;
+    }
+    logExport("print_restock_slip", branch, date, `พิมพ์ใบส่งของ ${printTotal} รายการ`);
+    window.print();
   }
 
   return (
-    <div>
+    <>
+    <div className="print:hidden">
       <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
         <label className="flex flex-col gap-1">
@@ -386,17 +537,28 @@ function RestockByBranch({
       </GlassCard>
 
       {!loading && !error && rows.length > 0 && (
-        <button
-          type="button"
-          onClick={exportCsv}
-          className="mt-3 w-full rounded-xl bg-white/70 px-4 py-3 text-[15px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
-        >
-          📤 Export รายการ (CSV)
-        </button>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={exportCsv}
+            className="rounded-xl bg-white/70 px-4 py-3 text-[14px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
+          >
+            📤 Export (CSV)
+          </button>
+          <button
+            type="button"
+            onClick={printSlip}
+            className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
+          >
+            🖨️ พิมพ์ใบส่งของ
+          </button>
+        </div>
       )}
 
-      <p className="mt-3 px-1 text-xs text-brand-ink/45">ต้องเติม = MAX(Par − คงเหลือ, 0) · แถบฟ้า "← สั่งผลิต" = ไอเทมนี้จะไปโผล่ในหน้าสั่งผลิตอัตโนมัติ</p>
+      <p className="mt-3 px-1 text-xs text-brand-ink/45">ต้องเติม = MAX(Par − คงเหลือ, 0) · แถบฟ้า "← สั่งผลิต" = ไอเทมนี้จะไปโผล่ในหน้าสั่งผลิตอัตโนมัติ · ใบส่งของไว้พิมพ์แนบของจริง ให้สาขาติ๊กรับ+เซ็นชื่อ</p>
     </div>
+    <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} />
+    </>
   );
 }
 
@@ -603,6 +765,7 @@ function ProductionOrder({ store }: { store: RestockStore }) {
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `production_order_${orderDate}.csv`);
+    logExport("export_production_csv", "all", orderDate, `export CSV สั่งผลิต`);
   }
 
   if (loading) {

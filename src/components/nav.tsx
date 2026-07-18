@@ -12,6 +12,7 @@ const USER_TABS: Tab[] = [
   { href: "/stock", label: "สต็อก", icon: "📝" },
   { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
+  { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "🙋" },
 ];
 const ADMIN_TABS: Tab[] = [
   { href: "/", label: "หน้าหลัก", icon: "🏠" },
@@ -20,15 +21,17 @@ const ADMIN_TABS: Tab[] = [
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
   { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },
+  { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
 ];
 const ADMIN_MENU: Tab[] = [
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "⚙️" },
   { href: "/users", label: "ผู้ใช้", icon: "👥" },
   { href: "/audit", label: "Audit Log", icon: "📜" },
 ];
-// role "restock" — เข้าได้แค่หน้าเดียว (เติมของ/สั่งผลิต) ไม่เห็นเมนูอื่นเลย
+// role "restock" — เข้าได้แค่ 2 หน้า (เติมของ/สั่งผลิต + คำขอเบิก) ไม่เห็นเมนูอื่นเลย
 const RESTOCK_TABS: Tab[] = [
   { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "📦" },
+  { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
 ];
 const tabsForRole = (role: Role | undefined): Tab[] =>
   role === "admin" ? ADMIN_TABS : role === "restock" ? RESTOCK_TABS : USER_TABS;
@@ -72,8 +75,8 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     <MeCtx.Provider value={me}>
       <Sidebar />
       <TopBar />
-      <main className="lg:pl-64">
-        <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12">
+      <main className="lg:pl-64 print:pl-0">
+        <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
           {children}
         </div>
       </main>
@@ -123,7 +126,7 @@ function Sidebar() {
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/60 bg-white/55 px-4 py-5 backdrop-blur-xl lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/60 bg-white/55 px-4 py-5 backdrop-blur-xl lg:flex print:hidden">
       <Brand me={me} />
 
       <nav className="mt-7 flex flex-col gap-1">
@@ -159,7 +162,7 @@ function TopBar() {
   const logout = useLogout();
   const [open, setOpen] = React.useState(false);
   return (
-    <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden">
+    <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden print:hidden">
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <Brand me={me} compact />
         <div className="relative ml-auto">
@@ -208,7 +211,7 @@ function BottomNav() {
   const path = usePathname();
   const tabs = tabsForRole(me?.role);
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden print:hidden">
       <div className="mx-auto flex max-w-3xl">
         {tabs.map((t) => {
           const on = t.href === "/" ? path === "/" : path.startsWith(t.href);

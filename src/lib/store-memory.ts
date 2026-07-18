@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -13,6 +13,7 @@ const users: UserRec[] = [
     passcodeHash: "e5a917c2ddfbda72c4473e37bb1fc5b9:69412f814f7f4838e05f09fa2ba1e4cd02a51be249c2efc25f50f0289afb37f8" }, // PIN 2538
 ];
 const auditRows: AuditEntry[] = [];
+const requisitions: Requisition[] = [];
 
 interface StockRec extends StockRow { date: string; branch: Branch; }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
@@ -270,6 +271,23 @@ export const memoryStore = {
     if (patch.passcode) u.passcodeHash = hashPasscode(patch.passcode);
     const { passcodeHash, ...pub } = u;
     return pub;
+  },
+
+  // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──
+  createRequisition(input: Omit<Requisition, "id" | "createdAt">): Requisition {
+    const rec: Requisition = {
+      ...input,
+      id: "req-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      createdAt: new Date().toISOString(),
+    };
+    requisitions.unshift(rec);
+    return rec;
+  },
+  listRequisitions(filter: { userId?: string; branch?: string; limit?: number }): Requisition[] {
+    let rows = requisitions;
+    if (filter.userId) rows = rows.filter((r) => r.requestedByUserId === filter.userId);
+    if (filter.branch) rows = rows.filter((r) => r.branch === filter.branch);
+    return rows.slice(0, filter.limit ?? 100);
   },
 
   // ── audit ──
