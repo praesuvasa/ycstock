@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 // export/print เป็น client-side ล้วน (Blob download / window.print) — endpoint นี้ไว้แค่บันทึก audit log
 // เรียกแบบ fire-and-forget จากหน้า restock ไม่ block การ export/print จริง
-const ALLOWED_ACTIONS = new Set(["export_restock_csv", "export_production_csv", "print_restock_slip"]);
+const ALLOWED_ACTIONS = new Set(["export_restock_csv", "export_production_csv", "print_restock_slip", "print_production_slip"]);
 
 export async function POST(req: Request) {
   try {

@@ -242,7 +242,7 @@ export default function RestockPage() {
   const [store, setStore] = React.useState<RestockStore>({});
   return (
     <div>
-      <PageTitle title="เติมของ / สั่งผลิต" />
+      <PageTitle title={mode === "byBranch" ? "รายการสินค้าเข้า" : "สั่งผลิต"} />
 
       <div className="mb-3">
         <Segmented options={MODE_OPTS} value={mode} onChange={setMode} />
@@ -631,6 +631,105 @@ function ProductionRow({
   );
 }
 
+// ── ใบสั่งผลิตพิมพ์ A4 — แยกจาก CSV เหมือนใบส่งของ ให้ทีมผลิตติ๊ก ☐ + เซ็นชื่อได้ ──
+interface ProdPrintRow { id: string; name: string; snd: string; nvp: string; kcn: string; other: string; total: string; note: string }
+const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 40;
+
+function ProductionPrintSheet({
+  orderDate, deliveryDate, printGroups, totalCount, note,
+}: {
+  orderDate: string; deliveryDate: string;
+  printGroups: { category: string; items: ProdPrintRow[] }[]; totalCount: number; note: string;
+}) {
+  return (
+    <div className="print-sheet hidden print:block">
+      <style>{"@page { size: A4; margin: 10mm; }"}</style>
+      <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
+        <div>
+          <div className="text-[9px] uppercase tracking-widest text-neutral-500">ใบสั่งผลิต · Yogurt Culture</div>
+          <div className="text-[26px] font-bold leading-tight text-black">สั่งผลิต {thaiDateSlash(orderDate)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[9px] uppercase tracking-widest text-neutral-500">จัดส่งเข้าสาขา</div>
+          <div className="text-[22px] font-semibold leading-none text-black">{thaiDateSlash(deliveryDate)}</div>
+        </div>
+      </div>
+      <div className="mb-2 flex justify-between text-[9.5px] text-neutral-600">
+        <span>รวม {totalCount} รายการ</span>
+        <span>ผู้สั่งผลิต: ____________________</span>
+      </div>
+
+      <table className="w-full border-collapse text-[9px]">
+        <thead>
+          <tr className="border-b-2 border-black">
+            <th className="w-3 py-1"></th>
+            <th className="py-1 text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">SND</th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP</th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN</th>
+            <th className="w-10 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
+            <th className="w-9 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">รวม</th>
+            <th className="w-16 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {printGroups.map((g) => (
+            <React.Fragment key={g.category}>
+              <tr>
+                <td colSpan={8} className="pt-2 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">
+                  {g.category}
+                </td>
+              </tr>
+              {g.items.map((r) => (
+                <tr key={r.id} className="border-b border-neutral-300">
+                  <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
+                  <td className="py-[3px] text-black">{r.name}</td>
+                  <td className="py-[3px] text-center text-black">{r.snd}</td>
+                  <td className="py-[3px] text-center text-black">{r.nvp}</td>
+                  <td className="py-[3px] text-center text-black">{r.kcn}</td>
+                  <td className="py-[3px] text-center text-black">{r.other}</td>
+                  <td className="py-[3px] text-center font-bold text-black">{r.total}</td>
+                  <td className="py-[3px] text-center text-black">{r.note}</td>
+                </tr>
+              ))}
+            </React.Fragment>
+          ))}
+        </tbody>
+      </table>
+
+      {note.trim() && (
+        <div className="mt-3 text-[9px] text-black">
+          <span className="font-bold">หมายเหตุรวม: </span>{note.trim()}
+        </div>
+      )}
+
+      <div className="mt-3">
+        <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
+        ))}
+      </div>
+
+      <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
+        <div className="flex-1">
+          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้สั่ง)</div>
+          <div className="mb-1 border-b border-black" />
+          <div className="flex justify-between text-[8px] text-neutral-600">
+            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้ผลิต</div>
+          <div className="mb-1 border-b border-black" />
+          <div className="flex justify-between text-[8px] text-neutral-600">
+            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ProductionOrder({ store }: { store: RestockStore }) {
   const [meta, setMeta] = React.useState<Meta | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -768,6 +867,50 @@ function ProductionOrder({ store }: { store: RestockStore }) {
     logExport("export_production_csv", "all", orderDate, `export CSV สั่งผลิต`);
   }
 
+  // ── ใบสั่งผลิตพิมพ์ A4 — เอาเฉพาะรายการที่มีจำนวนจริง (รวม > 0) กันโชว์แถว 0 รก ──
+  const printGroups = React.useMemo(() => {
+    const out: { category: string; items: ProdPrintRow[] }[] = [];
+    function pushRow(category: string, row: ProdPrintRow) {
+      let g = out.find((x) => x.category === category);
+      if (!g) { g = { category, items: [] }; out.push(g); }
+      g.items.push(row);
+    }
+    for (const g of mainGroups) {
+      for (const it of g.items) {
+        const v = valuesFor(it.id);
+        const total = totalFor(it.id);
+        if (total <= 0) continue;
+        pushRow(g.category, { id: it.id, name: it.name, snd: v.SND ?? "", nvp: v.NVP ?? "", kcn: v.KCN ?? "", other: v.other ?? "", total: String(total), note: "" });
+      }
+    }
+    for (const it of dept2Items) {
+      const v = valuesFor(it.id);
+      const total = totalFor(it.id);
+      if (total <= 0) continue;
+      pushRow("แผนกอื่น", { id: it.id, name: it.name, snd: v.SND ?? "", nvp: v.NVP ?? "", kcn: v.KCN ?? "", other: v.other ?? "", total: String(total), note: "" });
+    }
+    for (const r of extraRows) {
+      pushRow("รายการพิเศษ", { id: r.id, name: r.name, snd: "", nvp: "", kcn: "", other: r.unit || "", total: r.qty || "0", note: r.note });
+    }
+    return out;
+  }, [mainGroups, dept2Items, extraRows, reflected, prodQty]);
+  const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
+
+  function printSlip() {
+    if (printTotal === 0) {
+      window.alert("ยังไม่มีรายการที่จะสั่งผลิต (ทุกช่องยังเป็น 0)");
+      return;
+    }
+    if (printTotal > PRODUCTION_PRINT_OVERFLOW_THRESHOLD) {
+      const ok = window.confirm(
+        `รายการที่จะสั่งผลิต ${printTotal} รายการ อาจล้นหน้า A4 ใบเดียว\nต้องการพิมพ์ต่อไหม?`
+      );
+      if (!ok) return;
+    }
+    logExport("print_production_slip", "all", orderDate, `พิมพ์ใบสั่งผลิต ${printTotal} รายการ`);
+    window.print();
+  }
+
   if (loading) {
     return <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>;
   }
@@ -776,7 +919,8 @@ function ProductionOrder({ store }: { store: RestockStore }) {
   }
 
   return (
-    <div>
+    <>
+    <div className="print:hidden">
       <GlassCard className="mb-3">
         <div className="grid grid-cols-2 gap-2.5">
           <label className="flex flex-col gap-1">
@@ -897,13 +1041,27 @@ function ProductionOrder({ store }: { store: RestockStore }) {
         />
       </GlassCard>
 
-      <button
-        type="button"
-        onClick={exportCsv}
-        className="mt-3 w-full rounded-xl bg-white/70 px-4 py-3 text-[15px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
-      >
-        📤 Export ใบสั่งผลิต (CSV)
-      </button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={exportCsv}
+          className="rounded-xl bg-white/70 px-4 py-3 text-[14px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
+        >
+          📤 Export (CSV)
+        </button>
+        <button
+          type="button"
+          onClick={printSlip}
+          className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
+        >
+          🖨️ พิมพ์ใบสั่งผลิต
+        </button>
+      </div>
     </div>
+    <ProductionPrintSheet
+      orderDate={orderDate} deliveryDate={deliveryDate}
+      printGroups={printGroups} totalCount={printTotal} note={note}
+    />
+    </>
   );
 }
