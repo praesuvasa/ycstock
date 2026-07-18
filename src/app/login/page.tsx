@@ -43,10 +43,10 @@ function LoginForm() {
     <div className="flex min-h-[100dvh] items-center justify-center px-5">
       <form onSubmit={submit} className="glass w-full max-w-sm p-6 sm:p-7">
         <div className="mb-5 flex flex-col items-center gap-2 text-center">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-brand-red to-brand-orange text-lg font-bold text-white">YC</div>
+          <img src="/logo-yc.png" alt="Yogurt Culture" className="h-12 w-auto" />
           <div>
-            <div className="text-lg font-semibold">Yogurt Culture</div>
-            <div className="text-[13px] text-brand-ink/55">ระบบจัดการสต็อก · เข้าสู่ระบบ</div>
+            <div className="text-lg font-semibold">ระบบจัดการสต็อก</div>
+            <div className="text-[13px] text-brand-ink/55">เข้าสู่ระบบ</div>
           </div>
         </div>
 
