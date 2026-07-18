@@ -199,14 +199,15 @@ export default function StockPage() {
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
-      const catLabel = it.category + " · ไม่ถึงรอบเช็ค";
-      let g = out.find((x) => x.category === catLabel);
-      if (!g) { g = { category: catLabel, items: [] }; out.push(g); }
+      let g = out.find((x) => x.category === it.category);
+      if (!g) { g = { category: it.category, items: [] }; out.push(g); }
       g.items.push(it);
     }
     return out;
   }, [meta, branch, weekday]);
   const hiddenTodayCount = React.useMemo(() => hiddenGroups.reduce((s, g) => s + g.items.length, 0), [hiddenGroups]);
+  // หมวดที่มาจาก hiddenGroups (ไม่ถึงรอบเช็ค) — ใช้แยก badge ตอน render (ไม่มีหมวดไหนซ้อนกับ groups ปกติอยู่แล้ว)
+  const hiddenCategorySet = React.useMemo(() => new Set(hiddenGroups.map((g) => g.category)), [hiddenGroups]);
   const displayGroups = React.useMemo(
     () => (showHidden ? [...groups, ...hiddenGroups] : groups),
     [showHidden, groups, hiddenGroups]
@@ -413,12 +414,12 @@ export default function StockPage() {
         <button
           type="button"
           onClick={() => setShowHidden((v) => !v)}
-          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2 text-left text-[11px] text-brand-ink/60"
+          className="mb-3 flex w-full items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2.5 text-left text-sm text-brand-ink/70"
         >
           <span>
             {showHidden
               ? `กำลังแสดง ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกได้ปกติถ้ามีของเข้า`
-              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ — มีของเข้าไหม?`}
+              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — ต้องการกรอกข้อมูลรับเข้ากดเพื่อแสดงรายการ`}
           </span>
           <span className="shrink-0 font-semibold text-sky-700 underline underline-offset-2">
             {showHidden ? "ซ่อน" : "แสดงรายการ"}
@@ -439,14 +440,19 @@ export default function StockPage() {
       ) : (
         displayGroups.map((g, gi) => {
           const cupSum = cupSummaryByCategory.get(g.category);
-          const categoryIncomplete = g.items.some((it) => rows[it.id] && !confirmed[it.id]);
+          const isHiddenGroup = hiddenCategorySet.has(g.category);
+          const categoryIncomplete = !isHiddenGroup && g.items.some((it) => rows[it.id] && !confirmed[it.id]);
           return (
             <Accordion
               key={g.category}
               title={
                 <span className="flex items-center gap-1.5">
                   {g.category}
-                  {categoryIncomplete && (
+                  {isHiddenGroup ? (
+                    <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                      ยังไม่ถึงรอบเช็ค กรอกจำนวนหากมีสินค้าเข้า
+                    </span>
+                  ) : categoryIncomplete && (
                     <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
                       กรอกไม่ครบ
                     </span>

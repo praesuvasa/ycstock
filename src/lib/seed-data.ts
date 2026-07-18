@@ -34,7 +34,7 @@ const RAW: Row[] = [
   // Shake แข็ง (special)
   ["Shake (แช่แข็ง)", "Shake แข็ง", "ถ้วย", 80, 100, null],
   // Drink / แยมกระปุก
-  ["Peanut Butter", "Drink / แยมกระปุก", "กระปุก", 0, 0, 0],
+  ["Peanut Butter", "Drink / แยมกระปุก", "กระปุก", null, null, null], // ตัด Par ออก 2026-07-19 ไม่มีของเข้า — ถ้ากลับมาใช้จะแจ้งเพิ่มใหม่
   ["Water น้ำดื่ม", "Drink / แยมกระปุก", "ขวด", 12, 12, null],
   ["ถุงสตรอเบอรี่", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
   ["ถุงบลูเบอรี่", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
@@ -183,8 +183,8 @@ const REMAINDER_GROUP: Record<string, [string, number]> = {
 // ความถี่เช็คสต็อก 2025-07-18 (ยืนยันกับแพรแล้ว) — รายการในนี้ = เช็คแค่จันทร์+พฤหัส (ของแห้ง/แพ็คเกจจิ้ง หมุนช้า)
 // รายการที่ไม่อยู่ในนี้ = เช็คทุกวัน (ของสด/ผูกกับยอดขายตรง) — รวม Choc Chip Cookies + Cranberry Cookies ที่ยกเว้นไว้เป็นทุกวันตามที่แพรแจ้ง
 // Water น้ำดื่ม แก้เป็นทุกวัน 2026-07-18 (หมุนไวกว่าที่คิด ของเข้าวันที่ไม่ตรงรอบแล้วกรอกไม่ได้)
+// Peanut Butter ตัด Par ออกแล้ว 2026-07-19 (ไม่มีของเข้า) เลยตัดออกจาก set นี้ด้วย (ไม่มี par ก็ไม่โผล่ในหน้าสต็อกอยู่แล้ว)
 const MON_THU_ITEMS = new Set<string>([
-  "Peanut Butter",
   "Cookies Crumbs", "Oreo", "Choc Chips", "Cornflakes (Topping)", "Granola (Topping)",
   "Almond", "Pecan", "Walnut", "Coconut Chips", "Chia Seed", "Flax Seed", "Cacao Nibs",
   "Grape Jelly", "Honey Jelly",
