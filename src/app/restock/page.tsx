@@ -242,10 +242,12 @@ export default function RestockPage() {
   const [store, setStore] = React.useState<RestockStore>({});
   return (
     <div>
-      <PageTitle title={mode === "byBranch" ? "รายการสินค้าเข้า" : "สั่งผลิต"} />
+      <div className="print:hidden">
+        <PageTitle title={mode === "byBranch" ? "รายการสินค้าเข้า" : "สั่งผลิต"} />
 
-      <div className="mb-3">
-        <Segmented options={MODE_OPTS} value={mode} onChange={setMode} />
+        <div className="mb-3">
+          <Segmented options={MODE_OPTS} value={mode} onChange={setMode} />
+        </div>
       </div>
 
       {mode === "byBranch" ? (
