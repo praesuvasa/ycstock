@@ -525,7 +525,7 @@ export default function StockPage() {
                             <CompactField
                               label="รับเข้า" value={blankZero(row.inPack)}
                               maxLength={packLimited ? 2 : undefined} warn={inPackWarn}
-                              tone={isHiddenGroup ? "green" : undefined}
+                              tone="green"
                               onChange={(x) => setField(it.id, "inPack", x, N)}
                             />
                             <CompactField
@@ -551,7 +551,7 @@ export default function StockPage() {
                         <div className="grid grid-cols-4 gap-1.5">
                           <CompactField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
                           <CompactField label="รับเข้า" value={blankZero(row.inPack)}
-                            tone={isHiddenGroup ? "green" : undefined}
+                            tone="green"
                             onChange={(x) => setField(it.id, "inPack", x, N)} />
                           <CompactField label="ขาย/ใช้" value={blankZero(row.used)}
                             readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
@@ -616,7 +616,7 @@ export default function StockPage() {
                             <div className="grid flex-1 grid-cols-3 gap-1.5">
                               <CompactField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
                               <CompactField label="รับเข้า g" value={blankZero(row.inG)}
-                                tone={isHiddenGroup ? "green" : undefined}
+                                tone="green"
                                 onChange={(x) => setField(it.id, "inG", x, N)} />
                               {isHiddenGroup ? (
                                 <CompactField label="เศษคงเหลือ g" value={row.remainG} readOnly tone="ro" />
@@ -640,7 +640,7 @@ export default function StockPage() {
                           <div className="grid flex-1 grid-cols-4 gap-1.5">
                             <CompactField label={`ยกมา ${su}`} value={row.carryG} readOnly tone="ro" />
                             <CompactField label={`รับเข้า ${su}`} value={blankZero(row.inG)}
-                              tone={isHiddenGroup ? "green" : undefined}
+                              tone="green"
                               onChange={(x) => setField(it.id, "inG", x, N)} />
                             <CompactField label={`ขาย/ใช้ ${su}`} value={blankZero(Math.max(d.usedTotalG, 0))}
                               readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
@@ -686,10 +686,6 @@ export default function StockPage() {
                       ) : v !== 0 ? (
                         <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
                           ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
-                        </div>
-                      ) : filled ? (
-                        <div className="mt-2 rounded-lg bg-ok/15 px-2.5 py-1.5 text-xs font-medium text-ok">
-                          ✓ ยอดตรง
                         </div>
                       ) : null}
                     </div>
