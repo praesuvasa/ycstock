@@ -10,11 +10,13 @@ type Tab = { href: string; label: string; icon: string };
 
 const USER_TABS: Tab[] = [
   { href: "/stock", label: "สต็อก", icon: "📝" },
+  { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
 ];
 const ADMIN_TABS: Tab[] = [
   { href: "/", label: "หน้าหลัก", icon: "🏠" },
   { href: "/stock", label: "สต็อก", icon: "📝" },
+  { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
   { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },

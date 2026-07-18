@@ -128,7 +128,9 @@ export const memoryStore = {
     seed();
     const active = isSpecialActive(branch, weekday);
     const today = new Date().toISOString().slice(0, 10);
-    const remainMap = new Map(this.getStock(branch, today).map((s) => [s.itemId, s.remainPack]));
+    const todayStock = this.getStock(branch, today);
+    const remainMap = new Map(todayStock.map((s) => [s.itemId, s.remainPack]));
+    const remainGMap = new Map(todayStock.map((s) => [s.itemId, s.remainG]));
     const rows: RestockRow[] = [];
     for (const it of ITEMS) {
       const par = PAR[it.id]?.[branch] ?? null;
@@ -138,9 +140,43 @@ export const memoryStore = {
       rows.push({
         itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par, remain, need: restockNeed(par, remain), isSpecial: it.isSpecial,
+        remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
       });
     }
     return { rows, specialActive: active };
+  },
+
+  // สรุปรายการที่ "รับเข้า" (inPack/inG > 0) ของวันนั้น — ใช้หน้าประวัติสินค้าเข้า
+  getStockIn(branch: Branch, date: string): { itemId: string; name: string; category: string; unit: string; inPack: number; inG: number }[] {
+    seed();
+    const rows: { itemId: string; name: string; category: string; unit: string; inPack: number; inG: number }[] = [];
+    for (const it of ITEMS) {
+      const rec = stock.get(sk(date, branch, it.id));
+      if (!rec) continue;
+      if (rec.inPack <= 0 && rec.inG <= 0) continue;
+      rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit, inPack: rec.inPack, inG: rec.inG });
+    }
+    return rows;
+  },
+
+  // N วันล่าสุด (รวมวันนี้) + จำนวนรายการที่มีของเข้าวันนั้น — ใช้เป็น quick-list ในหน้าประวัติสินค้าเข้า
+  getRecentStockInDays(branch: Branch, days: number): { date: string; count: number }[] {
+    seed();
+    const counts = new Map<string, number>();
+    for (const rec of stock.values()) {
+      if (rec.branch !== branch) continue;
+      if (rec.inPack <= 0 && rec.inG <= 0) continue;
+      counts.set(rec.date, (counts.get(rec.date) ?? 0) + 1);
+    }
+    const out: { date: string; count: number }[] = [];
+    const today = new Date();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      out.push({ date: iso, count: counts.get(iso) ?? 0 });
+    }
+    return out;
   },
 
   getSales(branch: Branch, date: string): SalesRow {

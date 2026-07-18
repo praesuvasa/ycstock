@@ -180,6 +180,45 @@ const REMAINDER_GROUP: Record<string, [string, number]> = {
   "Blueberry (125g)": ["Blueberry", 125], "Blueberry (300g)": ["Blueberry", 300], "Blueberry (500g)": ["Blueberry", 500],
 };
 
+// ความถี่เช็คสต็อก 2025-07-18 (ยืนยันกับแพรแล้ว) — รายการในนี้ = เช็คแค่จันทร์+พฤหัส (ของแห้ง/แพ็คเกจจิ้ง หมุนช้า)
+// รายการที่ไม่อยู่ในนี้ = เช็คทุกวัน (ของสด/ผูกกับยอดขายตรง) — รวม Choc Chip Cookies + Cranberry Cookies ที่ยกเว้นไว้เป็นทุกวันตามที่แพรแจ้ง
+const MON_THU_ITEMS = new Set<string>([
+  "Peanut Butter", "Water น้ำดื่ม",
+  "Cookies Crumbs", "Oreo", "Choc Chips", "Cornflakes (Topping)", "Granola (Topping)",
+  "Almond", "Pecan", "Walnut", "Coconut Chips", "Chia Seed", "Flax Seed", "Cacao Nibs",
+  "Grape Jelly", "Honey Jelly",
+  "Honey", "Caramel", "Peanut Butter Sauce",
+  "Cup 3oz (Topping)", "Cup+Lid (Big) 3oz", "Cup+Lid (Small) 1oz",
+  "Bowl Lid", "Smoothies Lid", "Lid S (92)", "Lid Top / Lid P (75)",
+  "Wood Spoon in bag", "Wood Spoon", "Tester Spoon ช้อนชิม", "Short Spoon (ช้อนถ้วยP)",
+  "Straw/หลอด - ใหญ่", "Straw/หลอด - เล็ก",
+  "Fail Bag ถุงฟลอย", "ถุงกระดาษแก้วเดี่ยว", "ถุงกระดาษแก้วคู่", "ถุงกระดาษใหญ่", "กระดาษกันหก",
+  "ฟอยล์แก้ว", "ฐานรองแก้วเดี่ยว", "ฐานรองแก้ว (คู่)", "Zip Bag Small / ถุงซิป",
+  "Bag 4x14", "Bag 6x14", "Bag 8x14", "Bag 9x14",
+  "Bag Sticker สติ๊กเกอร์ลิ้น", "Sticker Roll (สก๊อตเทป)",
+  "Print Paper กระดาษปริ้น", "Gloves YG / ถุงมือ", "Black Bag 30x40 / ถุงขยะ",
+  "Dry Tissue / ทิชชู่แห้ง", "Wet Tissue / ทิชชู่เปียก", "Tissue ทิชชู่ลูกค้า",
+  "น้ำยาถูพื้น", "น้ำยาตัดไขมัน", "น้ำยาล้างจาน", "น้ำยาอเนกประสงค์", "น้ำยาล้างเครื่องไอดิม",
+  "ผงโกโก้ (COCOA)", "ผงมาคิ (MAQUI)", "ผงคาม (CAMU)", "น้ำเชื่อม (Syrup)",
+  "Biscoff Spread เล็ก", "Biscoff Spread ใหญ่", "ซอส Chocolate", "ซอส Strawberry", "ปีโป้", "ปีโป้ลิ้นจี่",
+  "พิสตาชิโอ้เครป", "พิสตาชิโอ้บัตเตอร์", "พิสตาชิโอ้ท๊อปปิ้ง",
+]);
+
+// หน้าเติมของ (Restock) — 41 รายการนี้แพรระบุมาให้โชว์ "แพ็คเต็ม + เศษกรัมที่เปิดแล้ว" แทนแค่จำนวนแพ็ค
+// (ของหมุนช้า เศษที่เปิดแพ็คแล้วอาจพอใช้ถึงรอบหน้า ไม่ต้องเติมเพิ่ม) — Par ยังเป็นจำนวนแพ็คเหมือนเดิม ไม่เปลี่ยน
+const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
+  "Greek Yogurt 1kg", "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
+  "Overnight oats biscoff", "Plain Yogurt (ธรรมชาติ)",
+  "น้ำ Ice cream / Soft Serve", "Granola โรย Ice cream",
+  "Cookies Crumbs", "Oreo", "Choc Chips", "Cornflakes (Topping)", "Granola (Topping)",
+  "Almond", "Pecan", "Walnut", "Coconut Chips", "Chia Seed", "Flax Seed", "Cacao Nibs",
+  "Grape Jelly", "Honey Jelly", "Apple Cinnamon",
+  "Honey", "Caramel", "Peanut Butter Sauce",
+  "ผงโกโก้ (COCOA)", "ผงมาคิ (MAQUI)", "ผงคาม (CAMU)", "น้ำเชื่อม (Syrup)",
+  "Biscoff Spread เล็ก", "ซอส Chocolate", "ซอส Strawberry", "ปีโป้", "ปีโป้ลิ้นจี่",
+  "พิสตาชิโอ้เครป", "พิสตาชิโอ้บัตเตอร์", "พิสตาชิโอ้ท๊อปปิ้ง",
+]);
+
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
 
 export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
@@ -199,6 +238,8 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     gramsPerUOM: hasRemainder ? qty : grp ? grp[1] : 0,
     remainderGroup: grp ? grp[0] : undefined,
     sort: i,
+    checkFrequency: MON_THU_ITEMS.has(name) ? "monThu" : "daily",
+    showRemainderOnRestock: SHOW_REMAINDER_ON_RESTOCK.has(name),
   };
 });
 

@@ -19,7 +19,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -30,6 +30,7 @@ export const supabaseStore = {
       isSpecial: r.is_special, isCup: r.is_cup, cupSize: r.cup_size ?? undefined,
       hasRemainder: r.has_remainder, gramsPerUOM: Number(r.grams_per_uom ?? 0),
       remainderGroup: r.remainder_group ?? undefined, sort: r.sort,
+      checkFrequency: r.check_frequency ?? "daily", showRemainderOnRestock: r.show_remainder ?? false,
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
@@ -93,6 +94,7 @@ export const supabaseStore = {
     const today = new Date().toISOString().slice(0, 10);
     const stock = await this.getStock(branch, today);
     const remainMap = new Map<string, number>(stock.map((s) => [s.itemId, s.remainPack]));
+    const remainGMap = new Map<string, number>(stock.map((s) => [s.itemId, s.remainG]));
     const rows: RestockRow[] = [];
     for (const it of items) {
       const p = par[it.id]?.[branch] ?? null;
@@ -100,9 +102,54 @@ export const supabaseStore = {
       if (it.isSpecial && !active) continue;
       const remain = remainMap.get(it.id) ?? 0;
       rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit,
-        par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial });
+        par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial,
+        remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined });
     }
     return { rows, specialActive: active };
+  },
+
+  // สรุปรายการที่ "รับเข้า" (in_pack/in_g > 0) ของวันนั้น — ใช้หน้าประวัติสินค้าเข้า
+  async getStockIn(branch: Branch, date: string) {
+    const { items } = await this.getMeta();
+    const itemById = new Map(items.map((it) => [it.id, it]));
+    const { data, error } = await sb().from("stock_daily")
+      .select("item_id,in_pack,in_g")
+      .eq("branch_id", branch).eq("date", date)
+      .or("in_pack.gt.0,in_g.gt.0");
+    if (error) throw error;
+    const rows = (data ?? [])
+      .map((r: any) => {
+        const it = itemById.get(r.item_id);
+        if (!it) return null;
+        return { itemId: it.id, name: it.name, category: it.category, unit: it.unit, inPack: r.in_pack, inG: r.in_g, sort: it.sort };
+      })
+      .filter((r): r is { itemId: string; name: string; category: string; unit: string; inPack: number; inG: number; sort: number } => r !== null)
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ sort, ...rest }) => rest);
+    return rows;
+  },
+
+  // N วันล่าสุด (รวมวันนี้) + จำนวนรายการที่มีของเข้าวันนั้น — ใช้เป็น quick-list ในหน้าประวัติสินค้าเข้า
+  async getRecentStockInDays(branch: Branch, days: number) {
+    const since = new Date();
+    since.setDate(since.getDate() - (days - 1));
+    const sinceIso = since.toISOString().slice(0, 10);
+    const { data, error } = await sb().from("stock_daily")
+      .select("date,in_pack,in_g")
+      .eq("branch_id", branch).gte("date", sinceIso)
+      .or("in_pack.gt.0,in_g.gt.0");
+    if (error) throw error;
+    const counts = new Map<string, number>();
+    for (const r of data ?? []) counts.set(r.date, (counts.get(r.date) ?? 0) + 1);
+    const out: { date: string; count: number }[] = [];
+    const today = new Date();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      out.push({ date: iso, count: counts.get(iso) ?? 0 });
+    }
+    return out;
   },
 
   async getSales(branch: Branch, date: string): Promise<SalesRow> {

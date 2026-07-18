@@ -8,7 +8,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
-import { remainPieces, variance } from "@/lib/calc";
+import { remainPieces, variance, isCheckDue, weekdayFromDate } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
   GlassCard, Badge, Button, BranchPicker, Accordion, Stat, SaveBar, PageTitle,
@@ -169,11 +169,13 @@ export default function StockPage() {
     return () => { alive = false; };
   }, [branch, date]);
 
+  const weekday = React.useMemo(() => weekdayFromDate(date), [date]);
+
   const groups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
-      // แสดงรายการที่ stock ในสาขานี้ + ทุกสมาชิกกลุ่มเศษรวม (ให้นับกล่องได้ทุกขนาด)
-      .filter((it) => meta.par[it.id]?.[branch] != null || it.remainderGroup)
+      // แสดงรายการที่ stock ในสาขานี้ + ทุกสมาชิกกลุ่มเศษรวม (ให้นับกล่องได้ทุกขนาด) + ถึงรอบเช็ควันนี้ (daily/จันทร์+พฤหัส)
+      .filter((it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && isCheckDue(it.checkFrequency, weekday))
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
@@ -182,10 +184,18 @@ export default function StockPage() {
       g.items.push(it);
     }
     return out;
-  }, [meta, branch]);
+  }, [meta, branch, weekday]);
 
   const shownItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const total = shownItems.length;
+
+  // จำนวนรายการที่ถูกซ่อนวันนี้เพราะยังไม่ถึงรอบเช็ค (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — โชว์เป็น hint กันงง
+  const hiddenTodayCount = React.useMemo(() => {
+    if (!meta) return 0;
+    return meta.items.filter(
+      (it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && !isCheckDue(it.checkFrequency, weekday)
+    ).length;
+  }, [meta, branch, weekday]);
 
   const itemById = React.useMemo(
     () => new Map((meta?.items ?? []).map((it) => [it.id, it] as const)),
@@ -380,6 +390,12 @@ export default function StockPage() {
         <Stat label="ค้างยืนยัน" value={unconfirmedCount > 0 ? `${unconfirmedCount}` : "0"} tone={unconfirmedCount > 0 ? "warn" : "ok"} />
         <Stat label="เกิน / ผิด" value={errorCount > 0 ? `⚠️ ${errorCount}` : "—"} tone={errorCount > 0 ? "warn" : "default"} />
       </div>
+
+      {hiddenTodayCount > 0 && (
+        <p className="mb-3 px-1 text-[11px] text-brand-ink/45">
+          ซ่อนไว้ {hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ (รายการหมุนช้า เช็คเฉพาะวันจันทร์+พฤหัส)
+        </p>
+      )}
 
       {err && (
         <GlassCard className="mb-3">

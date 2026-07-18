@@ -23,6 +23,11 @@ export const db = {
   getRestock: (branch: Branch, weekday: Weekday): Promise<{ rows: RestockRow[]; specialActive: boolean }> =>
     useSupabase ? supabaseStore.getRestock(branch, weekday) : Promise.resolve(memoryStore.getRestock(branch, weekday)),
 
+  getStockIn: (branch: Branch, date: string) =>
+    useSupabase ? supabaseStore.getStockIn(branch, date) : Promise.resolve(memoryStore.getStockIn(branch, date)),
+  getRecentStockInDays: (branch: Branch, days: number) =>
+    useSupabase ? supabaseStore.getRecentStockInDays(branch, days) : Promise.resolve(memoryStore.getRecentStockInDays(branch, days)),
+
   getSales: (branch: Branch, date: string): Promise<SalesRow> =>
     useSupabase ? supabaseStore.getSales(branch, date) : Promise.resolve(memoryStore.getSales(branch, date)),
 

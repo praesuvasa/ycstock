@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 // หน้าที่ user (พนักงาน) เข้าได้ · restock (จนท. Restock) เข้าได้แค่ /restock · ที่เหลือ admin-only
-const USER_PAGES = ["/stock", "/sales"];
+const USER_PAGES = ["/stock", "/stock-in", "/sales"];
 const RESTOCK_PAGES = ["/restock"];
 const PUBLIC = ["/login", "/api/login"];
 

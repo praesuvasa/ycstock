@@ -1,5 +1,5 @@
 // Pure business logic — ใช้ได้ทั้ง BFF และ UI (คำนวณสดขณะพิมพ์)
-import type { Branch, Weekday, CupRow, CupSize } from "./types";
+import type { Branch, Weekday, CupRow, CupSize, CheckFrequency } from "./types";
 
 const n = (v: unknown): number => {
   const x = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -50,6 +50,12 @@ export function isSpecialActive(branch: Branch, weekday: Weekday): boolean {
 export function specialDayLabel(branch: Branch): string | null {
   const days = SPECIAL_DAY[branch];
   return days && days.length > 0 ? days.map((d) => WEEKDAY_LABEL_TH[d]).join("และ") : null;
+}
+
+/** วันนี้ถึงรอบเช็คไอเทมนี้ไหม — daily = ทุกวัน · monThu = เฉพาะจันทร์/พฤหัส */
+export function isCheckDue(freq: CheckFrequency, weekday: Weekday): boolean {
+  if (freq === "daily") return true;
+  return weekday === "mon" || weekday === "thu";
 }
 
 export interface CupReconResult {

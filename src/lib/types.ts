@@ -5,6 +5,8 @@ export const BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
 
 export type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 export type CupSize = "P" | "S" | "BOWL" | "14OZ";
+// ความถี่เช็คสต็อกต่อรายการ — daily = ทุกวัน · monThu = เฉพาะวันจันทร์+พฤหัส (ของหมุนช้า ลดภาระกรอกซ้ำ)
+export type CheckFrequency = "daily" | "monThu";
 
 export interface Item {
   id: string;
@@ -18,6 +20,8 @@ export interface Item {
   gramsPerUOM: number;   // กรัมต่อ 1 แพ็ค (แกะ) หรือ กรัมต่อ 1 กล่อง (สมาชิกกลุ่มเศษรวม)
   remainderGroup?: string; // กลุ่มเศษรวม (Strawberry/Blueberry) — สมาชิกกลุ่มเดียวแชร์เศษก้อนเดียว
   sort: number;
+  checkFrequency: CheckFrequency; // หน้าสต็อกโชว์เฉพาะวันที่ถึงรอบ
+  showRemainderOnRestock: boolean; // หน้าเติมของ โชว์ "แพ็คเต็ม + เศษกรัม" แทนแค่จำนวนแพ็ค (ของหมุนช้าที่เศษเปิดแล้วอาจพอใช้ถึงรอบหน้า)
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)
@@ -80,6 +84,8 @@ export interface RestockRow {
   remain: number;
   need: number | null;
   isSpecial: boolean;
+  // เศษกรัมคงเหลือในแพ็คที่เปิดอยู่วันนี้ — มีความหมายเฉพาะรายการที่ showRemainderOnRestock=true
+  remainG?: number;
 }
 
 // ── Auth / RBAC / Audit (v1.2) ──

@@ -45,6 +45,13 @@ function csvEscape(s: string): string {
   if (!needsQuote) return str;
   return '"' + str.split('"').join('""') + '"';
 }
+// ท้ายเอกสาร export ทั้ง 2 หน้า (เติมของ + สั่งผลิต) — ช่องเซ็นชื่อยืนยันรับ-ส่งของจริง
+const SIGNATURE_FOOTER_LINES = [
+  "",
+  "ผู้จัดสินค้า,____________________,วันที่,____________________",
+  "ผู้รับสินค้า,____________________,วันที่,____________________",
+];
+
 function downloadCsv(content: string, filename: string) {
   // ใส่ BOM กันตัวอักษรไทยเพี้ยนตอนเปิดด้วย Excel
   const blob = new Blob(["﻿" + content], { type: "text/csv;charset=utf-8;" });
@@ -249,6 +256,7 @@ function RestockByBranch({
       const q = entries[r.itemId]?.qty ?? "0";
       lines.push([csvEscape(r.category), csvEscape(r.name), q].join(","));
     }
+    lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
   }
 
@@ -337,9 +345,16 @@ function RestockByBranch({
                           <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
                             {r.par ?? "—"}
                           </span>
-                          <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
-                            {r.remain}
-                          </span>
+                          {r.remainG !== undefined ? (
+                            <span className="w-11 shrink-0 text-right leading-tight">
+                              <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
+                              <span className="block text-[9px] tabular-nums text-brand-ink/40">+{r.remainG}g</span>
+                            </span>
+                          ) : (
+                            <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
+                              {r.remain}
+                            </span>
+                          )}
                           <input
                             inputMode="numeric"
                             value={entry?.qty ?? ""}
@@ -586,6 +601,7 @@ function ProductionOrder({ store }: { store: RestockStore }) {
       lines.push("");
       lines.push(`หมายเหตุรวม,${csvEscape(note.trim())}`);
     }
+    lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `production_order_${orderDate}.csv`);
   }
 
