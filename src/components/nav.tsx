@@ -107,11 +107,13 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className={`grid ${compact ? "h-9 w-9 rounded-xl text-sm" : "h-11 w-11 rounded-2xl text-base"} place-items-center bg-gradient-to-br from-brand-red to-brand-orange font-bold text-white shadow-glass`}>
-        YC
-      </div>
+      <img
+        src="/logo-yc.png"
+        alt="Yogurt Culture"
+        className={compact ? "h-7 w-auto" : "h-9 w-auto"}
+      />
       <div className="leading-tight">
-        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>Yogurt Culture</div>
+        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบจัดการสต็อก</div>
         <div className="text-[11px] text-brand-ink/50">{scopeLabel(me)}</div>
       </div>
     </div>
