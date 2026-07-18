@@ -451,7 +451,7 @@ export default function StockPage() {
                 <span className="flex items-center gap-1.5">
                   {g.category}
                   {isHiddenGroup ? (
-                    <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                    <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-[10px] font-semibold text-ok">
                       ยังไม่ถึงรอบเช็ค กรอกรับเข้า
                     </span>
                   ) : categoryIncomplete && (
@@ -502,8 +502,6 @@ export default function StockPage() {
                     : `✓ เท่ายกมา (${row.carryPack} แพ็ค)`;
 
                   const returnedExpanded = returnOpen[it.id] ?? (row.returned > 0 || (row.returnedG ?? 0) > 0);
-                  // สมาชิกกลุ่มเศษรวม (Strawberry/Blueberry) — ช่อง "ส่งคืน/เสีย (กล่อง)" จำกัดไม่เกิน 6 กันใส่ผิดช่อง (เผลอใส่เลขกรัม)
-                  const returnedBoxWarn = !!grp && row.returned > 6;
 
                   return (
                     <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -533,15 +531,20 @@ export default function StockPage() {
                             <CompactField
                               label="แกะ/ออก" value={blankZero(row.used)}
                               maxLength={packLimited ? 2 : undefined} warn={usedWarn}
+                              readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                               onChange={(x) => setField(it.id, "used", x, N)}
                             />
-                            <RemainCell
-                              label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
-                              warn={remainPackWarn} maxLength={packLimited ? 2 : undefined}
-                              confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
-                              onUnconfirm={() => unconfirmItem(it.id)}
-                              onChange={(x) => setField(it.id, "remainPack", x, N)}
-                            />
+                            {isHiddenGroup ? (
+                              <CompactField label="คงเหลือ" value={row.remainPack} readOnly tone="ro" maxLength={packLimited ? 2 : undefined} />
+                            ) : (
+                              <RemainCell
+                                label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
+                                warn={remainPackWarn} maxLength={packLimited ? 2 : undefined}
+                                confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
+                                onUnconfirm={() => unconfirmItem(it.id)}
+                                onChange={(x) => setField(it.id, "remainPack", x, N)}
+                              />
+                            )}
                           </div>
                         </div>
                       ) : (
@@ -551,54 +554,59 @@ export default function StockPage() {
                             tone={isHiddenGroup ? "green" : undefined}
                             onChange={(x) => setField(it.id, "inPack", x, N)} />
                           <CompactField label="ขาย/ใช้" value={blankZero(row.used)}
+                            readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                             onChange={(x) => setField(it.id, "used", x, N)} />
-                          <RemainCell
-                            label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
-                            confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
-                            onUnconfirm={() => unconfirmItem(it.id)}
-                            onChange={(x) => setField(it.id, "remainPack", x, N)}
-                          />
+                          {isHiddenGroup ? (
+                            <CompactField label="คงเหลือ" value={row.remainPack} readOnly tone="ro" />
+                          ) : (
+                            <RemainCell
+                              label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
+                              confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
+                              onUnconfirm={() => unconfirmItem(it.id)}
+                              onChange={(x) => setField(it.id, "remainPack", x, N)}
+                            />
+                          )}
                         </div>
                       )}
                       {anyPackWarn && (
                         <div className="mt-1 text-[10px] font-medium text-warn">⚠️ จำนวนผิด</div>
                       )}
 
-                      {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) */}
-                      <div className="mt-2">
-                        {returnedExpanded ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <CompactField
-                                label={grp ? "ส่งคืน/เสีย (กล่อง)" : "ส่งคืน/เสีย"} value={blankZero(row.returned)}
-                                maxLength={grp ? 1 : undefined} warn={returnedBoxWarn}
-                                onChange={(x) => setField(it.id, "returned", x, N)}
-                              />
-                              {grp && isLeader && (
-                                <CompactField label="ส่งคืนเศษ (g)" value={blankZero(row.returnedG ?? 0)}
-                                  onChange={(x) => setField(it.id, "returnedG", x, N)} />
+                      {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) · กลุ่มเศษรวม (Strawberry/Blueberry) กรอกที่ leader เป็นกรัมอย่างเดียว ไม่มีช่องกล่อง */}
+                      {(!grp || isLeader) && (
+                        <div className="mt-2">
+                          {returnedExpanded ? (
+                            <div className="flex flex-col gap-2">
+                              <div className={grp ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
+                                {!grp && (
+                                  <CompactField
+                                    label="ส่งคืน/เสีย" value={blankZero(row.returned)}
+                                    onChange={(x) => setField(it.id, "returned", x, N)}
+                                  />
+                                )}
+                                {grp && isLeader && (
+                                  <CompactField label="ส่งคืนเศษ (g)" value={blankZero(row.returnedG ?? 0)}
+                                    onChange={(x) => setField(it.id, "returnedG", x, N)} />
+                                )}
+                              </div>
+                              {(row.returned > 0 || (row.returnedG ?? 0) > 0) && (
+                                <label className="flex flex-col gap-0.5">
+                                  <span className="text-[8.5px] leading-tight text-brand-ink/50">หมายเหตุ (ส่งคืน/เสีย)</span>
+                                  <input className="field px-1.5 py-1 text-left text-xs" placeholder="เหตุผล เช่น หมดอายุ / แตก"
+                                    value={row.note} onChange={(e) => setNote(it.id, e.target.value)} />
+                                </label>
                               )}
                             </div>
-                            {returnedBoxWarn && (
-                              <div className="text-[10px] font-medium text-warn">⚠️ จำนวนผิด</div>
-                            )}
-                            {(row.returned > 0 || (row.returnedG ?? 0) > 0) && (
-                              <label className="flex flex-col gap-0.5">
-                                <span className="text-[8.5px] leading-tight text-brand-ink/50">หมายเหตุ (ส่งคืน/เสีย)</span>
-                                <input className="field px-1.5 py-1 text-left text-xs" placeholder="เหตุผล เช่น หมดอายุ / แตก"
-                                  value={row.note} onChange={(e) => setNote(it.id, e.target.value)} />
-                              </label>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            type="button" onClick={() => setReturnOpen((p) => ({ ...p, [it.id]: true }))}
-                            className="text-[11px] font-medium text-brand-ink/40 underline underline-offset-2"
-                          >
-                            + ส่งคืน/เสีย
-                          </button>
-                        )}
-                      </div>
+                          ) : (
+                            <button
+                              type="button" onClick={() => setReturnOpen((p) => ({ ...p, [it.id]: true }))}
+                              className="text-[11px] font-medium text-brand-ink/40 underline underline-offset-2"
+                            >
+                              + ส่งคืน/เสีย
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* เศษ: กลุ่ม (เฉพาะ leader) / แกะปกติ */}
                       {grp ? (
@@ -610,11 +618,15 @@ export default function StockPage() {
                               <CompactField label="รับเข้า g" value={blankZero(row.inG)}
                                 tone={isHiddenGroup ? "green" : undefined}
                                 onChange={(x) => setField(it.id, "inG", x, N)} />
-                              <RemainCell
-                                label="เศษคงเหลือ g" isConfirmed={isConfirmed} value={row.remainG}
-                                onUnconfirm={() => unconfirmItem(it.id)}
-                                onChange={(x) => setField(it.id, "remainG", x, N)}
-                              />
+                              {isHiddenGroup ? (
+                                <CompactField label="เศษคงเหลือ g" value={row.remainG} readOnly tone="ro" />
+                              ) : (
+                                <RemainCell
+                                  label="เศษคงเหลือ g" isConfirmed={isConfirmed} value={row.remainG}
+                                  onUnconfirm={() => unconfirmItem(it.id)}
+                                  onChange={(x) => setField(it.id, "remainG", x, N)}
+                                />
+                              )}
                             </div>
                           </div>
                         ) : (
@@ -631,12 +643,17 @@ export default function StockPage() {
                               tone={isHiddenGroup ? "green" : undefined}
                               onChange={(x) => setField(it.id, "inG", x, N)} />
                             <CompactField label={`ขาย/ใช้ ${su}`} value={blankZero(Math.max(d.usedTotalG, 0))}
+                              readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                               onChange={(x) => setField(it.id, "usedG", x, N)} />
-                            <RemainCell
-                              label={`คงเหลือ ${su}`} isConfirmed={isConfirmed} value={row.remainG}
-                              onUnconfirm={() => unconfirmItem(it.id)}
-                              onChange={(x) => setField(it.id, "remainG", x, N)}
-                            />
+                            {isHiddenGroup ? (
+                              <CompactField label={`คงเหลือ ${su}`} value={row.remainG} readOnly tone="ro" />
+                            ) : (
+                              <RemainCell
+                                label={`คงเหลือ ${su}`} isConfirmed={isConfirmed} value={row.remainG}
+                                onUnconfirm={() => unconfirmItem(it.id)}
+                                onChange={(x) => setField(it.id, "remainG", x, N)}
+                              />
+                            )}
                           </div>
                         </div>
                       ) : null}
