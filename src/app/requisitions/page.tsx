@@ -2,7 +2,7 @@
 // M4 · ขอเบิกสินค้า — พนักงานสาขา (user/admin) ส่งคำขอของเกิน Par หรือของนอกลิสต์
 // ไม่มีสถานะติดตาม (ยืนยันกับแพรแล้ว) — แค่ list ให้ restock/admin กวาดดูตอนเตรียมสั่งผลิต/เติมของ
 import React from "react";
-import type { Branch, Meta } from "@/lib/types";
+import type { Branch, Meta, BranchNotice } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Button, Badge } from "@/components/ui";
 
@@ -68,6 +68,16 @@ export default function RequisitionsPage() {
   React.useEffect(() => {
     fetch("/api/meta").then((r) => r.json()).then((m: Meta) => setMeta(m)).catch(() => {});
   }, []);
+
+  // ประกาศพิเศษของสาขาที่เลือก (รวมประกาศ "ทุกสาขา") — เช่น รอบส่งของเลื่อนเพราะวันหยุด
+  const [notices, setNotices] = React.useState<BranchNotice[]>([]);
+  React.useEffect(() => {
+    if (!canSubmit) return;
+    fetch(`/api/notices?branch=${branch}`)
+      .then((r) => r.json())
+      .then((d: { rows?: BranchNotice[] }) => setNotices(d.rows ?? []))
+      .catch(() => {});
+  }, [canSubmit, branch]);
 
   const [pickMode, setPickMode] = React.useState<PickMode>("existing");
   const [itemId, setItemId] = React.useState("");
@@ -150,6 +160,13 @@ export default function RequisitionsPage() {
       {canSubmit && (
         <GlassCard className="mb-3">
           <h2 className="mb-3 text-[15px] font-semibold">ส่งคำขอใหม่</h2>
+
+          {notices.map((n) => (
+            <div key={n.id} className="mb-3 rounded-xl border border-brand-orange/35 bg-brand-orange/[.08] px-3 py-2.5">
+              <p className="text-[13px] font-semibold text-orange-700">📢 ประกาศ</p>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-brand-ink/70">{n.message}</p>
+            </div>
+          ))}
 
           <div className="mb-3 rounded-xl border border-ok/25 bg-ok/[.06] px-3 py-2.5">
             <p className="text-[13px] font-semibold text-ok">

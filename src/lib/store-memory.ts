@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -14,6 +14,8 @@ const users: UserRec[] = [
 ];
 const auditRows: AuditEntry[] = [];
 const requisitions: Requisition[] = [];
+let noticeSeq = 1;
+const branchNotices: BranchNotice[] = [];
 
 interface StockRec extends StockRow { date: string; branch: Branch; }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
@@ -331,6 +333,28 @@ export const memoryStore = {
   markAllRequisitionsSeen(): void {
     const now = new Date().toISOString();
     for (const r of requisitions) if (!r.seenAt) r.seenAt = now;
+  },
+
+  // ── ประกาศพิเศษ (v1.6) ──
+  listActiveNotices(branch: Branch): BranchNotice[] {
+    return branchNotices
+      .filter((n) => n.branch === null || n.branch === branch)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  listAllNotices(): BranchNotice[] {
+    return [...branchNotices].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+  createNotice(input: { branch: Branch | null; message: string }, userName: string): BranchNotice {
+    const rec: BranchNotice = {
+      id: String(noticeSeq++), branch: input.branch, message: input.message,
+      createdBy: userName, createdAt: new Date().toISOString(),
+    };
+    branchNotices.unshift(rec);
+    return rec;
+  },
+  deleteNotice(id: string): void {
+    const idx = branchNotices.findIndex((n) => n.id === id);
+    if (idx >= 0) branchNotices.splice(idx, 1);
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──

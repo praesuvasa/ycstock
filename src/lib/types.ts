@@ -144,6 +144,15 @@ export interface Requisition {
   seenAt?: string;     // ISO — undefined/null = ยังไม่มีใครเปิดดู (ใช้ทำ badge เตือนที่เมนู/Dashboard)
 }
 
+// ── ประกาศพิเศษ (v1.6) — admin ตั้งข้อความแจ้งเตือนชั่วคราวต่อสาขา เช่น รอบส่งของเลื่อนเพราะวันหยุดพนักงานส่งของ/วันหยุดสาขา ──
+export interface BranchNotice {
+  id: string;
+  branch: Branch | null; // null = ทุกสาขา
+  message: string;
+  createdBy: string;
+  createdAt: string; // ISO
+}
+
 // ── ใบสั่งผลิต (v1.5) — persist ProductionOrder component จาก client state เดิม ──
 // "OTHER" = ช่อง "อื่นๆ" ในกริดสั่งผลิตเดิม (ProdField เดิมมี "other") — ไม่ใช่สาขาจริงจึงแยก type จาก Branch
 export type ProdBranchKey = "SND" | "NVP" | "KCN" | "OTHER";

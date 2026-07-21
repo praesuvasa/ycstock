@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -66,6 +66,16 @@ export const db = {
     useSupabase ? supabaseStore.countUnseenRequisitions() : Promise.resolve(memoryStore.countUnseenRequisitions()),
   markAllRequisitionsSeen: () =>
     useSupabase ? supabaseStore.markAllRequisitionsSeen() : Promise.resolve(memoryStore.markAllRequisitionsSeen()),
+
+  // ── ประกาศพิเศษ (v1.6) ──
+  listActiveNotices: (branch: Branch): Promise<BranchNotice[]> =>
+    useSupabase ? supabaseStore.listActiveNotices(branch) : Promise.resolve(memoryStore.listActiveNotices(branch)),
+  listAllNotices: (): Promise<BranchNotice[]> =>
+    useSupabase ? supabaseStore.listAllNotices() : Promise.resolve(memoryStore.listAllNotices()),
+  createNotice: (input: { branch: Branch | null; message: string }, userName: string): Promise<BranchNotice> =>
+    useSupabase ? supabaseStore.createNotice(input, userName) : Promise.resolve(memoryStore.createNotice(input, userName)),
+  deleteNotice: (id: string) =>
+    useSupabase ? supabaseStore.deleteNotice(id) : Promise.resolve(memoryStore.deleteNotice(id)),
 
   // ── restock selections (v1.4) ──
   getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> =>

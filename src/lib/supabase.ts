@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -285,6 +285,30 @@ export const supabaseStore = {
     if (error) throw error;
   },
 
+  // ── ประกาศพิเศษ (v1.6) ──
+  async listActiveNotices(branch: Branch): Promise<BranchNotice[]> {
+    const { data, error } = await sb().from("branch_notices").select("*")
+      .or(`branch_id.is.null,branch_id.eq.${branch}`).order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(rowFromNoticeDb);
+  },
+  async listAllNotices(): Promise<BranchNotice[]> {
+    const { data, error } = await sb().from("branch_notices").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map(rowFromNoticeDb);
+  },
+  async createNotice(input: { branch: Branch | null; message: string }, userName: string): Promise<BranchNotice> {
+    const { data, error } = await sb().from("branch_notices").insert({
+      branch_id: input.branch, message: input.message, created_by: userName,
+    }).select().single();
+    if (error) throw error;
+    return rowFromNoticeDb(data);
+  },
+  async deleteNotice(id: string): Promise<void> {
+    const { error } = await sb().from("branch_notices").delete().eq("id", id);
+    if (error) throw error;
+  },
+
   // ── ตัวเลือกเติมของ (v1.4) ──
   async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> {
     const { data, error } = await sb().from("restock_selections")
@@ -473,6 +497,13 @@ function rowFromReqDb(r: any): Requisition {
     qty: Number(r.qty), unit: r.unit ?? undefined, note: r.note ?? "",
     requestedBy: r.requested_by, requestedByUserId: r.requested_by_user_id, createdAt: r.created_at,
     seenAt: r.seen_at ?? undefined,
+  };
+}
+
+function rowFromNoticeDb(r: any): BranchNotice {
+  return {
+    id: String(r.id), branch: r.branch_id ?? null, message: r.message,
+    createdBy: r.created_by, createdAt: r.created_at,
   };
 }
 

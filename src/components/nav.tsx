@@ -26,6 +26,7 @@ const ADMIN_TABS: Tab[] = [
 const ADMIN_MENU: Tab[] = [
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "⚙️" },
   { href: "/users", label: "ผู้ใช้", icon: "👥" },
+  { href: "/notices", label: "ประกาศ", icon: "📢" },
   { href: "/audit", label: "Audit Log", icon: "📜" },
 ];
 // role "restock" — เข้าได้แค่ 2 หน้า (เติมของ/สั่งผลิต + คำขอเบิก) ไม่เห็นเมนูอื่นเลย
