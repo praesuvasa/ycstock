@@ -139,12 +139,13 @@ const RAW: Row[] = [
   ["ผงคาม (CAMU)", "Yogurt Smoothies Powder", "Bag", 1, 1, null],
   ["น้ำเชื่อม (Syrup)", "Yogurt Smoothies Powder", "Bottle", 1, 1, null],
   // Yogurt Shake
-  ["Biscoff Spread เล็ก", "Yogurt Shake", "Bottle", 2, 2, 0],
-  ["Biscoff Spread ใหญ่", "Yogurt Shake", "Bottle", 0, 0, null],
-  ["ซอส Chocolate", "Yogurt Shake", "500/Bag", 1, 1, 0],
-  ["ซอส Strawberry", "Yogurt Shake", "500/Bag", 1, 1, 0],
-  ["ปีโป้", "Yogurt Shake", "40 อัน/Bag", 1, 1, 0],
-  ["ปีโป้ลิ้นจี่", "Yogurt Shake", "กล่อง", 1, 1, 0],
+  // เปลี่ยนชื่อหมวด "Yogurt Shake" → "Yogurt Shake Toppings" 2026-07-21 (แพรยืนยัน — ย้ายไปคอลัมขวาต่อจาก Toppings ในใบพิมพ์ด้วย)
+  ["Biscoff Spread เล็ก", "Yogurt Shake Toppings", "Bottle", 2, 2, 0],
+  ["Biscoff Spread ใหญ่", "Yogurt Shake Toppings", "Bottle", 0, 0, null],
+  ["ซอส Chocolate", "Yogurt Shake Toppings", "500/Bag", 1, 1, 0],
+  ["ซอส Strawberry", "Yogurt Shake Toppings", "500/Bag", 1, 1, 0],
+  ["ปีโป้", "Yogurt Shake Toppings", "40 อัน/Bag", 1, 1, 0],
+  ["ปีโป้ลิ้นจี่", "Yogurt Shake Toppings", "กล่อง", 1, 1, 0],
   // Softserve Toppings — Par ตั้งเป็น 0 แพ็ค (ไม่ใช่ 300) เพราะระบบยังไม่มี Par แบบกรัมแยกต่างหาก
   ["พิสตาชิโอ้เครป", "Softserve Toppings", "กรัม", null, 0, null],
   ["พิสตาชิโอ้บัตเตอร์", "Softserve Toppings", "กรัม", null, 0, null],
