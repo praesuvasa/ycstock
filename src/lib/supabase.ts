@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockSelectionLatestRow } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -305,29 +305,6 @@ export const supabaseStore = {
     return { ok: true, savedCount: payload.length };
   },
 
-  // โหมดสั่งผลิต: ค่าล่าสุดต่อ (สาขา,ไอเทม) ไม่ผูกวันที่เดียว (แต่ละสาขา restock คนละวันได้)
-  // reduce แบบเดียวกับ getStock's prevMap — query ที่ selected=true เรียง date,updated_at asc แล้วให้ตัวหลังทับตัวก่อน (last wins = ค่าล่าสุดจริง)
-  // ตัดช่วงย้อนหลัง 90 วันกันตารางโตไม่จำกัด — ต้องกรองด้วย date ไม่ใช่ .limit() เฉยๆ เพราะ order เป็น ascending
-  // (limit หลัง ascending จะตัดแถวเก่าสุดออกจากผลลัพธ์ ไม่ใช่แถวใหม่สุด — ถ้าข้อมูลเกิน limit จะได้ค่าเก่าแทนค่าล่าสุดซึ่งผิดจุดประสงค์)
-  async getLatestRestockSelections(): Promise<RestockSelectionLatestRow[]> {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 90);
-    const cutoffIso = cutoff.toISOString().slice(0, 10);
-    const { data, error } = await sb().from("restock_selections")
-      .select("item_id,branch_id,qty,date,updated_at")
-      .eq("selected", true)
-      .gte("date", cutoffIso)
-      .order("date", { ascending: true })
-      .order("updated_at", { ascending: true });
-    if (error) throw error;
-    const map = new Map<string, RestockSelectionLatestRow>();
-    for (const r of data ?? []) {
-      map.set(r.item_id + "|" + r.branch_id, {
-        itemId: r.item_id, branch: r.branch_id as Branch, qty: Number(r.qty), date: r.date, updatedAt: r.updated_at,
-      });
-    }
-    return [...map.values()];
-  },
 
   // ── audit ──
   async writeAudit(e: Omit<AuditEntry, "id" | "ts">): Promise<void> {

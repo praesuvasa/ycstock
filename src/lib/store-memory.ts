@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockSelectionLatestRow } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -320,17 +320,6 @@ export const memoryStore = {
       });
     }
     return { ok: true, savedCount: entries.length };
-  },
-
-  getLatestRestockSelections(): RestockSelectionLatestRow[] {
-    const map = new Map<string, RestockSelectionLatestRow>();
-    const sorted = [...restockSelections.values()]
-      .filter((r) => r.selected)
-      .sort((a, b) => (a.date === b.date ? a.updatedAt.localeCompare(b.updatedAt) : a.date.localeCompare(b.date)));
-    for (const r of sorted) {
-      map.set(r.itemId + "|" + r.branch, { itemId: r.itemId, branch: r.branch, qty: r.qty, date: r.date, updatedAt: r.updatedAt });
-    }
-    return [...map.values()];
   },
 
   // ── audit ──

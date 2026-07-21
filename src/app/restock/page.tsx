@@ -10,8 +10,8 @@
 import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, Button, SaveBar, PageTitle, Accordion } from "@/components/ui";
 import { useMe } from "@/components/nav";
-import type { Branch, Weekday, RestockRow, RestockSelectionEntry, RestockSelectionLatestRow, Meta, Item } from "@/lib/types";
-import { BRANCH_LABEL_TH } from "@/lib/types";
+import type { Branch, Weekday, RestockRow, RestockSelectionEntry, Meta, Item } from "@/lib/types";
+import { BRANCH_LABEL_TH, BRANCHES } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
 
@@ -806,33 +806,21 @@ function ProductionPrintSheet({
 
 function ProductionOrder() {
   const [meta, setMeta] = React.useState<Meta | null>(null);
-  const [latestRows, setLatestRows] = React.useState<RestockSelectionLatestRow[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
+  const [metaError, setMetaError] = React.useState<string | null>(null);
+  const [metaLoading, setMetaLoading] = React.useState(true);
 
-  // ── ข้อ 3 (spec เดิม): ดึง /api/meta + ค่าล่าสุดจาก /api/restock/selections/latest พร้อมกัน ──
-  // ไม่ต้องรอ gate — reflected เป็นค่าล่าสุดรวมทุกวันที่อยู่แล้ว ไม่ผูก orderDate/deliveryDate
+  // ── /api/meta โหลดครั้งเดียว (ไม่ผูกวันที่) ──
   React.useEffect(() => {
     let alive = true;
-    Promise.all([
-      fetch("/api/meta").then(async (r) => {
+    fetch("/api/meta")
+      .then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error((data as any)?.error ?? "โหลด meta ไม่สำเร็จ");
         return data as Meta;
-      }),
-      fetch("/api/restock/selections/latest").then(async (r) => {
-        const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดค่าล่าสุดไม่สำเร็จ");
-        return data as { rows: RestockSelectionLatestRow[] };
-      }),
-    ])
-      .then(([m, sel]) => {
-        if (!alive) return;
-        setMeta(m);
-        setLatestRows(sel.rows ?? []);
       })
-      .catch((e) => { if (alive) setError(String(e?.message ?? e)); })
-      .finally(() => { if (alive) setLoading(false); });
+      .then((m) => { if (alive) setMeta(m); })
+      .catch((e) => { if (alive) setMetaError(String(e?.message ?? e)); })
+      .finally(() => { if (alive) setMetaLoading(false); });
     return () => { alive = false; };
   }, []);
 
@@ -846,6 +834,44 @@ function ProductionOrder() {
   // ── ข้อ 3: gate ยืนยันวันที่สั่งผลิต/จัดส่งก่อนเห็น/แก้กริดรายการ ──
   const pairKey = `${orderDate}|${deliveryDate}`;
   const { confirmed, confirm } = useConfirmGate("yc:restock:gate:production", pairKey);
+
+  // ── สะท้อนข้อมูลจากหน้า "ต้องเติม" แบบเข้มงวด — เอาเฉพาะรายการที่แต่ละสาขาบันทึกไว้"ตรงกับวันที่จัดส่งนี้เป๊ะ" เท่านั้น ──
+  // (ไม่ใช่ค่าล่าสุดของสาขานั้นแบบไม่สนวันที่ — กันโชว์ตัวเลขของรอบอื่นที่บันทึกไว้ล่วงหน้า/ย้อนหลังมาปนกัน)
+  const [reflected, setReflected] = React.useState<Record<string, Partial<Record<Branch, string>>>>({});
+  const [reflectedLoading, setReflectedLoading] = React.useState(true);
+  const [reflectedError, setReflectedError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    setReflectedLoading(true);
+    setReflectedError(null);
+    Promise.all(
+      BRANCHES.map((b) =>
+        fetch(`/api/restock/selections?branch=${b}&date=${deliveryDate}`).then(async (r) => {
+          const data = await r.json();
+          if (!r.ok) throw new Error((data as any)?.error ?? `โหลดตัวเลือกสาขา ${b} ไม่สำเร็จ`);
+          return { branch: b, entries: (data as { entries: Record<string, { selected: boolean; qty: number }> }).entries };
+        })
+      )
+    )
+      .then((results) => {
+        if (!alive) return;
+        const out: Record<string, Partial<Record<Branch, string>>> = {};
+        for (const { branch, entries } of results) {
+          for (const itemId in entries) {
+            if (!entries[itemId].selected) continue;
+            if (!out[itemId]) out[itemId] = {};
+            out[itemId][branch] = String(entries[itemId].qty);
+          }
+        }
+        setReflected(out);
+      })
+      .catch((e) => { if (alive) setReflectedError(String(e?.message ?? e)); })
+      .finally(() => { if (alive) setReflectedLoading(false); });
+    return () => { alive = false; };
+  }, [deliveryDate]);
+
+  const loading = metaLoading || reflectedLoading;
+  const error = metaError || reflectedError;
 
   function setProd(itemId: string, field: ProdField, value: string) {
     setProdQty((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
@@ -887,16 +913,6 @@ function ProductionOrder() {
       .filter((it) => PRODUCTION_ITEMS_DEPT2.includes(it.name))
       .sort((a, b) => a.sort - b.sort);
   }, [meta]);
-
-  // ── ค่าที่เลือกไว้ใน "ต้องเติมรายสาขา" มา pre-fill — ค่าล่าสุดต่อ item+branch จาก DB (backend ทำ "last wins" ให้แล้ว) ──
-  const reflected = React.useMemo(() => {
-    const out: Record<string, Partial<Record<Branch, string>>> = {};
-    for (const r of latestRows) {
-      if (!out[r.itemId]) out[r.itemId] = {};
-      out[r.itemId][r.branch] = String(r.qty);
-    }
-    return out;
-  }, [latestRows]);
 
   function valuesFor(itemId: string): Partial<Record<ProdField, string>> {
     return { ...reflected[itemId], ...prodQty[itemId] };

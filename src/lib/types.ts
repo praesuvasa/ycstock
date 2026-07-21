@@ -100,16 +100,6 @@ export interface RestockSelectionEntry {
   qty: number;
 }
 
-// แถวรวมข้ามสาขา ใช้ในหน้าสั่งผลิต (โหมด B) — ค่าล่าสุดต่อ (สาขา,ไอเทม) ไม่ผูกกับวันที่เดียว
-// (สาขาแต่ละที่เลือกวันเติมของของตัวเอง คนละวันกันได้)
-export interface RestockSelectionLatestRow {
-  itemId: string;
-  branch: Branch;
-  qty: number;
-  date: string;       // วันที่ restock ที่ค่านี้มาจาก (debug/tooltip เผื่อค่าดูแปลก)
-  updatedAt: string;   // ISO
-}
-
 // ── Auth / RBAC / Audit (v1.2) ──
 // restock = เจ้าหน้าที่ Restock/สั่งผลิต — เข้าได้แค่หน้า /restock เท่านั้น (ไม่ใช่ user ทั่วไป ไม่ใช่ admin เต็ม)
 export type Role = "user" | "admin" | "restock";
