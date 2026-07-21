@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -75,6 +75,36 @@ export const db = {
     useSupabase
       ? supabaseStore.saveRestockSelections(branch, date, entries, userId, userName)
       : Promise.resolve(memoryStore.saveRestockSelections(branch, date, entries, userId, userName)),
+
+  // ── ใบสั่งผลิต (v1.5) ──
+  listProductionOrders: (limit?: number): Promise<ProductionOrderSummary[]> =>
+    useSupabase ? supabaseStore.listProductionOrders(limit) : Promise.resolve(memoryStore.listProductionOrders(limit)),
+
+  getProductionOrder: (id: number): Promise<ProductionOrder | null> =>
+    useSupabase ? supabaseStore.getProductionOrder(id) : Promise.resolve(memoryStore.getProductionOrder(id)),
+
+  createProductionOrder: (
+    input: { orderDate: string; deliveryDate: string; note: string; items: ProductionOrderItemInput[] },
+    userId: string, userName: string
+  ): Promise<ProductionOrder> =>
+    useSupabase
+      ? supabaseStore.createProductionOrder(input, userId, userName)
+      : Promise.resolve(memoryStore.createProductionOrder(input, userId, userName)),
+
+  updateProductionOrder: (
+    id: number,
+    patch: { orderDate?: string; deliveryDate?: string; note?: string; items?: ProductionOrderItemInput[]; removedItemIds?: number[] }
+  ): Promise<ProductionOrder | null> =>
+    useSupabase ? supabaseStore.updateProductionOrder(id, patch) : Promise.resolve(memoryStore.updateProductionOrder(id, patch)),
+
+  updateProductionOrderItem: (
+    id: number,
+    patch: { qty?: number; qtyG?: number; confirmed?: boolean; confirmedQty?: number; confirmedQtyG?: number },
+    userId: string, userName: string
+  ): Promise<ProductionOrderItem | null> =>
+    useSupabase
+      ? supabaseStore.updateProductionOrderItem(id, patch, userId, userName)
+      : Promise.resolve(memoryStore.updateProductionOrderItem(id, patch, userId, userName)),
 };
 
 // helper สำหรับ BFF validate branch

@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -25,6 +25,38 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
+
+// ── ใบสั่งผลิต (v1.5) ──
+interface ProductionOrderRec {
+  id: number; orderDate: string; deliveryDate: string; note: string;
+  createdByUserId: string; createdByName: string; createdAt: string; updatedAt: string;
+}
+interface ProductionOrderItemRec {
+  id: number; orderId: number; itemId?: string; branch?: ProdBranchKey;
+  qty: number; qtyG: number; extraName?: string; extraUnit?: string; extraNote?: string;
+  confirmed: boolean; confirmedQty?: number; confirmedQtyG?: number;
+  confirmedAt?: string; confirmedByUserId?: string; confirmedByName?: string;
+  createdAt: string; updatedAt: string;
+}
+const productionOrders = new Map<number, ProductionOrderRec>();
+const productionOrderItems = new Map<number, ProductionOrderItemRec>();
+let prodOrderSeq = 1, prodItemSeq = 1;
+
+function prodOrderItemToDto(r: ProductionOrderItemRec): ProductionOrderItem {
+  return {
+    id: r.id, itemId: r.itemId, branch: r.branch, qty: r.qty, qtyG: r.qtyG,
+    extraName: r.extraName, extraUnit: r.extraUnit, extraNote: r.extraNote,
+    confirmed: r.confirmed, confirmedQty: r.confirmedQty, confirmedQtyG: r.confirmedQtyG,
+    confirmedAt: r.confirmedAt, confirmedByName: r.confirmedByName,
+  };
+}
+function prodOrderToDto(h: ProductionOrderRec, items: ProductionOrderItemRec[]): ProductionOrder {
+  return {
+    id: h.id, orderDate: h.orderDate, deliveryDate: h.deliveryDate, note: h.note,
+    items: items.map(prodOrderItemToDto),
+    createdByName: h.createdByName, createdAt: h.createdAt, updatedAt: h.updatedAt,
+  };
+}
 
 const sk = (d: string, b: Branch, i: string) => `${d}|${b}|${i}`;
 const vk = (d: string, b: Branch) => `${d}|${b}`;
@@ -320,6 +352,133 @@ export const memoryStore = {
       });
     }
     return { ok: true, savedCount: entries.length };
+  },
+
+  // ── ใบสั่งผลิต (v1.5) — ตรรกะเดียวกับฝั่ง supabase แต่ทำงานบน Map ล้วนๆ ──
+  listProductionOrders(limit = 50): ProductionOrderSummary[] {
+    const orders = Array.from(productionOrders.values())
+      .sort((a, b) => (a.orderDate < b.orderDate ? 1 : a.orderDate > b.orderDate ? -1 : (a.createdAt < b.createdAt ? 1 : -1)))
+      .slice(0, limit);
+    return orders.map((o) => {
+      const items = Array.from(productionOrderItems.values()).filter((i) => i.orderId === o.id);
+      return {
+        id: o.id, orderDate: o.orderDate, deliveryDate: o.deliveryDate, note: o.note,
+        itemCount: items.length, confirmedCount: items.filter((i) => i.confirmed).length,
+        createdByName: o.createdByName, createdAt: o.createdAt, updatedAt: o.updatedAt,
+      };
+    });
+  },
+
+  getProductionOrder(id: number): ProductionOrder | null {
+    const header = productionOrders.get(id);
+    if (!header) return null;
+    const items = Array.from(productionOrderItems.values()).filter((i) => i.orderId === id).sort((a, b) => a.id - b.id);
+    return prodOrderToDto(header, items);
+  },
+
+  createProductionOrder(
+    input: { orderDate: string; deliveryDate: string; note: string; items: ProductionOrderItemInput[] },
+    userId: string, userName: string
+  ): ProductionOrder {
+    const now = new Date().toISOString();
+    const id = prodOrderSeq++;
+    const header: ProductionOrderRec = {
+      id, orderDate: input.orderDate, deliveryDate: input.deliveryDate, note: input.note ?? "",
+      createdByUserId: userId, createdByName: userName, createdAt: now, updatedAt: now,
+    };
+    productionOrders.set(id, header);
+    const rows = input.items.filter((i) => (i.itemId && i.branch) ? (i.qty > 0 || i.qtyG > 0) : !!i.extraName);
+    for (const i of rows) {
+      const itemId = prodItemSeq++;
+      productionOrderItems.set(itemId, {
+        id: itemId, orderId: id, itemId: i.itemId, branch: i.itemId ? i.branch : undefined,
+        qty: i.qty, qtyG: i.qtyG, extraName: i.extraName, extraUnit: i.extraUnit, extraNote: i.extraNote,
+        confirmed: false, createdAt: now, updatedAt: now,
+      });
+    }
+    return this.getProductionOrder(id)!;
+  },
+
+  updateProductionOrder(
+    id: number,
+    patch: { orderDate?: string; deliveryDate?: string; note?: string; items?: ProductionOrderItemInput[]; removedItemIds?: number[] }
+  ): ProductionOrder | null {
+    const header = productionOrders.get(id);
+    if (!header) return null;
+    const now = new Date().toISOString();
+    if (patch.orderDate !== undefined) header.orderDate = patch.orderDate;
+    if (patch.deliveryDate !== undefined) header.deliveryDate = patch.deliveryDate;
+    if (patch.note !== undefined) header.note = patch.note;
+    header.updatedAt = now;
+
+    if (patch.items) {
+      // (ก) แถวกริดหลัก — หา rec เดิมด้วย (orderId,itemId,branch) แก้ทับ/ไม่เจอก็สร้างใหม่ (เฉพาะ qty>0 หรือเคย save แล้ว — ดูข้อ 0.6)
+      for (const i of patch.items.filter((r) => r.itemId && r.branch)) {
+        const existing = Array.from(productionOrderItems.values())
+          .find((r) => r.orderId === id && r.itemId === i.itemId && r.branch === i.branch);
+        if (existing) {
+          existing.qty = i.qty; existing.qtyG = i.qtyG; existing.updatedAt = now;
+        } else if (i.qty > 0 || i.qtyG > 0) {
+          const itemId = prodItemSeq++;
+          productionOrderItems.set(itemId, {
+            id: itemId, orderId: id, itemId: i.itemId, branch: i.branch,
+            qty: i.qty, qtyG: i.qtyG, confirmed: false, createdAt: now, updatedAt: now,
+          });
+        }
+      }
+      // (ข) รายการพิเศษ — แยก insert/update ด้วย id (ไม่มี natural key)
+      for (const row of patch.items.filter((r) => !r.itemId)) {
+        if (row.id) {
+          const existing = productionOrderItems.get(row.id);
+          if (existing && existing.orderId === id) {
+            existing.qty = row.qty; existing.qtyG = row.qtyG;
+            existing.extraName = row.extraName; existing.extraUnit = row.extraUnit; existing.extraNote = row.extraNote;
+            existing.updatedAt = now;
+          }
+        } else if (row.extraName) {
+          const itemId = prodItemSeq++;
+          productionOrderItems.set(itemId, {
+            id: itemId, orderId: id, qty: row.qty, qtyG: row.qtyG,
+            extraName: row.extraName, extraUnit: row.extraUnit, extraNote: row.extraNote,
+            confirmed: false, createdAt: now, updatedAt: now,
+          });
+        }
+      }
+    }
+    if (patch.removedItemIds?.length) {
+      for (const rid of patch.removedItemIds) {
+        const existing = productionOrderItems.get(rid);
+        if (existing && existing.orderId === id && existing.itemId == null) productionOrderItems.delete(rid);
+      }
+    }
+    return this.getProductionOrder(id);
+  },
+
+  updateProductionOrderItem(
+    id: number,
+    patch: { qty?: number; qtyG?: number; confirmed?: boolean; confirmedQty?: number; confirmedQtyG?: number },
+    userId: string, userName: string
+  ): ProductionOrderItem | null {
+    const rec = productionOrderItems.get(id);
+    if (!rec) return null;
+    rec.updatedAt = new Date().toISOString();
+    if (patch.qty !== undefined) rec.qty = patch.qty;
+    if (patch.qtyG !== undefined) rec.qtyG = patch.qtyG;
+    if (patch.confirmed !== undefined) {
+      const wasConfirmed = rec.confirmed;
+      rec.confirmed = patch.confirmed;
+      if (patch.confirmed && !wasConfirmed) {
+        rec.confirmedAt = new Date().toISOString();
+        rec.confirmedByUserId = userId;
+        rec.confirmedByName = userName;
+        // default confirmed_qty = qty ปัจจุบัน ถ้า client ไม่ได้ส่งมาเอง และยังไม่เคยมีค่านี้ (ดูข้อ 0.4)
+        if (patch.confirmedQty === undefined && rec.confirmedQty == null) rec.confirmedQty = patch.qty ?? rec.qty;
+        if (patch.confirmedQtyG === undefined && rec.confirmedQtyG == null) rec.confirmedQtyG = patch.qtyG ?? rec.qtyG;
+      }
+    }
+    if (patch.confirmedQty !== undefined) rec.confirmedQty = patch.confirmedQty;
+    if (patch.confirmedQtyG !== undefined) rec.confirmedQtyG = patch.confirmedQtyG;
+    return prodOrderItemToDto(rec);
   },
 
   // ── audit ──

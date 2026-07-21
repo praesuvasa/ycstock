@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -306,6 +306,145 @@ export const supabaseStore = {
     return { ok: true, savedCount: payload.length };
   },
 
+  // ── ใบสั่งผลิต (v1.5) ──
+  async listProductionOrders(limit = 50): Promise<ProductionOrderSummary[]> {
+    const { data, error } = await sb().from("production_orders")
+      .select("id,order_date,delivery_date,note,created_by_name,created_at,updated_at")
+      .order("order_date", { ascending: false }).order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    const orders = data ?? [];
+    if (orders.length === 0) return [];
+    const ids = orders.map((o: any) => o.id);
+    const { data: itemRows, error: e2 } = await sb().from("production_order_items")
+      .select("order_id,confirmed").in("order_id", ids);
+    if (e2) throw e2;
+    const counts = new Map<number, { total: number; confirmed: number }>();
+    for (const r of itemRows ?? []) {
+      const c = counts.get(r.order_id) ?? { total: 0, confirmed: 0 };
+      c.total++; if (r.confirmed) c.confirmed++;
+      counts.set(r.order_id, c);
+    }
+    return orders.map((o: any) => ({
+      id: o.id, orderDate: o.order_date, deliveryDate: o.delivery_date, note: o.note ?? "",
+      itemCount: counts.get(o.id)?.total ?? 0, confirmedCount: counts.get(o.id)?.confirmed ?? 0,
+      createdByName: o.created_by_name, createdAt: o.created_at, updatedAt: o.updated_at,
+    }));
+  },
+
+  async getProductionOrder(id: number): Promise<ProductionOrder | null> {
+    const { data: header, error } = await sb().from("production_orders").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    if (!header) return null;
+    const { data: items, error: e2 } = await sb().from("production_order_items")
+      .select("*").eq("order_id", id).order("id");
+    if (e2) throw e2;
+    return rowFromProdOrderDb(header, items ?? []);
+  },
+
+  async createProductionOrder(
+    input: { orderDate: string; deliveryDate: string; note: string; items: ProductionOrderItemInput[] },
+    userId: string, userName: string
+  ): Promise<ProductionOrder> {
+    const { data: header, error } = await sb().from("production_orders").insert({
+      order_date: input.orderDate, delivery_date: input.deliveryDate, note: input.note ?? "",
+      created_by_user_id: userId, created_by_name: userName,
+    }).select().single();
+    if (error) throw error;
+    const rows = input.items
+      .filter((i) => (i.itemId && i.branch) ? (i.qty > 0 || i.qtyG > 0) : !!i.extraName)
+      .map((i) => ({
+        order_id: header.id, item_id: i.itemId ?? null, branch_key: i.itemId ? i.branch : null,
+        qty: i.qty, qty_g: i.qtyG,
+        extra_name: i.extraName ?? null, extra_unit: i.extraUnit ?? null, extra_note: i.extraNote ?? null,
+      }));
+    let items: any[] = [];
+    if (rows.length > 0) {
+      const { data, error: e2 } = await sb().from("production_order_items").insert(rows).select();
+      if (e2) throw e2;
+      items = data ?? [];
+    }
+    return rowFromProdOrderDb(header, items);
+  },
+
+  async updateProductionOrder(
+    id: number,
+    patch: { orderDate?: string; deliveryDate?: string; note?: string; items?: ProductionOrderItemInput[]; removedItemIds?: number[] }
+  ): Promise<ProductionOrder | null> {
+    const headerPatch: any = { updated_at: new Date().toISOString() };
+    if (patch.orderDate !== undefined) headerPatch.order_date = patch.orderDate;
+    if (patch.deliveryDate !== undefined) headerPatch.delivery_date = patch.deliveryDate;
+    if (patch.note !== undefined) headerPatch.note = patch.note;
+    const { error } = await sb().from("production_orders").update(headerPatch).eq("id", id);
+    if (error) throw error;
+
+    if (patch.items) {
+      const { data: existing } = await sb().from("production_order_items")
+        .select("item_id,branch_key").eq("order_id", id).not("item_id", "is", null);
+      const existingKeys = new Set((existing ?? []).map((r: any) => r.item_id + "|" + r.branch_key));
+      const now = new Date().toISOString();
+
+      const gridRows = patch.items
+        .filter((i) => i.itemId && i.branch)
+        .filter((i) => i.qty > 0 || i.qtyG > 0 || existingKeys.has(i.itemId + "|" + i.branch))
+        .map((i) => ({ order_id: id, item_id: i.itemId, branch_key: i.branch, qty: i.qty, qty_g: i.qtyG, updated_at: now }));
+      if (gridRows.length > 0) {
+        const { error: e2 } = await sb().from("production_order_items")
+          .upsert(gridRows, { onConflict: "order_id,item_id,branch_key" });
+        if (e2) throw e2;
+      }
+
+      for (const row of patch.items.filter((i) => !i.itemId)) {
+        if (row.id) {
+          const { error: e3 } = await sb().from("production_order_items").update({
+            qty: row.qty, qty_g: row.qtyG,
+            extra_name: row.extraName ?? null, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
+            updated_at: now,
+          }).eq("id", row.id).eq("order_id", id);
+          if (e3) throw e3;
+        } else if (row.extraName) {
+          const { error: e4 } = await sb().from("production_order_items").insert({
+            order_id: id, item_id: null, branch_key: null, qty: row.qty, qty_g: row.qtyG,
+            extra_name: row.extraName, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
+          });
+          if (e4) throw e4;
+        }
+      }
+    }
+    if (patch.removedItemIds?.length) {
+      const { error: e5 } = await sb().from("production_order_items").delete()
+        .in("id", patch.removedItemIds).eq("order_id", id).is("item_id", null);
+      if (e5) throw e5;
+    }
+    return this.getProductionOrder(id);
+  },
+
+  async updateProductionOrderItem(
+    id: number,
+    patch: { qty?: number; qtyG?: number; confirmed?: boolean; confirmedQty?: number; confirmedQtyG?: number },
+    userId: string, userName: string
+  ): Promise<ProductionOrderItem | null> {
+    const { data: cur } = await sb().from("production_order_items").select("*").eq("id", id).maybeSingle();
+    if (!cur) return null;
+    const upd: any = { updated_at: new Date().toISOString() };
+    if (patch.qty !== undefined) upd.qty = patch.qty;
+    if (patch.qtyG !== undefined) upd.qty_g = patch.qtyG;
+    if (patch.confirmed !== undefined) {
+      upd.confirmed = patch.confirmed;
+      if (patch.confirmed && !cur.confirmed) {
+        upd.confirmed_at = new Date().toISOString();
+        upd.confirmed_by_user_id = userId;
+        upd.confirmed_by_name = userName;
+        // default confirmed_qty = qty ปัจจุบัน ถ้า client ไม่ได้ส่งมาเอง และยังไม่เคยมีค่านี้ (ดูข้อ 0.4)
+        if (patch.confirmedQty === undefined && cur.confirmed_qty == null) upd.confirmed_qty = patch.qty ?? cur.qty;
+        if (patch.confirmedQtyG === undefined && cur.confirmed_qty_g == null) upd.confirmed_qty_g = patch.qtyG ?? cur.qty_g;
+      }
+    }
+    if (patch.confirmedQty !== undefined) upd.confirmed_qty = patch.confirmedQty;
+    if (patch.confirmedQtyG !== undefined) upd.confirmed_qty_g = patch.confirmedQtyG;
+    const { data, error } = await sb().from("production_order_items").update(upd).eq("id", id).select().maybeSingle();
+    if (error) throw error;
+    return data ? rowFromProdOrderItemDb(data) : null;
+  },
 
   // ── audit ──
   async writeAudit(e: Omit<AuditEntry, "id" | "ts">): Promise<void> {
@@ -342,5 +481,22 @@ function rowFromDb(s: any): StockRow {
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
     returnedG: s.returned_g ?? 0,
     note: s.note ?? "", variance: s.variance, hasEntry: true,
+  };
+}
+
+function rowFromProdOrderItemDb(r: any): ProductionOrderItem {
+  return {
+    id: r.id, itemId: r.item_id ?? undefined, branch: r.branch_key ?? undefined,
+    qty: Number(r.qty), qtyG: Number(r.qty_g),
+    extraName: r.extra_name ?? undefined, extraUnit: r.extra_unit ?? undefined, extraNote: r.extra_note ?? undefined,
+    confirmed: r.confirmed, confirmedQty: r.confirmed_qty ?? undefined, confirmedQtyG: r.confirmed_qty_g ?? undefined,
+    confirmedAt: r.confirmed_at ?? undefined, confirmedByName: r.confirmed_by_name ?? undefined,
+  };
+}
+function rowFromProdOrderDb(h: any, items: any[]): ProductionOrder {
+  return {
+    id: h.id, orderDate: h.order_date, deliveryDate: h.delivery_date, note: h.note ?? "",
+    items: items.map(rowFromProdOrderItemDb),
+    createdByName: h.created_by_name, createdAt: h.created_at, updatedAt: h.updated_at,
   };
 }

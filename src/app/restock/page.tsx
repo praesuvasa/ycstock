@@ -10,7 +10,12 @@
 import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, Button, SaveBar, PageTitle, Accordion } from "@/components/ui";
 import { useMe } from "@/components/nav";
-import type { Branch, Weekday, RestockRow, RestockSelectionEntry, Meta, Item } from "@/lib/types";
+import type {
+  Branch, Weekday, RestockRow, RestockSelectionEntry, Meta, Item,
+  ProdBranchKey, ProductionOrderItemInput, ProductionOrderSummary,
+  // alias กัน ProductionOrder/ProductionOrderItem (type) ชนชื่อกับ component ProductionOrder เดิมในไฟล์นี้ — ดู spec ข้อ 8
+  ProductionOrder as ProductionOrderRecord, ProductionOrderItem as ProductionOrderItemRecord,
+} from "@/lib/types";
 import { BRANCH_LABEL_TH, BRANCHES } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
@@ -19,10 +24,11 @@ const WEEKDAY_LABEL_TH: Record<Weekday, string> = {
   sun: "อาทิตย์", mon: "จันทร์", tue: "อังคาร", wed: "พุธ", thu: "พฤหัสบดี", fri: "ศุกร์", sat: "เสาร์",
 };
 
-type Mode = "byBranch" | "production";
+type Mode = "byBranch" | "production" | "productionHistory";
 const MODE_OPTS = [
   { value: "byBranch" as Mode, label: "📦 ต้องเติมรายสาขา" },
-  { value: "production" as Mode, label: "🏭 สั่งผลิต (รวมทุกสาขา)" },
+  { value: "production" as Mode, label: "🏭 สั่งผลิต" },
+  { value: "productionHistory" as Mode, label: "🗂️ ประวัติสั่งผลิต" },
 ];
 
 // ── โหมด B: รายชื่อไอเทม "สั่งผลิต" hardcode (ยืนยันแล้วว่าไม่ต้องการ config ต่อไอเทมใน Settings) ──
@@ -266,17 +272,38 @@ function PrintSheet({
 
 export default function RestockPage() {
   const [mode, setMode] = React.useState<Mode>("byBranch");
+  // ใบที่กำลังแก้ย้อนหลัง (ตั้งจากปุ่ม "แก้ไขใบนี้" ในหน้าประวัติเท่านั้น) — สลับแท็บมือ (Segmented) ล้างค่านี้เสมอ
+  // กันเคส: เคยแก้ใบเก่าค้างไว้ แล้วสลับไปแท็บอื่นแล้วกลับมา "สั่งผลิต" มือ คาดหวังใบใหม่ ไม่ใช่ใบเดิมที่เพิ่งแก้
+  const [editOrderId, setEditOrderId] = React.useState<number | null>(null);
+
+  function changeMode(next: Mode) {
+    setEditOrderId(null);
+    setMode(next);
+  }
+  function openOrderForEdit(id: number) {
+    setEditOrderId(id);
+    setMode("production");
+  }
+
+  const title = mode === "byBranch" ? "รายการสินค้าเข้า" : mode === "production" ? "สั่งผลิต" : "ประวัติสั่งผลิต";
+
   return (
     <div>
       <div className="print:hidden">
-        <PageTitle title={mode === "byBranch" ? "รายการสินค้าเข้า" : "สั่งผลิต"} />
+        <PageTitle title={title} />
 
         <div className="mb-3">
-          <Segmented options={MODE_OPTS} value={mode} onChange={setMode} />
+          <Segmented options={MODE_OPTS} value={mode} onChange={changeMode} />
         </div>
       </div>
 
-      {mode === "byBranch" ? <RestockByBranch /> : <ProductionOrder />}
+      {mode === "byBranch" ? (
+        <RestockByBranch />
+      ) : mode === "production" ? (
+        <ProductionOrder editOrderId={editOrderId} onSaved={(id) => setEditOrderId(id)} />
+      ) : (
+        <ProductionHistory onEdit={openOrderForEdit} />
+      )}
     </div>
   );
 }
@@ -909,10 +936,40 @@ function ProductionPrintSheet({
   );
 }
 
-function ProductionOrder() {
+// map ระหว่าง ProdField ("other" ตัวเล็ก ใช้ในกริด UI เดิม) ↔ ProdBranchKey ("OTHER" ตัวใหญ่ ใช้ฝั่ง DB) — ต่างกันแค่ช่อง other/OTHER
+function branchKeyFromProdField(f: ProdField): ProdBranchKey {
+  return f === "other" ? "OTHER" : f;
+}
+function prodFieldFromBranchKey(bk: ProdBranchKey): ProdField {
+  return bk === "OTHER" ? "other" : bk;
+}
+function gridKey(itemId: string, field: ProdField): string {
+  return `${itemId}|${field}`;
+}
+
+function ProductionOrder({
+  editOrderId, onSaved,
+}: {
+  editOrderId: number | null;
+  onSaved: (id: number) => void;
+}) {
   const [meta, setMeta] = React.useState<Meta | null>(null);
   const [metaError, setMetaError] = React.useState<string | null>(null);
   const [metaLoading, setMetaLoading] = React.useState(true);
+
+  // ── v1.5: persist ใบสั่งผลิตลง DB — orderId ที่ยังเป็น null = draft ยังไม่บันทึก (POST ใหม่ตอนกด save)
+  // savedItemIds คีย์คู่กับช่องกรอกในกริด (`itemId|field`) หรือ extraRow.id → server id ของแถวนั้น ใช้ตอน PATCH ว่าแถวไหนมีอยู่แล้ว
+  const [orderId, setOrderId] = React.useState<number | null>(null);
+  const [savedItemIds, setSavedItemIds] = React.useState<Record<string, number>>({});
+  const [dirty, setDirty] = React.useState(false); // binary พอ (ไม่ทำ per-field status ละเอียดแบบเฟส 1 — ช่องเยอะกว่ามาก ไม่คุ้ม)
+  const [saving, setSaving] = React.useState(false);
+  const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+  // รายการพิเศษที่ลบทิ้งระหว่างแก้ไข (เฉพาะที่เคยมี server id แล้ว) — ส่งเป็น removedItemIds ตอน PATCH
+  const [removedExtraIds, setRemovedExtraIds] = React.useState<number[]>([]);
+
+  // ── โหมดแก้ไขใบเก่า (editOrderId != null) — โหลดใบเต็มจาก DB มา hydrate ทุกอย่างแทนค่า default ──
+  const [orderLoading, setOrderLoading] = React.useState(false);
+  const [orderLoadError, setOrderLoadError] = React.useState<string | null>(null);
 
   // ── /api/meta โหลดครั้งเดียว (ไม่ผูกวันที่) ──
   React.useEffect(() => {
@@ -937,17 +994,21 @@ function ProductionOrder() {
   const [orderDate, setOrderDate] = React.useState<string>(todayISO());
   const [deliveryDate, setDeliveryDate] = React.useState<string>(todayISO());
 
-  // ── ข้อ 3: gate ยืนยันวันที่สั่งผลิต/จัดส่งก่อนเห็น/แก้กริดรายการ ──
+  // ── ข้อ 3: gate ยืนยันวันที่สั่งผลิต/จัดส่งก่อนเห็น/แก้กริดรายการ — ข้ามตอนแก้ไขใบเก่า (วันที่ fix จากตอนสร้างแล้ว ไม่ใช่ "เริ่มกรอกใหม่") ──
   const pairKey = `${orderDate}|${deliveryDate}`;
-  const { confirmed, confirm } = useConfirmGate("yc:restock:gate:production", pairKey);
+  const gate = useConfirmGate("yc:restock:gate:production", pairKey);
+  const confirmed = editOrderId != null ? true : gate.confirmed;
+  const confirm = gate.confirm;
 
   // ── สะท้อนข้อมูลจากหน้า "ต้องเติม" แบบเข้มงวด — เอาเฉพาะรายการที่แต่ละสาขาบันทึกไว้"ตรงกับวันที่จัดส่งนี้เป๊ะ" เท่านั้น ──
   // (ไม่ใช่ค่าล่าสุดของสาขานั้นแบบไม่สนวันที่ — กันโชว์ตัวเลขของรอบอื่นที่บันทึกไว้ล่วงหน้า/ย้อนหลังมาปนกัน)
+  // โหมดแก้ไขใบเก่า: ข้าม reflected pre-fill ทั้งหมด — ค่าที่โหลดจากใบที่บันทึกไว้คือความจริงของใบนี้ ไม่ควรถูกค่าจาก restock ปัจจุบันมาปน (คนละบริบทเวลา)
   const [reflected, setReflected] = React.useState<Record<string, Partial<Record<Branch, string>>>>({});
   const [reflectedG, setReflectedG] = React.useState<Record<string, Partial<Record<Branch, string>>>>({});
   const [reflectedLoading, setReflectedLoading] = React.useState(true);
   const [reflectedError, setReflectedError] = React.useState<string | null>(null);
   React.useEffect(() => {
+    if (editOrderId != null) { setReflectedLoading(false); return; }
     let alive = true;
     setReflectedLoading(true);
     setReflectedError(null);
@@ -981,16 +1042,69 @@ function ProductionOrder() {
       .catch((e) => { if (alive) setReflectedError(String(e?.message ?? e)); })
       .finally(() => { if (alive) setReflectedLoading(false); });
     return () => { alive = false; };
-  }, [deliveryDate]);
+  }, [deliveryDate, editOrderId]);
 
-  const loading = metaLoading || reflectedLoading;
-  const error = metaError || reflectedError;
+  // ── โหลดใบเก่าเต็ม (โหมดแก้ไข) — hydrate orderId/orderDate/deliveryDate/note/prodQty/prodQtyG/extraRows/savedItemIds ──
+  // ข้าม fetch ถ้า editOrderId === orderId ที่มีอยู่แล้ว (เพิ่งสร้าง/บันทึกใบนี้เองในคอมโพเนนต์นี้ผ่าน handleSave → onSaved())
+  // กันหน้ากระพริบเป็น "กำลังโหลด…" ซ้ำทันทีหลังกด save สำเร็จ ทั้งที่ข้อมูลที่มีอยู่ก็ตรงกับ DB แล้ว
+  React.useEffect(() => {
+    if (editOrderId == null || editOrderId === orderId) return;
+    let alive = true;
+    setOrderLoading(true);
+    setOrderLoadError(null);
+    fetch(`/api/production-orders?id=${editOrderId}`)
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดใบสั่งผลิตไม่สำเร็จ");
+        return data as { order: ProductionOrderRecord };
+      })
+      .then(({ order }) => {
+        if (!alive) return;
+        setOrderId(order.id);
+        setOrderDate(order.orderDate);
+        setDeliveryDate(order.deliveryDate);
+        setNote(order.note);
+        const qty: Record<string, Partial<Record<ProdField, string>>> = {};
+        const qtyG: Record<string, Partial<Record<ProdField, string>>> = {};
+        const extras: ExtraRow[] = [];
+        const ids: Record<string, number> = {};
+        for (const it of order.items) {
+          if (it.itemId && it.branch) {
+            const field = prodFieldFromBranchKey(it.branch);
+            if (!qty[it.itemId]) qty[it.itemId] = {};
+            if (!qtyG[it.itemId]) qtyG[it.itemId] = {};
+            qty[it.itemId]![field] = String(it.qty);
+            if (it.qtyG) qtyG[it.itemId]![field] = String(it.qtyG);
+            ids[gridKey(it.itemId, field)] = it.id;
+          } else {
+            const localId = `extra-${it.id}`;
+            extras.push({ id: localId, name: it.extraName ?? "", qty: it.qty ? String(it.qty) : "", unit: it.extraUnit ?? "", note: it.extraNote ?? "" });
+            ids[localId] = it.id;
+          }
+        }
+        setProdQty(qty);
+        setProdQtyG(qtyG);
+        setExtraRows(extras);
+        setSavedItemIds(ids);
+        setRemovedExtraIds([]);
+        setDirty(false);
+        setLastSavedAt(new Date(order.updatedAt));
+      })
+      .catch((e) => { if (alive) setOrderLoadError(String(e?.message ?? e)); })
+      .finally(() => { if (alive) setOrderLoading(false); });
+    return () => { alive = false; };
+  }, [editOrderId, orderId]);
+
+  const loading = metaLoading || reflectedLoading || orderLoading;
+  const error = metaError || reflectedError || orderLoadError;
 
   function setProd(itemId: string, field: ProdField, value: string) {
     setProdQty((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
+    setDirty(true);
   }
   function setProdG(itemId: string, field: ProdField, value: string) {
     setProdQtyG((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
+    setDirty(true);
   }
 
   function addExtraRow() {
@@ -998,15 +1112,21 @@ function ProductionOrder() {
     if (!name) return;
     setExtraRows((prev) => [
       ...prev,
-      { id: `extra-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, qty: "", unit: "", note: "" },
+      { id: `extra-new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name, qty: "", unit: "", note: "" },
     ]);
     setExtraName("");
+    setDirty(true);
   }
   function removeExtraRow(id: string) {
+    // แถวนี้เคย save ไว้แล้ว (มี server id) → ต้องส่งไปลบผ่าน removedItemIds ตอน PATCH ด้วย ไม่งั้นแถวเดิมจะค้างอยู่ใน DB
+    const savedId = savedItemIds[id];
+    if (savedId != null) setRemovedExtraIds((prev) => [...prev, savedId]);
     setExtraRows((prev) => prev.filter((r) => r.id !== id));
+    setDirty(true);
   }
   function patchExtraRow(id: string, patch: Partial<ExtraRow>) {
     setExtraRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setDirty(true);
   }
 
   const mainGroups = React.useMemo(() => {
@@ -1060,6 +1180,84 @@ function ProductionOrder() {
     const g = parseFloat(gValuesFor(it.id)[field] ?? "") || 0;
     if (pack === 0 && g === 0) return "";
     return formatOrderQty(pack, g, true, it.isCup ? "ชิ้น" : "g");
+  }
+
+  // ── v1.5: รวม prodQty/prodQtyG (กริดหลัก) + extraRows → payload ส่งขึ้น POST/PATCH /api/production-orders ──
+  // ใส่ id จาก savedItemIds ถ้าแถวนี้เคย save แล้ว (server รู้ว่าเป็นการแก้ ไม่ใช่แถวใหม่)
+  function buildItemsPayload(): ProductionOrderItemInput[] {
+    const items: ProductionOrderItemInput[] = [];
+    const gridItems = [...mainGroups.flatMap((g) => g.items), ...dept2Items];
+    for (const it of gridItems) {
+      const v = valuesFor(it.id);
+      const gv = gValuesFor(it.id);
+      for (const f of PROD_FIELDS) {
+        const pack = parseFloat(v[f.key] ?? "") || 0;
+        const gramQty = parseFloat(gv[f.key] ?? "") || 0;
+        const key = gridKey(it.id, f.key);
+        const existingId = savedItemIds[key];
+        // ช่องที่ไม่เคย save และยังเป็น 0 อยู่ — ไม่ต้องส่งขึ้นไปเปล่าๆ (backend กรองซ้ำอีกชั้นตามข้อ 0.6 อยู่แล้ว)
+        if (pack === 0 && gramQty === 0 && existingId == null) continue;
+        items.push({ id: existingId, itemId: it.id, branch: branchKeyFromProdField(f.key), qty: pack, qtyG: gramQty });
+      }
+    }
+    for (const r of extraRows) {
+      items.push({
+        id: savedItemIds[r.id], extraName: r.name, extraUnit: r.unit || undefined, extraNote: r.note || undefined,
+        qty: parseFloat(r.qty) || 0, qtyG: 0,
+      });
+    }
+    return items;
+  }
+
+  // จับคู่ items ที่ server คืนกลับมาหลัง save → savedItemIds ใหม่ (คีย์กริดจับคู่ตรงด้วย itemId+branch เป๊ะ,
+  // รายการพิเศษที่เพิ่งสร้างใหม่ไม่มี natural key ให้จับ จึงจับคู่ตามลำดับเดิมที่ส่งไป — ใช้ได้เพราะ insert 1 ครั้งคง order เดิม)
+  function syncSavedItemIds(items: ProductionOrderItemRecord[]) {
+    const ids: Record<string, number> = {};
+    for (const it of items) {
+      if (it.itemId && it.branch) ids[gridKey(it.itemId, prodFieldFromBranchKey(it.branch))] = it.id;
+    }
+    const alreadyKnownIds = new Set(Object.values(savedItemIds));
+    const newExtraDbItems = items.filter((it) => !it.itemId && !alreadyKnownIds.has(it.id));
+    let cursor = 0;
+    for (const row of extraRows) {
+      const existingId = savedItemIds[row.id];
+      if (existingId != null) ids[row.id] = existingId;
+      else if (cursor < newExtraDbItems.length) ids[row.id] = newExtraDbItems[cursor++].id;
+    }
+    setSavedItemIds(ids);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const items = buildItemsPayload();
+      if (orderId == null) {
+        const res = await fetch("/api/production-orders", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderDate, deliveryDate, note, items }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+        setOrderId(data.order.id);
+        syncSavedItemIds(data.order.items);
+        onSaved(data.order.id);
+      } else {
+        const res = await fetch("/api/production-orders", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: orderId, orderDate, deliveryDate, note, items, removedItemIds: removedExtraIds }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+        syncSavedItemIds(data.order.items);
+        setRemovedExtraIds([]);
+      }
+      setDirty(false);
+      setLastSavedAt(new Date());
+    } catch (e: any) {
+      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function exportCsv() {
@@ -1168,11 +1366,11 @@ function ProductionOrder() {
         <div className="grid grid-cols-2 gap-2.5">
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">วันที่สั่งผลิต</span>
-            <input type="date" value={orderDate} onChange={(e) => setOrderDate(e.target.value || todayISO())} className="field" />
+            <input type="date" value={orderDate} onChange={(e) => { setOrderDate(e.target.value || todayISO()); setDirty(true); }} className="field" />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">วันที่จัดส่งเข้าสาขา</span>
-            <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value || todayISO())} className="field" />
+            <input type="date" value={deliveryDate} onChange={(e) => { setDeliveryDate(e.target.value || todayISO()); setDirty(true); }} className="field" />
           </label>
         </div>
       </GlassCard>
@@ -1296,7 +1494,7 @@ function ProductionOrder() {
         <h3 className="mb-2 text-[15px] font-semibold">📝 หมายเหตุ</h3>
         <textarea
           value={note}
-          onChange={(e) => setNote(e.target.value)}
+          onChange={(e) => { setNote(e.target.value); setDirty(true); }}
           rows={3}
           placeholder="พิมพ์หมายเหตุ (ถ้ามี)"
           className="field w-full resize-none"
@@ -1319,11 +1517,396 @@ function ProductionOrder() {
           🖨️ พิมพ์ใบสั่งผลิต
         </button>
       </div>
+
+      {/* v1.5: persist ใบสั่งผลิตลง DB — export/พิมพ์ยังทำงานได้โดยไม่ต้อง save ก่อน (ใช้ค่าจาก local buffer ตรงๆ เหมือนโหมด A เฟส 1) */}
+      <SaveBar>
+        {dirty ? (
+          <p className="mb-2 rounded-lg bg-warn/10 px-3 py-2 text-center text-xs font-medium text-warn">
+            ⚠️ มีการแก้ไขยังไม่บันทึก
+          </p>
+        ) : lastSavedAt ? (
+          <p className="mb-2 rounded-lg bg-ok/10 px-3 py-2 text-center text-xs font-medium text-ok">
+            ✓ บันทึกล่าสุด {formatTime(lastSavedAt)} น. — ใบ #{orderId}
+          </p>
+        ) : null}
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "กำลังบันทึก…" : orderId == null ? "💾 บันทึกคำสั่งผลิต" : "💾 บันทึกการแก้ไข"}
+        </Button>
+      </SaveBar>
     </div>
     <ProductionPrintSheet
       orderDate={orderDate} deliveryDate={deliveryDate}
       printGroups={printGroups} totalCount={printTotal} note={note}
     />
     </>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// โหมด C — ประวัติสั่งผลิต (v1.5) — list → detail 2 ระดับ + ติ๊กคอนเฟิร์มทีละ item×สาขา
+// ══════════════════════════════════════════════════════════════════════
+function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
+  const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
+
+  // ── list view ──
+  const [orders, setOrders] = React.useState<ProductionOrderSummary[]>([]);
+  const [listLoading, setListLoading] = React.useState(true);
+  const [listError, setListError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (selectedOrderId != null) return; // อยู่ใน detail view ไม่ต้องโหลด list ซ้ำ
+    let alive = true;
+    setListLoading(true);
+    setListError(null);
+    fetch("/api/production-orders")
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดประวัติสั่งผลิตไม่สำเร็จ");
+        return data as { orders: ProductionOrderSummary[] };
+      })
+      .then((data) => { if (alive) setOrders(data.orders); })
+      .catch((e) => { if (alive) setListError(String(e?.message ?? e)); })
+      .finally(() => { if (alive) setListLoading(false); });
+    return () => { alive = false; };
+  }, [selectedOrderId]);
+
+  // ── meta (ชื่อ/หมวด/variableYield ของ item) — ใช้จัดกลุ่มรายการใน detail view ──
+  const [meta, setMeta] = React.useState<Meta | null>(null);
+  const [metaLoading, setMetaLoading] = React.useState(true);
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/meta")
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลด meta ไม่สำเร็จ");
+        return data as Meta;
+      })
+      .then((m) => { if (alive) setMeta(m); })
+      .finally(() => { if (alive) setMetaLoading(false); });
+    return () => { alive = false; };
+  }, []);
+
+  // ── detail view ──
+  const [order, setOrder] = React.useState<ProductionOrderRecord | null>(null);
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [detailError, setDetailError] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (selectedOrderId == null) { setOrder(null); return; }
+    let alive = true;
+    setDetailLoading(true);
+    setDetailError(null);
+    fetch(`/api/production-orders?id=${selectedOrderId}`)
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดใบสั่งผลิตไม่สำเร็จ");
+        return data as { order: ProductionOrderRecord };
+      })
+      .then((data) => { if (alive) setOrder(data.order); })
+      .catch((e) => { if (alive) setDetailError(String(e?.message ?? e)); })
+      .finally(() => { if (alive) setDetailLoading(false); });
+    return () => { alive = false; };
+  }, [selectedOrderId]);
+
+  // จัดกลุ่มรายการกริดหลัก (item×branch) ตาม category เหมือนหน้าสั่งผลิต — ต่อ item รวม 4 คอลัมน์สาขาไว้แถวเดียว
+  const groupedCategories = React.useMemo(() => {
+    if (!order || !meta) return [] as [string, { item: Item; cells: Partial<Record<ProdBranchKey, ProductionOrderItemRecord>> }[]][];
+    const itemById = new Map(meta.items.map((it) => [it.id, it]));
+    const byItem = new Map<string, Partial<Record<ProdBranchKey, ProductionOrderItemRecord>>>();
+    for (const it of order.items) {
+      if (!it.itemId || !it.branch) continue;
+      const cellMap = byItem.get(it.itemId) ?? {};
+      cellMap[it.branch] = it;
+      byItem.set(it.itemId, cellMap);
+    }
+    const rows: { item: Item; cells: Partial<Record<ProdBranchKey, ProductionOrderItemRecord>> }[] = [];
+    for (const [itemId, cells] of byItem) {
+      const item = itemById.get(itemId);
+      if (item) rows.push({ item, cells });
+    }
+    rows.sort((a, b) => a.item.sort - b.item.sort);
+    const groups = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const arr = groups.get(r.item.category) ?? [];
+      arr.push(r);
+      groups.set(r.item.category, arr);
+    }
+    return Array.from(groups.entries());
+  }, [order, meta]);
+
+  const extraItems = React.useMemo(() => (order?.items ?? []).filter((it) => !it.itemId), [order]);
+
+  // optimistic update local state ก่อน (responsive) → PATCH → ล้มเหลว rollback + window.alert (pattern เดียวกับ handleSave ที่อื่นในระบบ)
+  async function onToggleConfirm(itemRowId: number, next: boolean) {
+    setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? { ...it, confirmed: next } : it)) });
+    try {
+      const res = await fetch("/api/production-orders/items", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: itemRowId, confirmed: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? data.item : it)) });
+    } catch (e: any) {
+      setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? { ...it, confirmed: !next } : it)) });
+      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+    }
+  }
+
+  async function onEditConfirmedQty(itemRowId: number, confirmedQty: number, confirmedQtyG: number) {
+    const prevItem = order?.items.find((it) => it.id === itemRowId);
+    setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? { ...it, confirmedQty, confirmedQtyG } : it)) });
+    try {
+      const res = await fetch("/api/production-orders/items", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: itemRowId, confirmedQty, confirmedQtyG }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? data.item : it)) });
+    } catch (e: any) {
+      if (prevItem) setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? prevItem : it)) });
+      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+    }
+  }
+
+  function badgeToneFor(o: ProductionOrderSummary): "ok" | "warn" | "neutral" {
+    if (o.itemCount === 0) return "neutral";
+    if (o.confirmedCount === o.itemCount) return "ok";
+    if (o.confirmedCount === 0) return "warn";
+    return "neutral";
+  }
+
+  // ── list view ──
+  if (selectedOrderId == null) {
+    return (
+      <div className="print:hidden">
+        {listLoading ? (
+          <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+        ) : listError ? (
+          <GlassCard><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {listError}</p></GlassCard>
+        ) : orders.length === 0 ? (
+          <GlassCard><p className="text-sm text-brand-ink/50">ยังไม่มีใบสั่งผลิต</p></GlassCard>
+        ) : (
+          orders.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => setSelectedOrderId(o.id)}
+              className="glass-soft mb-2 block w-full px-3.5 py-3 text-left"
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-[14px] font-medium">
+                  สั่งผลิต {thaiDateSlash(o.orderDate)} → ส่ง {thaiDateSlash(o.deliveryDate)}
+                </span>
+                <Badge tone={badgeToneFor(o)}>{o.confirmedCount}/{o.itemCount}</Badge>
+              </div>
+              <p className="text-xs text-brand-ink/50">
+                {o.itemCount} รายการ · คอนเฟิร์มแล้ว {o.confirmedCount}/{o.itemCount} · โดย {o.createdByName}
+              </p>
+            </button>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  // ── detail view ──
+  const detailReady = !detailLoading && !metaLoading && !!order;
+  return (
+    <div className="print:hidden">
+      <button
+        type="button"
+        onClick={() => setSelectedOrderId(null)}
+        className="mb-3 text-sm font-medium text-brand-ink/60"
+      >
+        ← กลับ
+      </button>
+
+      {!detailReady ? (
+        detailError ? (
+          <GlassCard><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {detailError}</p></GlassCard>
+        ) : (
+          <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+        )
+      ) : (
+        <>
+          <GlassCard className="mb-3">
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[15px] font-semibold">สั่งผลิต {thaiDateSlash(order!.orderDate)}</h2>
+                <p className="text-xs text-brand-ink/50">
+                  ส่งเข้าสาขา {thaiDateSlash(order!.deliveryDate)} · โดย {order!.createdByName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onEdit(order!.id)}
+                className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink active:scale-[.98]"
+              >
+                ✏️ แก้ไขใบนี้
+              </button>
+            </div>
+            {order!.note.trim() && <p className="text-xs text-brand-ink/60">📝 {order!.note}</p>}
+          </GlassCard>
+
+          {groupedCategories.map(([category, rows], gi) => (
+            <Accordion key={category} title={category} count={`${rows.length} รายการ`} defaultOpen={gi === 0}>
+              <div className="grid gap-2 py-1">
+                {rows.map(({ item, cells }) => (
+                  <ConfirmRow
+                    key={item.id}
+                    name={item.name}
+                    hasG={item.variableYield}
+                    gUnit={item.isCup ? "ชิ้น" : "g"}
+                    cells={cells}
+                    onToggleConfirm={onToggleConfirm}
+                    onEditConfirmedQty={onEditConfirmedQty}
+                  />
+                ))}
+              </div>
+            </Accordion>
+          ))}
+
+          {extraItems.length > 0 && (
+            <Accordion title="รายการพิเศษ" count={`${extraItems.length} รายการ`} defaultOpen>
+              <div className="grid gap-2 py-1">
+                {extraItems.map((it) => (
+                  <div key={it.id} className="glass-soft px-3 py-2.5">
+                    <div className="mb-1.5 flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{it.extraName}</span>
+                      <span className="text-xs text-brand-ink/60">
+                        {it.qty || 0}{it.extraUnit ? ` ${it.extraUnit}` : ""}
+                      </span>
+                    </div>
+                    {it.extraNote && <p className="mb-1.5 text-xs text-brand-ink/45">{it.extraNote}</p>}
+                    <ConfirmCell
+                      label="รับแล้ว"
+                      item={it}
+                      hasG={false}
+                      gUnit=""
+                      onToggleConfirm={onToggleConfirm}
+                      onEditConfirmedQty={onEditConfirmedQty}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Accordion>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── local component: 1 แถว = 1 รายการกริดหลัก แสดง 4 คอลัมน์สาขา (SND/NVP/KCN/อื่นๆ) พร้อมติ๊กคอนเฟิร์มต่อคอลัมน์ ──
+// โครง 4-column grid เดียวกับ ProductionRow เดิม เพื่อความคุ้นตา (ดู spec ข้อ 6.3)
+function ConfirmRow({
+  name, hasG, gUnit, cells, onToggleConfirm, onEditConfirmedQty,
+}: {
+  name: string;
+  hasG: boolean;
+  gUnit: string;
+  cells: Partial<Record<ProdBranchKey, ProductionOrderItemRecord>>;
+  onToggleConfirm: (id: number, next: boolean) => void;
+  onEditConfirmedQty: (id: number, confirmedQty: number, confirmedQtyG: number) => void;
+}) {
+  return (
+    <div className="glass-soft px-3 py-2.5">
+      <div className="mb-2 text-sm font-medium">{name}</div>
+      <div className="grid grid-cols-4 gap-1.5">
+        {PROD_FIELDS.map((f) => {
+          const cell = cells[branchKeyFromProdField(f.key)];
+          if (!cell || (cell.qty <= 0 && cell.qtyG <= 0)) {
+            return (
+              <div key={f.key} className="flex flex-col items-center gap-0.5 pt-3 opacity-30">
+                <span className="text-[8.5px] leading-tight text-brand-ink/50">{f.label}</span>
+                <span className="text-xs">—</span>
+              </div>
+            );
+          }
+          return (
+            <ConfirmCell
+              key={f.key}
+              label={f.label}
+              item={cell}
+              hasG={hasG}
+              gUnit={gUnit}
+              onToggleConfirm={onToggleConfirm}
+              onEditConfirmedQty={onEditConfirmedQty}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── local component: 1 ช่อง (item×สาขา หรือ รายการพิเศษ 1 แถว) — จำนวนที่สั่ง (read-only) + checkbox รับแล้ว + แก้จำนวนจริงได้อิสระ ──
+function ConfirmCell({
+  label, item, hasG, gUnit, onToggleConfirm, onEditConfirmedQty,
+}: {
+  label: string;
+  item: ProductionOrderItemRecord;
+  hasG: boolean;
+  gUnit: string;
+  onToggleConfirm: (id: number, next: boolean) => void;
+  onEditConfirmedQty: (id: number, confirmedQty: number, confirmedQtyG: number) => void;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [cq, setCq] = React.useState(String(item.confirmedQty ?? item.qty));
+  const [cqG, setCqG] = React.useState(String(item.confirmedQtyG ?? item.qtyG));
+  const orderedText = formatOrderQty(item.qty, item.qtyG, hasG, gUnit);
+  const mismatch = item.confirmed && (
+    (item.confirmedQty ?? item.qty) !== item.qty || (item.confirmedQtyG ?? item.qtyG) !== item.qtyG
+  );
+
+  return (
+    <label className="flex flex-col items-center gap-0.5">
+      <span className="text-[8.5px] leading-tight text-brand-ink/50">{label}</span>
+      <span className="text-xs font-medium">{orderedText}</span>
+      <input
+        type="checkbox"
+        checked={item.confirmed}
+        onChange={(e) => onToggleConfirm(item.id, e.target.checked)}
+        className="h-4 w-4 rounded border-black/20"
+        aria-label={`รับแล้ว ${label}`}
+      />
+      {item.confirmed && (
+        <Badge tone={mismatch ? "warn" : "ok"}>
+          {mismatch
+            ? `ได้จริง ${formatOrderQty(item.confirmedQty ?? item.qty, item.confirmedQtyG ?? item.qtyG, hasG, gUnit)}`
+            : "รับแล้ว"}
+        </Badge>
+      )}
+      {!editing ? (
+        <button type="button" onClick={() => setEditing(true)} className="text-[9px] text-brand-ink/40 underline">
+          แก้จำนวนจริง
+        </button>
+      ) : (
+        <div className="flex flex-col items-center gap-1">
+          <input
+            inputMode="numeric"
+            value={cq}
+            onChange={(e) => setCq(e.target.value)}
+            className="field w-12 px-1 py-0.5 text-center text-[10px]"
+          />
+          {hasG && (
+            <input
+              inputMode="numeric"
+              value={cqG}
+              onChange={(e) => setCqG(e.target.value)}
+              placeholder={`+${gUnit}`}
+              className="field w-12 px-1 py-0.5 text-center text-[10px]"
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => { onEditConfirmedQty(item.id, Number(cq) || 0, Number(cqG) || 0); setEditing(false); }}
+            className="text-[9px] font-semibold text-brand-blue"
+          >
+            ✓ บันทึก
+          </button>
+        </div>
+      )}
+    </label>
   );
 }

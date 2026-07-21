@@ -144,6 +144,64 @@ export interface Requisition {
   seenAt?: string;     // ISO — undefined/null = ยังไม่มีใครเปิดดู (ใช้ทำ badge เตือนที่เมนู/Dashboard)
 }
 
+// ── ใบสั่งผลิต (v1.5) — persist ProductionOrder component จาก client state เดิม ──
+// "OTHER" = ช่อง "อื่นๆ" ในกริดสั่งผลิตเดิม (ProdField เดิมมี "other") — ไม่ใช่สาขาจริงจึงแยก type จาก Branch
+export type ProdBranchKey = "SND" | "NVP" | "KCN" | "OTHER";
+
+// รายการเดียวในใบสั่งผลิต — 1 แถว = 1 ช่องกรอก (item×branch) หรือ 1 รายการพิเศษ
+export interface ProductionOrderItem {
+  id: number;                 // production_order_items.id — ใช้ PATCH คอนเฟิร์ม/แก้ทีละแถว
+  itemId?: string;            // undefined = รายการพิเศษ
+  branch?: ProdBranchKey;     // undefined สำหรับรายการพิเศษ
+  qty: number;                // จำนวนที่ "สั่ง"
+  qtyG: number;
+  extraName?: string;
+  extraUnit?: string;
+  extraNote?: string;
+  confirmed: boolean;
+  confirmedQty?: number;      // undefined = ยังไม่กรอกจำนวนจริง — ดูข้อ 0.4
+  confirmedQtyG?: number;
+  confirmedAt?: string;       // ISO
+  confirmedByName?: string;
+}
+
+export interface ProductionOrder {
+  id: number;
+  orderDate: string;
+  deliveryDate: string;
+  note: string;
+  items: ProductionOrderItem[];
+  createdByName: string;
+  createdAt: string;   // ISO
+  updatedAt: string;   // ISO
+}
+
+// สรุปย่อ ใช้หน้า list ประวัติ (ไม่ต้องโหลด items ทั้งใบ)
+export interface ProductionOrderSummary {
+  id: number;
+  orderDate: string;
+  deliveryDate: string;
+  itemCount: number;
+  confirmedCount: number;
+  note: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// shape ที่ POST/PATCH ใบส่งขึ้นไป (ไม่มี confirm fields — สร้าง/แก้ "คำสั่ง" เท่านั้น คอนเฟิร์มแยก endpoint)
+// id ใส่มาด้วย = อัปเดตแถวเดิม (ใช้ตอน PATCH), ไม่ใส่ id = แถวใหม่ (insert)
+export interface ProductionOrderItemInput {
+  id?: number;
+  itemId?: string;
+  branch?: ProdBranchKey;
+  qty: number;
+  qtyG: number;
+  extraName?: string;
+  extraUnit?: string;
+  extraNote?: string;
+}
+
 export interface AuditEntry {
   id: string;
   ts: string;        // ISO
