@@ -48,6 +48,14 @@ function csvEscape(s: string): string {
   if (!needsQuote) return str;
   return '"' + str.split('"').join('""') + '"';
 }
+// รวมแพ็ค+เศษเป็นข้อความเดียว ใช้ทั้งใบพิมพ์/CSV/หน้าสั่งผลิต — ไม่โชว์ "0 แพ็ค" ให้รกถ้ามีแต่เศษ
+function formatOrderQty(pack: number, g: number, hasG: boolean, gUnit: string): string {
+  if (!hasG) return String(pack);
+  if (pack > 0 && g > 0) return `${pack} แพ็ค + ${g}${gUnit}`;
+  if (pack > 0) return `${pack} แพ็ค`;
+  if (g > 0) return `${g}${gUnit}`;
+  return "0";
+}
 // ท้ายเอกสาร export ทั้ง 2 หน้า (เติมของ + สั่งผลิต) — ช่องเซ็นชื่อยืนยันรับ-ส่งของจริง
 const SIGNATURE_FOOTER_LINES = [
   "",
@@ -297,7 +305,7 @@ function RestockByBranch() {
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   // ── snapshot ค่าที่ "บันทึกลง DB แล้วจริง" ล่าสุด (จากการโหลด หรือหลังกดบันทึกสำเร็จ) — undefined ต่อ itemId = ไม่เคยบันทึกคู่นี้เลย
   // ใช้เทียบกับ selEntries เพื่อบอกสถานะแต่ละแถว: แนะนำ (ยังไม่แตะ) / แก้ไขแล้วยังไม่บันทึก / บันทึกแล้ว
-  const [savedEntries, setSavedEntries] = React.useState<Record<string, { selected: boolean; qty: number }>>({});
+  const [savedEntries, setSavedEntries] = React.useState<Record<string, { selected: boolean; qty: number; qtyG: number }>>({});
 
   const weekday = React.useMemo(() => weekdayFromDate(date), [date]);
 
@@ -320,7 +328,7 @@ function RestockByBranch() {
       fetch(`/api/restock/selections?branch=${branch}&date=${date}`).then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
-        return data as { entries: Record<string, { selected: boolean; qty: number }> };
+        return data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }> };
       }),
     ])
       .then(([restockData, selData]) => {
@@ -328,13 +336,13 @@ function RestockByBranch() {
         setRows(restockData.rows);
         setSpecialActive(restockData.specialActive);
         // ถ้าเคย save (branch,date) นี้ไว้แล้ว → ใช้ค่าจาก DB ตรงๆ (ไม่ reset กลับ default)
-        // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need)
+        // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need, qtyG = 0)
         const next: Record<string, RestockSelectionEntry> = {};
         for (const r of restockData.rows) {
           const saved = selData.entries[r.itemId];
           next[r.itemId] = saved
-            ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty }
-            : { itemId: r.itemId, selected: r.need != null && r.need > 0, qty: r.need ?? 0 };
+            ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty, qtyG: saved.qtyG }
+            : { itemId: r.itemId, selected: r.need != null && r.need > 0, qty: r.need ?? 0, qtyG: 0 };
         }
         setSelEntries(next);
         setSavedEntries(selData.entries); // snapshot ของจริงจาก DB ณ ตอนโหลด — ใช้เทียบสถานะแต่ละแถว
@@ -358,7 +366,7 @@ function RestockByBranch() {
 
   function updateEntry(itemId: string, patch: Partial<RestockSelectionEntry>) {
     setSelEntries((prev) => {
-      const cur = prev[itemId] ?? { itemId, selected: false, qty: 0 };
+      const cur = prev[itemId] ?? { itemId, selected: false, qty: 0, qtyG: 0 };
       return { ...prev, [itemId]: { ...cur, ...patch } };
     });
   }
@@ -370,7 +378,7 @@ function RestockByBranch() {
     setSelEntries((prev) => {
       const next = { ...prev };
       for (const r of items) {
-        const cur = next[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0 };
+        const cur = next[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0, qtyG: 0 };
         next[r.itemId] = { ...cur, selected: !allSel };
       }
       return next;
@@ -387,6 +395,7 @@ function RestockByBranch() {
         itemId: r.itemId,
         selected: selEntries[r.itemId]?.selected ?? false,
         qty: Number(selEntries[r.itemId]?.qty ?? 0),
+        qtyG: Number(selEntries[r.itemId]?.qtyG ?? 0),
       }));
       const res = await fetch("/api/restock/selections", {
         method: "POST",
@@ -397,8 +406,8 @@ function RestockByBranch() {
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
       setLastSavedAt(new Date());
       // อัปเดต snapshot "บันทึกแล้ว" ทันที — ทุกแถวที่เพิ่ง POST ไปกลายเป็นสีเขียวพร้อมกัน ไม่ต้องรอโหลดใหม่
-      const nextSaved: Record<string, { selected: boolean; qty: number }> = {};
-      for (const e of entries) nextSaved[e.itemId] = { selected: e.selected, qty: e.qty };
+      const nextSaved: Record<string, { selected: boolean; qty: number; qtyG: number }> = {};
+      for (const e of entries) nextSaved[e.itemId] = { selected: e.selected, qty: e.qty, qtyG: e.qtyG };
       setSavedEntries(nextSaved);
     } catch (e: any) {
       window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
@@ -408,19 +417,27 @@ function RestockByBranch() {
   }
 
   // ค่าที่ระบบเดาให้ตอนยังไม่เคยมีใครกรอก (Par − คงเหลือ) — ใช้เทียบว่าแถวนี้ "ยังไม่ถูกแตะเลย" หรือเปล่า
-  function defaultOf(r: RestockRow): { selected: boolean; qty: number } {
-    return { selected: r.need != null && r.need > 0, qty: r.need ?? 0 };
+  // qtyG ไม่มี default ให้เดา (เป็นเคสพิเศษที่ผลผลิตไม่เต็มแพ็ค) เริ่มที่ 0 เสมอ
+  function defaultOf(r: RestockRow): { selected: boolean; qty: number; qtyG: number } {
+    return { selected: r.need != null && r.need > 0, qty: r.need ?? 0, qtyG: 0 };
   }
   // สถานะต่อแถว: บันทึกแล้ว (ตรงกับ DB) / แก้ไขแล้วยังไม่บันทึก / แนะนำ (ยังไม่แตะ ไม่เคยบันทึกคู่นี้เลย)
   function statusOf(r: RestockRow): "saved" | "dirty" | "suggested" {
-    const cur = selEntries[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0 };
+    const cur = selEntries[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0, qtyG: 0 };
     const saved = savedEntries[r.itemId];
-    if (saved && cur.selected === saved.selected && cur.qty === saved.qty) return "saved";
+    if (saved && cur.selected === saved.selected && cur.qty === saved.qty && cur.qtyG === saved.qtyG) return "saved";
     if (!saved) {
       const def = defaultOf(r);
-      if (cur.selected === def.selected && cur.qty === def.qty) return "suggested";
+      if (cur.selected === def.selected && cur.qty === def.qty && cur.qtyG === def.qtyG) return "suggested";
     }
     return "dirty";
+  }
+  // class สี/ทรงช่องกรอกตามสถานะ — ใช้ร่วมกันทั้งช่องแพ็คและช่องกรัม (ข้อ pack+g)
+  function qtyFieldClass(isSel: boolean, status: "saved" | "dirty" | "suggested"): string {
+    if (!isSel) return "opacity-40";
+    if (status === "saved") return "font-semibold border-ok/50 bg-ok/10 text-ok";
+    if (status === "dirty") return "font-semibold border-brand-blue bg-brand-blue/15";
+    return "border-dashed border-black/25 text-brand-ink/45 italic";
   }
 
   // จัดกลุ่มตาม category (คงลำดับตามที่ backend ส่งมา)
@@ -446,23 +463,31 @@ function RestockByBranch() {
 
   function exportCsv() {
     const selectedRows = rows.filter((r) => selEntries[r.itemId]?.selected);
-    const lines = ["หมวด,รายการ,จำนวนสั่ง"];
+    const lines = ["หมวด,รายการ,จำนวนสั่ง (แพ็ค),เศษ"];
     for (const r of selectedRows) {
-      const q = selEntries[r.itemId]?.qty ?? 0;
-      lines.push([csvEscape(r.category), csvEscape(r.name), String(q)].join(","));
+      const entry = selEntries[r.itemId];
+      const q = entry?.qty ?? 0;
+      const qG = r.remainG !== undefined ? entry?.qtyG ?? 0 : "";
+      lines.push([csvEscape(r.category), csvEscape(r.name), String(q), String(qG)].join(","));
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
     logExport("export_restock_csv", branch, date, `export CSV ${selectedRows.length} รายการ`);
   }
 
-  // ── ใบส่งของพิมพ์ A4 ──
+  // ── ใบส่งของพิมพ์ A4 — qty รวมแพ็ค+เศษเป็นข้อความเดียว (เช่น "1 แพ็ค + 700g") ──
   const printGroups = React.useMemo(() => {
     const out: { category: string; items: PrintRow[] }[] = [];
     for (const g of groups) {
       const items = g.items
         .filter((r) => selEntries[r.itemId]?.selected)
-        .map((r) => ({ ...r, qty: String(selEntries[r.itemId]?.qty ?? 0) }));
+        .map((r) => {
+          const entry = selEntries[r.itemId];
+          const qtyText = formatOrderQty(
+            entry?.qty ?? 0, entry?.qtyG ?? 0, r.remainG !== undefined, r.isCup ? "ชิ้น" : "g"
+          );
+          return { ...r, qty: qtyText };
+        });
       if (items.length > 0) out.push({ category: g.category, items });
     }
     return out;
@@ -609,16 +634,22 @@ function RestockByBranch() {
                                   : status === "dirty" ? "แก้ไขแล้ว ยังไม่บันทึก"
                                   : "ค่าที่ระบบแนะนำ (Par − คงเหลือ) — ยังไม่ได้ยืนยัน"
                               }
-                              className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${
-                                !isSel
-                                  ? "opacity-40"
-                                  : status === "saved"
-                                    ? "font-semibold border-ok/50 bg-ok/10 text-ok"
-                                    : status === "dirty"
-                                      ? "font-semibold border-brand-blue bg-brand-blue/15"
-                                      : "border-dashed border-black/25 text-brand-ink/45 italic"
-                              }`}
+                              className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${qtyFieldClass(isSel, status)}`}
                             />
+                            {r.remainG !== undefined && (
+                              <>
+                                <span className="shrink-0 text-[10px] text-brand-ink/35">+</span>
+                                <input
+                                  inputMode="numeric"
+                                  value={entry?.qtyG ?? ""}
+                                  disabled={!isSel}
+                                  onChange={(e) => updateEntry(r.itemId, { qtyG: Number(e.target.value) || 0 })}
+                                  title={`เศษ${r.isCup ? " (ชิ้น)" : " (g)"} ที่ไม่เต็มแพ็ค — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง กรอกเฉพาะรอบที่มีจริง`}
+                                  placeholder={r.isCup ? "ชิ้น" : "g"}
+                                  className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
+                                />
+                              </>
+                            )}
                           </div>
                         );
                       })}
@@ -703,17 +734,23 @@ const PROD_FIELDS: { key: ProdField; label: string }[] = [
 interface ExtraRow { id: string; name: string; qty: string; unit: string; note: string }
 
 function ProductionRow({
-  item, par, values, onChange, tone, isNew, reflected,
+  item, par, values, gValues, onChange, onChangeG, tone, isNew, reflected,
 }: {
   item: Item;
   par: Partial<Record<Branch, number | null>>;
   values: Partial<Record<ProdField, string>>;
+  gValues: Partial<Record<ProdField, string>>;
   onChange: (field: ProdField, v: string) => void;
+  onChangeG: (field: ProdField, v: string) => void;
   tone?: "orange";
   isNew?: boolean;
   reflected?: boolean;
 }) {
-  const total = PROD_FIELDS.reduce((s, f) => s + (parseFloat(values[f.key] ?? "") || 0), 0);
+  const hasG = item.showRemainderOnRestock; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
+  const gUnit = item.isCup ? "ชิ้น" : "g";
+  const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(values[f.key] ?? "") || 0), 0);
+  const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gValues[f.key] ?? "") || 0), 0);
+  const totalG = hasG ? packSum * item.gramsPerUOM + gSum : 0;
   const isOrange = tone === "orange";
   return (
     <div className={`px-3 py-2.5 ${isOrange ? "rounded-xl border border-brand-orange/40 bg-brand-orange/10" : "glass-soft"}`}>
@@ -747,12 +784,27 @@ function ProductionRow({
                   isOrange ? "bg-white/80" : ""
                 }`}
               />
+              {hasG && (
+                <input
+                  inputMode="numeric"
+                  value={gValues[f.key] ?? ""}
+                  disabled={disabled}
+                  placeholder={`+${gUnit}`}
+                  title={`เศษ (${gUnit}) ที่ไม่เต็มแพ็ค — กรอกเฉพาะรอบที่มีจริง`}
+                  onChange={(e) => onChangeG(f.key, e.target.value)}
+                  className={`field px-1.5 py-1 text-center text-[10px] ${disabled ? "opacity-40" : ""} ${
+                    isOrange ? "bg-white/80" : ""
+                  }`}
+                />
+              )}
             </label>
           );
         })}
       </div>
       <div className={`mt-2 text-right text-xs font-semibold ${isOrange ? "text-orange-700" : "text-brand-ink/70"}`}>
-        รวมสั่งผลิต: {total}
+        {hasG
+          ? `รวมสั่งผลิต: ${Math.floor(totalG / item.gramsPerUOM)} แพ็ค (${totalG.toLocaleString()}${gUnit})`
+          : `รวมสั่งผลิต: ${packSum}`}
       </div>
     </div>
   );
@@ -878,6 +930,7 @@ function ProductionOrder() {
   }, []);
 
   const [prodQty, setProdQty] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
+  const [prodQtyG, setProdQtyG] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
   const [extraRows, setExtraRows] = React.useState<ExtraRow[]>([]);
   const [extraName, setExtraName] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -891,6 +944,7 @@ function ProductionOrder() {
   // ── สะท้อนข้อมูลจากหน้า "ต้องเติม" แบบเข้มงวด — เอาเฉพาะรายการที่แต่ละสาขาบันทึกไว้"ตรงกับวันที่จัดส่งนี้เป๊ะ" เท่านั้น ──
   // (ไม่ใช่ค่าล่าสุดของสาขานั้นแบบไม่สนวันที่ — กันโชว์ตัวเลขของรอบอื่นที่บันทึกไว้ล่วงหน้า/ย้อนหลังมาปนกัน)
   const [reflected, setReflected] = React.useState<Record<string, Partial<Record<Branch, string>>>>({});
+  const [reflectedG, setReflectedG] = React.useState<Record<string, Partial<Record<Branch, string>>>>({});
   const [reflectedLoading, setReflectedLoading] = React.useState(true);
   const [reflectedError, setReflectedError] = React.useState<string | null>(null);
   React.useEffect(() => {
@@ -902,21 +956,27 @@ function ProductionOrder() {
         fetch(`/api/restock/selections?branch=${b}&date=${deliveryDate}`).then(async (r) => {
           const data = await r.json();
           if (!r.ok) throw new Error((data as any)?.error ?? `โหลดตัวเลือกสาขา ${b} ไม่สำเร็จ`);
-          return { branch: b, entries: (data as { entries: Record<string, { selected: boolean; qty: number }> }).entries };
+          return { branch: b, entries: (data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }> }).entries };
         })
       )
     )
       .then((results) => {
         if (!alive) return;
         const out: Record<string, Partial<Record<Branch, string>>> = {};
+        const outG: Record<string, Partial<Record<Branch, string>>> = {};
         for (const { branch, entries } of results) {
           for (const itemId in entries) {
             if (!entries[itemId].selected) continue;
             if (!out[itemId]) out[itemId] = {};
             out[itemId][branch] = String(entries[itemId].qty);
+            if (entries[itemId].qtyG > 0) {
+              if (!outG[itemId]) outG[itemId] = {};
+              outG[itemId][branch] = String(entries[itemId].qtyG);
+            }
           }
         }
         setReflected(out);
+        setReflectedG(outG);
       })
       .catch((e) => { if (alive) setReflectedError(String(e?.message ?? e)); })
       .finally(() => { if (alive) setReflectedLoading(false); });
@@ -928,6 +988,9 @@ function ProductionOrder() {
 
   function setProd(itemId: string, field: ProdField, value: string) {
     setProdQty((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
+  }
+  function setProdG(itemId: string, field: ProdField, value: string) {
+    setProdQtyG((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
   }
 
   function addExtraRow() {
@@ -970,12 +1033,33 @@ function ProductionOrder() {
   function valuesFor(itemId: string): Partial<Record<ProdField, string>> {
     return { ...reflected[itemId], ...prodQty[itemId] };
   }
-  function totalFor(itemId: string): number {
-    const v = valuesFor(itemId);
-    return PROD_FIELDS.reduce((s, f) => s + (parseFloat(v[f.key] ?? "") || 0), 0);
+  function gValuesFor(itemId: string): Partial<Record<ProdField, string>> {
+    return { ...reflectedG[itemId], ...prodQtyG[itemId] };
+  }
+  // raw = ยอดรวมไว้เช็คว่ามีอะไรให้โชว์ไหม (กรัมรวมสำหรับรายการที่มีเศษ, แพ็คธรรมดาสำหรับรายการทั่วไป)
+  // text = ข้อความที่จะพิมพ์/export จริง (เช่น "2 แพ็ค + 50g")
+  function totalFor(it: Item): { raw: number; text: string } {
+    const v = valuesFor(it.id);
+    const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(v[f.key] ?? "") || 0), 0);
+    if (!it.showRemainderOnRestock) return { raw: packSum, text: String(packSum) };
+    const gv = gValuesFor(it.id);
+    const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gv[f.key] ?? "") || 0), 0);
+    const totalG = packSum * it.gramsPerUOM + gSum;
+    const wholePacks = Math.floor(totalG / it.gramsPerUOM);
+    const remG = totalG % it.gramsPerUOM;
+    return { raw: totalG, text: formatOrderQty(wholePacks, remG, true, it.isCup ? "ชิ้น" : "g") };
   }
   function isReflected(itemId: string): boolean {
-    return !!reflected[itemId] && Object.keys(reflected[itemId]).length > 0;
+    return (!!reflected[itemId] && Object.keys(reflected[itemId]).length > 0)
+      || (!!reflectedG[itemId] && Object.keys(reflectedG[itemId]).length > 0);
+  }
+  // ข้อความต่อสาขา ใช้ทั้ง CSV/ใบพิมพ์ — รวมแพ็ค+เศษเป็นข้อความเดียว ("2 แพ็ค + 700g") ถ้ารายการนี้มีเศษ
+  function fieldTextFor(it: Item, field: ProdField): string {
+    const pack = parseFloat(valuesFor(it.id)[field] ?? "") || 0;
+    if (!it.showRemainderOnRestock) return valuesFor(it.id)[field] ?? "";
+    const g = parseFloat(gValuesFor(it.id)[field] ?? "") || 0;
+    if (pack === 0 && g === 0) return "";
+    return formatOrderQty(pack, g, true, it.isCup ? "ชิ้น" : "g");
   }
 
   function exportCsv() {
@@ -987,20 +1071,20 @@ function ProductionOrder() {
     ];
     for (const g of mainGroups) {
       for (const it of g.items) {
-        const v = valuesFor(it.id);
         lines.push([
           csvEscape(g.category), csvEscape(it.name),
-          v.SND ?? "", v.NVP ?? "", v.KCN ?? "", v.other ?? "",
-          totalFor(it.id),
+          csvEscape(fieldTextFor(it, "SND")), csvEscape(fieldTextFor(it, "NVP")),
+          csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
+          csvEscape(totalFor(it).text),
         ].join(","));
       }
     }
     for (const it of dept2Items) {
-      const v = valuesFor(it.id);
       lines.push([
         csvEscape("แผนกอื่น"), csvEscape(it.name),
-        v.SND ?? "", v.NVP ?? "", v.KCN ?? "", v.other ?? "",
-        totalFor(it.id),
+        csvEscape(fieldTextFor(it, "SND")), csvEscape(fieldTextFor(it, "NVP")),
+        csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
+        csvEscape(totalFor(it).text),
       ].join(","));
     }
     for (const r of extraRows) {
@@ -1030,23 +1114,29 @@ function ProductionOrder() {
     }
     for (const g of mainGroups) {
       for (const it of g.items) {
-        const v = valuesFor(it.id);
-        const total = totalFor(it.id);
-        if (total <= 0) continue;
-        pushRow(g.category, { id: it.id, name: it.name, snd: v.SND ?? "", nvp: v.NVP ?? "", kcn: v.KCN ?? "", other: v.other ?? "", total: String(total), note: "" });
+        const total = totalFor(it);
+        if (total.raw <= 0) continue;
+        pushRow(g.category, {
+          id: it.id, name: it.name,
+          snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
+          total: total.text, note: "",
+        });
       }
     }
     for (const it of dept2Items) {
-      const v = valuesFor(it.id);
-      const total = totalFor(it.id);
-      if (total <= 0) continue;
-      pushRow("แผนกอื่น", { id: it.id, name: it.name, snd: v.SND ?? "", nvp: v.NVP ?? "", kcn: v.KCN ?? "", other: v.other ?? "", total: String(total), note: "" });
+      const total = totalFor(it);
+      if (total.raw <= 0) continue;
+      pushRow("แผนกอื่น", {
+        id: it.id, name: it.name,
+        snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
+        total: total.text, note: "",
+      });
     }
     for (const r of extraRows) {
       pushRow("รายการพิเศษ", { id: r.id, name: r.name, snd: "", nvp: "", kcn: "", other: r.unit || "", total: r.qty || "0", note: r.note });
     }
     return out;
-  }, [mainGroups, dept2Items, extraRows, reflected, prodQty]);
+  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -1109,7 +1199,9 @@ function ProductionOrder() {
                     item={it}
                     par={meta?.par[it.id] ?? {}}
                     values={valuesFor(it.id)}
+                    gValues={gValuesFor(it.id)}
                     onChange={(f, v) => setProd(it.id, f, v)}
+                    onChangeG={(f, v) => setProdG(it.id, f, v)}
                     reflected={isReflected(it.id)}
                   />
                 ))}
@@ -1129,7 +1221,9 @@ function ProductionOrder() {
                   item={it}
                   par={meta?.par[it.id] ?? {}}
                   values={valuesFor(it.id)}
+                  gValues={gValuesFor(it.id)}
                   onChange={(f, v) => setProd(it.id, f, v)}
+                  onChangeG={(f, v) => setProdG(it.id, f, v)}
                   tone="orange"
                   isNew={NEW_ITEM_NAMES.includes(it.name)}
                   reflected={isReflected(it.id)}

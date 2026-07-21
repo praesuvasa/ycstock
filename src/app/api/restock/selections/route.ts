@@ -13,7 +13,7 @@ function fail(e: unknown, msg: string) {
   return NextResponse.json({ error: (e as any)?.message ?? msg }, { status: 500 });
 }
 
-// GET /api/restock/selections?branch=NVP&date=2026-07-22 → { entries: Record<itemId, {selected,qty}> }
+// GET /api/restock/selections?branch=NVP&date=2026-07-22 → { entries: Record<itemId, {selected,qty,qtyG}> }
 // ยังไม่เคย save (branch,date) นี้เลย → entries = {} (ไม่ error) — client fallback ไป default จาก need/PAR เอง
 export async function GET(req: NextRequest) {
   try {

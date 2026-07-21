@@ -284,12 +284,12 @@ export const supabaseStore = {
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──
-  async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number }>> {
+  async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> {
     const { data, error } = await sb().from("restock_selections")
-      .select("item_id,selected,qty").eq("branch_id", branch).eq("date", date);
+      .select("item_id,selected,qty,qty_g").eq("branch_id", branch).eq("date", date);
     if (error) throw error;
-    const out: Record<string, { selected: boolean; qty: number }> = {};
-    for (const r of data ?? []) out[r.item_id] = { selected: r.selected, qty: Number(r.qty) };
+    const out: Record<string, { selected: boolean; qty: number; qtyG: number }> = {};
+    for (const r of data ?? []) out[r.item_id] = { selected: r.selected, qty: Number(r.qty), qtyG: Number(r.qty_g) };
     return out;
   },
 
@@ -297,7 +297,7 @@ export const supabaseStore = {
     const now = new Date().toISOString();
     const payload = entries.map((e) => ({
       date, branch_id: branch, item_id: e.itemId,
-      selected: e.selected, qty: e.qty,
+      selected: e.selected, qty: e.qty, qty_g: e.qtyG,
       updated_by_user_id: userId, updated_by_name: userName, updated_at: now,
     }));
     const { error } = await sb().from("restock_selections").upsert(payload, { onConflict: "date,branch_id,item_id" });

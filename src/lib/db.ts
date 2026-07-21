@@ -68,7 +68,7 @@ export const db = {
     useSupabase ? supabaseStore.markAllRequisitionsSeen() : Promise.resolve(memoryStore.markAllRequisitionsSeen()),
 
   // ── restock selections (v1.4) ──
-  getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number }>> =>
+  getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> =>
     useSupabase ? supabaseStore.getRestockSelections(branch, date) : Promise.resolve(memoryStore.getRestockSelections(branch, date)),
 
   saveRestockSelections: (branch: Branch, date: string, entries: RestockSelectionEntry[], userId: string, userName: string) =>

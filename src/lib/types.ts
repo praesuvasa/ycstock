@@ -98,6 +98,8 @@ export interface RestockSelectionEntry {
   itemId: string;
   selected: boolean;
   qty: number;
+  // เศษ g ที่ไม่เต็มแพ็ค (มีความหมายเฉพาะรายการ hasRemainder เช่น Yuzu/Kyoho — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง) — default 0
+  qtyG: number;
 }
 
 // ── Auth / RBAC / Audit (v1.2) ──
