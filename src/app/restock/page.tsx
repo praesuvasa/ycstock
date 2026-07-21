@@ -295,6 +295,9 @@ function RestockByBranch() {
   const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
   const [saving, setSaving] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+  // ── snapshot ค่าที่ "บันทึกลง DB แล้วจริง" ล่าสุด (จากการโหลด หรือหลังกดบันทึกสำเร็จ) — undefined ต่อ itemId = ไม่เคยบันทึกคู่นี้เลย
+  // ใช้เทียบกับ selEntries เพื่อบอกสถานะแต่ละแถว: แนะนำ (ยังไม่แตะ) / แก้ไขแล้วยังไม่บันทึก / บันทึกแล้ว
+  const [savedEntries, setSavedEntries] = React.useState<Record<string, { selected: boolean; qty: number }>>({});
 
   const weekday = React.useMemo(() => weekdayFromDate(date), [date]);
 
@@ -334,6 +337,7 @@ function RestockByBranch() {
             : { itemId: r.itemId, selected: r.need != null && r.need > 0, qty: r.need ?? 0 };
         }
         setSelEntries(next);
+        setSavedEntries(selData.entries); // snapshot ของจริงจาก DB ณ ตอนโหลด — ใช้เทียบสถานะแต่ละแถว
       })
       .catch((e) => {
         if (!alive) return;
@@ -341,6 +345,7 @@ function RestockByBranch() {
         setRows([]);
         setSpecialActive(false);
         setSelEntries({});
+        setSavedEntries({});
       })
       .finally(() => alive && setLoading(false));
     return () => {
@@ -391,11 +396,31 @@ function RestockByBranch() {
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
       setLastSavedAt(new Date());
+      // อัปเดต snapshot "บันทึกแล้ว" ทันที — ทุกแถวที่เพิ่ง POST ไปกลายเป็นสีเขียวพร้อมกัน ไม่ต้องรอโหลดใหม่
+      const nextSaved: Record<string, { selected: boolean; qty: number }> = {};
+      for (const e of entries) nextSaved[e.itemId] = { selected: e.selected, qty: e.qty };
+      setSavedEntries(nextSaved);
     } catch (e: any) {
       window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
     } finally {
       setSaving(false);
     }
+  }
+
+  // ค่าที่ระบบเดาให้ตอนยังไม่เคยมีใครกรอก (Par − คงเหลือ) — ใช้เทียบว่าแถวนี้ "ยังไม่ถูกแตะเลย" หรือเปล่า
+  function defaultOf(r: RestockRow): { selected: boolean; qty: number } {
+    return { selected: r.need != null && r.need > 0, qty: r.need ?? 0 };
+  }
+  // สถานะต่อแถว: บันทึกแล้ว (ตรงกับ DB) / แก้ไขแล้วยังไม่บันทึก / แนะนำ (ยังไม่แตะ ไม่เคยบันทึกคู่นี้เลย)
+  function statusOf(r: RestockRow): "saved" | "dirty" | "suggested" {
+    const cur = selEntries[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0 };
+    const saved = savedEntries[r.itemId];
+    if (saved && cur.selected === saved.selected && cur.qty === saved.qty) return "saved";
+    if (!saved) {
+      const def = defaultOf(r);
+      if (cur.selected === def.selected && cur.qty === def.qty) return "suggested";
+    }
+    return "dirty";
   }
 
   // จัดกลุ่มตาม category (คงลำดับตามที่ backend ส่งมา)
@@ -414,6 +439,10 @@ function RestockByBranch() {
     [rows, selEntries]
   );
   const allChecked = rows.length > 0 && rows.every((r) => selEntries[r.itemId]?.selected);
+  const dirtyCount = React.useMemo(
+    () => rows.filter((r) => statusOf(r) === "dirty").length,
+    [rows, selEntries, savedEntries]
+  );
 
   function exportCsv() {
     const selectedRows = rows.filter((r) => selEntries[r.itemId]?.selected);
@@ -530,6 +559,7 @@ function RestockByBranch() {
                         const entry = selEntries[r.itemId];
                         const isSel = !!entry?.selected;
                         const inProduction = PRODUCTION_ITEM_NAMES.has(r.name);
+                        const status = statusOf(r);
                         return (
                           <div
                             key={r.itemId}
@@ -565,13 +595,28 @@ function RestockByBranch() {
                                 {r.remain}
                               </span>
                             )}
+                            {isSel && status === "dirty" && (
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="แก้ไขแล้ว ยังไม่บันทึก" />
+                            )}
                             <input
                               inputMode="numeric"
                               value={entry?.qty ?? ""}
                               disabled={!isSel}
                               onChange={(e) => updateEntry(r.itemId, { qty: Number(e.target.value) || 0 })}
+                              title={
+                                !isSel ? undefined
+                                  : status === "saved" ? "บันทึกลง DB แล้ว"
+                                  : status === "dirty" ? "แก้ไขแล้ว ยังไม่บันทึก"
+                                  : "ค่าที่ระบบแนะนำ (Par − คงเหลือ) — ยังไม่ได้ยืนยัน"
+                              }
                               className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${
-                                isSel ? "font-semibold" : "opacity-40"
+                                !isSel
+                                  ? "opacity-40"
+                                  : status === "saved"
+                                    ? "font-semibold border-ok/50 bg-ok/10 text-ok"
+                                    : status === "dirty"
+                                      ? "font-semibold border-brand-blue bg-brand-blue/15"
+                                      : "border-dashed border-black/25 text-brand-ink/45 italic"
                               }`}
                             />
                           </div>
@@ -614,22 +659,30 @@ function RestockByBranch() {
               🖨️ พิมพ์ใบส่งของ
             </button>
           </div>
-          <p className="mt-2 px-1 text-[11px] text-brand-ink/45">
-            อย่าลืมกด &quot;บันทึกตัวเลือก&quot; ก่อนออกจากหน้านี้ ถ้าอยากให้หน้าสั่งผลิตเห็นค่าล่าสุด
-          </p>
-
           <SaveBar>
+            {dirtyCount > 0 ? (
+              <p className="mb-2 rounded-lg bg-warn/10 px-3 py-2 text-center text-xs font-medium text-warn">
+                ⚠️ มีการแก้ไข {dirtyCount} รายการที่ยังไม่บันทึก — หน้าสั่งผลิตจะยังไม่เห็นค่านี้
+              </p>
+            ) : lastSavedAt ? (
+              <p className="mb-2 rounded-lg bg-ok/10 px-3 py-2 text-center text-xs font-medium text-ok">
+                ✓ บันทึกล่าสุด {formatTime(lastSavedAt)} น. — ไม่มีการแก้ไขค้าง
+              </p>
+            ) : null}
             <Button onClick={handleSave} disabled={saving || loading}>
               {saving ? "กำลังบันทึก…" : "💾 บันทึกตัวเลือก"}
             </Button>
-            {lastSavedAt && (
-              <p className="mt-1.5 text-center text-xs text-brand-ink/50">บันทึกล่าสุด {formatTime(lastSavedAt)}</p>
-            )}
           </SaveBar>
         </>
       )}
 
       <p className="mt-3 px-1 text-xs text-brand-ink/45">ต้องเติม = MAX(Par − คงเหลือ, 0) · แถบฟ้า "← สั่งผลิต" = ไอเทมนี้จะไปโผล่ในหน้าสั่งผลิตอัตโนมัติ · ใบส่งของไว้พิมพ์แนบของจริง ให้สาขาติ๊กรับ+เซ็นชื่อ</p>
+      {confirmed && !loading && !error && rows.length > 0 && (
+        <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-brand-ink/40">
+          สีช่องจำนวน: <i className="not-italic text-brand-ink/45">เอียง+เส้นประ</i> = ค่าที่ระบบแนะนำ ยังไม่ยืนยัน ·{" "}
+          <i className="not-italic text-sky-700">ฟ้า</i> = แก้ไขแล้วยังไม่บันทึก · <i className="not-italic text-ok">เขียว</i> = บันทึกลง DB แล้ว
+        </p>
+      )}
     </div>
     <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} />
     </>
