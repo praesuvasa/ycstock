@@ -2,6 +2,9 @@
 
 export type Branch = "SND" | "NVP" | "KCN";
 export const BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
+export const BRANCH_LABEL_TH: Record<Branch, string> = {
+  SND: "สินธร", NVP: "เนอวาน่า พอร์ช", KCN: "กาญจนาภิเษก",
+};
 
 export type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 export type CupSize = "P" | "S" | "BOWL" | "14OZ";

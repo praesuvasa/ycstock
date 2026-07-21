@@ -9,6 +9,7 @@ import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, PageTitle, Accordion } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import type { Branch, Weekday, RestockRow, Meta, Item } from "@/lib/types";
+import { BRANCH_LABEL_TH } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
 
@@ -196,6 +197,7 @@ function PrintSheet({
         <div>
           <div className="text-[9px] uppercase tracking-widest text-neutral-500">ใบส่งของเข้าสาขา · Yogurt Culture</div>
           <div className="text-[32px] font-bold leading-none text-black">{branch}</div>
+          <div className="mt-0.5 text-[11px] text-neutral-600">{BRANCH_LABEL_TH[branch]}</div>
         </div>
         <div className="text-right">
           <div className="text-[19px] font-semibold leading-none text-black">{thaiDateSlash(date)}</div>
@@ -666,9 +668,9 @@ function ProductionPrintSheet({
           <tr className="border-b-2 border-black">
             <th className="w-3 py-1"></th>
             <th className="py-1 text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">SND</th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP</th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN</th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.SND}</span></th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.NVP}</span></th>
+            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.KCN}</span></th>
             <th className="w-10 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
             <th className="w-9 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">รวม</th>
             <th className="w-16 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
