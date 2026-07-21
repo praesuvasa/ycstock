@@ -145,7 +145,7 @@ export const memoryStore = {
         itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par, remain, need: restockNeed(par, remain), isSpecial: it.isSpecial,
         remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
-        isCup: it.isCup || undefined,
+        isCup: it.isCup || undefined, hasVariableYield: it.variableYield || undefined,
       });
     }
     return { rows, specialActive: active };

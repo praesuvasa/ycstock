@@ -223,6 +223,11 @@ const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
   "Cup P (5oz)", "Cup S (9oz)", "Small Bowl", "Cup (14oz)",
 ]);
 
+// ผลผลิตไม่แน่นอน อาจได้ไม่เต็มแพ็ค (2026-07-21 แพรยืนยัน) — คนละเรื่องกับ SHOW_REMAINDER_ON_RESTOCK ข้างบน
+// (อันนั้นคือเศษที่เปิดใช้แล้วเหลือ ของหมุนช้า / อันนี้คือรอบสั่ง-สั่งผลิตอาจได้ของไม่เต็มแพ็คจากตัวการผลิตเอง)
+// Greek Yogurt 1kg / Overnight oats biscoff / Plain Yogurt (ธรรมชาติ) ยืนยันแล้วว่าเข้าเต็มแพ็คปกติ ไม่อยู่ในกลุ่มนี้
+const VARIABLE_YIELD_ITEMS = new Set<string>(["Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff"]);
+
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
 
 export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
@@ -244,6 +249,7 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     sort: i,
     checkFrequency: MON_THU_ITEMS.has(name) ? "monThu" : "daily",
     showRemainderOnRestock: SHOW_REMAINDER_ON_RESTOCK.has(name),
+    variableYield: VARIABLE_YIELD_ITEMS.has(name),
   };
 });
 

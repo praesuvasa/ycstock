@@ -19,7 +19,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -31,6 +31,7 @@ export const supabaseStore = {
       hasRemainder: r.has_remainder, gramsPerUOM: Number(r.grams_per_uom ?? 0),
       remainderGroup: r.remainder_group ?? undefined, sort: r.sort,
       checkFrequency: r.check_frequency ?? "daily", showRemainderOnRestock: r.show_remainder ?? false,
+      variableYield: r.variable_yield ?? false,
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
@@ -104,7 +105,7 @@ export const supabaseStore = {
       rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial,
         remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
-        isCup: it.isCup || undefined });
+        isCup: it.isCup || undefined, hasVariableYield: it.variableYield || undefined });
     }
     return { rows, specialActive: active };
   },

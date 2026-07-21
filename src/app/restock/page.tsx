@@ -467,7 +467,7 @@ function RestockByBranch() {
     for (const r of selectedRows) {
       const entry = selEntries[r.itemId];
       const q = entry?.qty ?? 0;
-      const qG = r.remainG !== undefined ? entry?.qtyG ?? 0 : "";
+      const qG = r.hasVariableYield ? entry?.qtyG ?? 0 : "";
       lines.push([csvEscape(r.category), csvEscape(r.name), String(q), String(qG)].join(","));
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
@@ -484,7 +484,7 @@ function RestockByBranch() {
         .map((r) => {
           const entry = selEntries[r.itemId];
           const qtyText = formatOrderQty(
-            entry?.qty ?? 0, entry?.qtyG ?? 0, r.remainG !== undefined, r.isCup ? "ชิ้น" : "g"
+            entry?.qty ?? 0, entry?.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g"
           );
           return { ...r, qty: qtyText };
         });
@@ -636,7 +636,7 @@ function RestockByBranch() {
                               }
                               className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${qtyFieldClass(isSel, status)}`}
                             />
-                            {r.remainG !== undefined && (
+                            {r.hasVariableYield && (
                               <>
                                 <span className="shrink-0 text-[10px] text-brand-ink/35">+</span>
                                 <input
@@ -746,7 +746,7 @@ function ProductionRow({
   isNew?: boolean;
   reflected?: boolean;
 }) {
-  const hasG = item.showRemainderOnRestock; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
+  const hasG = item.variableYield; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
   const gUnit = item.isCup ? "ชิ้น" : "g";
   const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(values[f.key] ?? "") || 0), 0);
   const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gValues[f.key] ?? "") || 0), 0);
@@ -1041,7 +1041,7 @@ function ProductionOrder() {
   function totalFor(it: Item): { raw: number; text: string } {
     const v = valuesFor(it.id);
     const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(v[f.key] ?? "") || 0), 0);
-    if (!it.showRemainderOnRestock) return { raw: packSum, text: String(packSum) };
+    if (!it.variableYield) return { raw: packSum, text: String(packSum) };
     const gv = gValuesFor(it.id);
     const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gv[f.key] ?? "") || 0), 0);
     const totalG = packSum * it.gramsPerUOM + gSum;
@@ -1056,7 +1056,7 @@ function ProductionOrder() {
   // ข้อความต่อสาขา ใช้ทั้ง CSV/ใบพิมพ์ — รวมแพ็ค+เศษเป็นข้อความเดียว ("2 แพ็ค + 700g") ถ้ารายการนี้มีเศษ
   function fieldTextFor(it: Item, field: ProdField): string {
     const pack = parseFloat(valuesFor(it.id)[field] ?? "") || 0;
-    if (!it.showRemainderOnRestock) return valuesFor(it.id)[field] ?? "";
+    if (!it.variableYield) return valuesFor(it.id)[field] ?? "";
     const g = parseFloat(gValuesFor(it.id)[field] ?? "") || 0;
     if (pack === 0 && g === 0) return "";
     return formatOrderQty(pack, g, true, it.isCup ? "ชิ้น" : "g");

@@ -25,6 +25,9 @@ export interface Item {
   sort: number;
   checkFrequency: CheckFrequency; // หน้าสต็อกโชว์เฉพาะวันที่ถึงรอบ
   showRemainderOnRestock: boolean; // หน้าเติมของ โชว์ "แพ็คเต็ม + เศษกรัม" แทนแค่จำนวนแพ็ค (ของหมุนช้าที่เศษเปิดแล้วอาจพอใช้ถึงรอบหน้า)
+  // ผลผลิตออกมาไม่แน่นอน อาจไม่เต็มแพ็ค (เช่น Yuzu/Kyoho — คนละเรื่องกับ showRemainderOnRestock ข้างบน
+  // ซึ่งคือ "เศษที่เปิดใช้แล้วเหลือ" ส่วนอันนี้คือ "จำนวนที่จะสั่ง/แบ่งเข้าสาขาอาจไม่ใช่แพ็คเต็ม") — คุมช่อง "+g" ตอนสั่ง/สั่งผลิต
+  variableYield: boolean;
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)
@@ -91,6 +94,9 @@ export interface RestockRow {
   remainG?: number;
   // true = 4 รายการ Cup P(5oz)/Cup S(9oz)/Small Bowl/Cup(14oz) → remainG ข้างบนคือ "จำนวนชิ้น" ไม่ใช่กรัม (ข้อ 4)
   isCup?: boolean;
+  // ผลผลิตไม่แน่นอน อาจได้ไม่เต็มแพ็ค (Yuzu/Kyoho/Mint/Vanilla/Pineapple/Biscoff) — คุมช่อง "+g" ตอนกรอกจำนวนสั่ง
+  // คนละความหมายกับ remainG ข้างบน (remainG = เศษที่เปิดใช้ไปแล้วเหลือ, อันนี้ = จำนวนที่จะสั่งอาจไม่ใช่แพ็คเต็ม)
+  hasVariableYield?: boolean;
 }
 
 // ── Restock selections persisted (v1.4) — เก็บ "ตัวเลือกเติมของ" ต่อ (สาขา,วันที่,ไอเทม) ลง DB แทน client memory ──
