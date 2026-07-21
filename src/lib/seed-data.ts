@@ -113,7 +113,11 @@ const RAW: Row[] = [
   ["Sticker Roll (สก๊อตเทป)", "STICKER", "Roll", 2, 2, null],
   // ของใช้
   ["Print Paper กระดาษปริ้น", "ของใช้", "Roll", 3, 3, 0],
-  ["Gloves YG / ถุงมือ", "ของใช้", "Box", 1, 1, null],
+  // Gloves YG แยกไซซ์ 2026-07-21 (เดิมเป็นรายการเดียว "Gloves YG / ถุงมือ") — Par คัดลอกจากค่าเดิมไปทั้ง 3 ไซซ์ชั่วคราว
+  // แพรต้องปรับ Par จริงแต่ละไซซ์เองที่หน้า Settings เพราะระบบไม่รู้สัดส่วนการใช้จริงต่อไซซ์
+  ["Gloves YG S / ถุงมือ", "ของใช้", "Box", 1, 1, null],
+  ["Gloves YG M / ถุงมือ", "ของใช้", "Box", 1, 1, null],
+  ["Gloves YG L / ถุงมือ", "ของใช้", "Box", 1, 1, null],
   ["Black Bag 30x40 / ถุงขยะ", "ของใช้", "Roll", 1, 1, null],
   ["Dry Tissue / ทิชชู่แห้ง", "ของใช้", "Pack", 3, 3, null],
   ["Wet Tissue / ทิชชู่เปียก", "ของใช้", "Pack", 2, 2, null],
@@ -124,11 +128,11 @@ const RAW: Row[] = [
   ["น้ำยาล้างจาน", "น้ำยาทำความสะอาด", "แพค", 1, 1, null],
   ["น้ำยาอเนกประสงค์", "น้ำยาทำความสะอาด", "ขวด", 1, 1, null],
   ["น้ำยาล้างเครื่องไอดิม", "น้ำยาทำความสะอาด", "ห่อ", 1, 1, null],
-  // Smoothies (Pre-packed) (special)
-  ["Wake up call (Banana)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
-  ["Energy Sip (Straw+Banana)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
-  ["Yellow Madness (Pineapple+Mango+Passion)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
-  ["Ready to Glow (Straw+Blue+Banana)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
+  // Smoothies (Pre-packed) (special) — เปลี่ยนชื่อ 2026-07-21 ใส่เลขเมนูกำกับ (แพรยืนยัน เลข 1/2/3/5 ไม่เรียงต่อเนื่อง ตามเมนูจริง)
+  ["Wake Up Call (1)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
+  ["Energy Sip (2)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
+  ["Yellow Madness (3)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
+  ["Ready to Glow (5)", "Smoothies (Pre-packed)", "10ถุง/Pack", 20, 20, null],
   // Yogurt Smoothies Powder
   ["ผงโกโก้ (COCOA)", "Yogurt Smoothies Powder", "Bag", 1, 1, null],
   ["ผงมาคิ (MAQUI)", "Yogurt Smoothies Powder", "Bag", 1, 1, null],
@@ -150,9 +154,10 @@ const RAW: Row[] = [
 ];
 
 // 7 รายการ special (รอบเข้าของแยกวัน/สาขา) — match by name prefix
+// "Wake Up Call" ตัวพิมพ์ใหญ่ U/C ตามชื่อใหม่ 2026-07-21 (เดิม "Wake up call") — startsWith เทียบตัวพิมพ์ตรงเป๊ะ ต้องแก้ตามด้วย
 const SPECIAL_PREFIX = [
   "Shake (แช่แข็ง)", "R-ACAI Bowl", "S-ACAI Cup (mini)",
-  "Wake up call", "Energy Sip", "Yellow Madness", "Ready to Glow",
+  "Wake Up Call", "Energy Sip", "Yellow Madness", "Ready to Glow",
 ];
 const CUP_MAP: Record<string, CupSize> = {
   "Cup P (5oz)": "P", "Cup S (9oz)": "S", "Small Bowl": "BOWL", "Cup (14oz)": "14OZ",
@@ -226,7 +231,10 @@ const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
 // ผลผลิตไม่แน่นอน อาจได้ไม่เต็มแพ็ค (2026-07-21 แพรยืนยัน) — คนละเรื่องกับ SHOW_REMAINDER_ON_RESTOCK ข้างบน
 // (อันนั้นคือเศษที่เปิดใช้แล้วเหลือ ของหมุนช้า / อันนี้คือรอบสั่ง-สั่งผลิตอาจได้ของไม่เต็มแพ็คจากตัวการผลิตเอง)
 // Greek Yogurt 1kg / Overnight oats biscoff / Plain Yogurt (ธรรมชาติ) ยืนยันแล้วว่าเข้าเต็มแพ็คปกติ ไม่อยู่ในกลุ่มนี้
-const VARIABLE_YIELD_ITEMS = new Set<string>(["Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff"]);
+const VARIABLE_YIELD_ITEMS = new Set<string>([
+  "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
+  "น้ำ Ice cream / Soft Serve", // เพิ่ม 2026-07-21 แพรยืนยัน
+]);
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
 

@@ -100,7 +100,8 @@ export const supabaseStore = {
     for (const it of items) {
       const p = par[it.id]?.[branch] ?? null;
       if (p == null) continue;
-      if (it.isSpecial && !active) continue;
+      // ไม่ตัด special ที่ไม่ถึงรอบออกอีกต่อไป — ส่งกลับมาให้หน้า UI แยกไปโชว์ในส่วน "สั่งฉุกเฉินนอกรอบ" แทน
+      // (ใช้ active/specialActive ตัดสินใจแยกส่วนที่ฝั่ง frontend, ดู restock/page.tsx RestockByBranch)
       const remain = remainMap.get(it.id) ?? 0;
       rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial,

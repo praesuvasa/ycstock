@@ -171,7 +171,7 @@ export const memoryStore = {
     for (const it of ITEMS) {
       const par = PAR[it.id]?.[branch] ?? null;
       if (par == null) continue;                    // "-" ไม่ stock
-      if (it.isSpecial && !active) continue;         // special เข้าเฉพาะวันของสาขา
+      // ไม่ตัด special ที่ไม่ถึงรอบออกอีกต่อไป — ส่งกลับมาให้หน้า UI แยกไปโชว์ในส่วน "สั่งฉุกเฉินนอกรอบ" แทน
       const remain = remainMap.get(it.id) ?? 0;
       rows.push({
         itemId: it.id, name: it.name, category: it.category, unit: it.unit,

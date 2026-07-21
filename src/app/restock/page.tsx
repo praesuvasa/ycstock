@@ -47,6 +47,97 @@ const PRODUCTION_ITEM_NAMES = new Set([...PRODUCTION_ITEMS_MAIN, ...PRODUCTION_I
 // ไอเทมใหม่ล่าสุด (badge เล็กๆ กำกับ — ไม่บังคับ)
 const NEW_ITEM_NAMES = ["Cranberry Cookies"];
 
+// ── ลำดับหมวดคงที่ในใบพิมพ์ 2 คอลัมน์ (แพรกำหนดตายตัวให้คนจัดของ ไม่ auto-balance ตามจำนวนอีกต่อไป) ──
+// ACAI/Shake แข็ง (2 หมวด special ที่เหลือ) ยืนยันให้อยู่คอลัมซ้าย ต่อท้าย Smoothies (Pre-packed)
+const PRINT_LEFT_CATEGORIES = [
+  "Yogurt 1kg/Box", "Yogurt 500g/Box", "Soft Serve / Ice Cream", "Drink / แยมกระปุก",
+  "Cereals", "Sauces", "Fruits", "Yogurt Shake", "Smoothies (Pre-packed)",
+  "ACAI", "Shake แข็ง",
+];
+const PRINT_RIGHT_CATEGORIES = [
+  "Toppings", "Softserve Toppings", "CUP/ถ้วย", "TOPPING CUP", "LID/ฝา",
+  "SPOON/ช้อน", "BAG/ถุง", "STICKER", "ของใช้", "น้ำยาทำความสะอาด", "Yogurt Smoothies Powder",
+];
+
+// ── ไอคอนผลไม้/ถ้วย สีดำล้วน (ใบพิมพ์ขาวดำ) — ช่วยคนจัดของที่อ่านภาษาไทยไม่ออกจำรายการจากรูปแทน ──
+// เจตนาวาดเรียบง่ายเป็น pictogram ไม่ใช่ emoji สี (พิมพ์ขาวดำแล้ว emoji สีมักเพี้ยน/จาง)
+function IconSvg({ children, size = 10 }: { children: React.ReactNode; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="#000" className="inline-block shrink-0 align-[-1px]">
+      {children}
+    </svg>
+  );
+}
+const FRUIT_ICONS: Record<string, React.ReactNode> = {
+  strawberry: (
+    <IconSvg>
+      <path d="M12 8c-4.5 0-7.5 4-7.5 8.5C4.5 20 7.8 22 12 22s7.5-2 7.5-5.5C19.5 12 16.5 8 12 8z" />
+      <path d="M8 6.5 10 8.5M16 6.5 14 8.5M12 5.5 12 8.5" stroke="#000" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+    </IconSvg>
+  ),
+  blueberry: (
+    <IconSvg>
+      <circle cx="12" cy="13" r="7.5" />
+      <path d="M9 6.5 A3 3 0 0 1 15 6.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  ),
+  apple: (
+    <IconSvg>
+      <path d="M12 9c-4 0-6.5 3-6.5 6.8 0 3.3 2.5 6.2 5.3 6.2.9 0 1.5-.3 2.2-.3.7 0 1.3.3 2.2.3 2.8 0 5.3-3.1 5.3-6.5C20.5 12 18 9 15 9c-1 0-1.7.4-2.5.4-.6 0-1-.4-.5-.4z" />
+      <path d="M12 9V6M12 6c0-1.2 1-2 2-2" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  ),
+  peach: (
+    <IconSvg>
+      <path d="M12 9c-4.2 0-7 3.4-7 7.3 0 3.2 2.7 5.7 5.5 5.7 .6 0 1-.2 1.5-.2s.9.2 1.5.2c2.8 0 5.5-2.5 5.5-5.7C19 12.4 16.2 9 12 9z" />
+      <path d="M12 9c0 3.5 0 8.5 0 13" stroke="#fff" strokeWidth="1" fill="none" />
+      <path d="M12 9V6.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  ),
+  // ยูสไม่มี emoji เฉพาะ ใช้รูปทรงส้ม/เลมอน (ผลไม้ตระกูลส้มใกล้เคียงที่สุด) แทน
+  citrus: (
+    <IconSvg>
+      <ellipse cx="12" cy="12.5" rx="7.5" ry="6.5" />
+      <path d="M12 6 13.5 4" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  ),
+  // ลิ้นจี่ไม่มี emoji ในระบบเลย — วาดผลกลมผิวขรุขระ (จุดเล็กรอบผล) + ก้าน ให้ต่างจากบลูเบอร์รี่ชัดเจน
+  lychee: (
+    <IconSvg>
+      <circle cx="12" cy="13.5" r="7" />
+      <circle cx="9" cy="10.5" r="0.7" /><circle cx="13" cy="9" r="0.7" /><circle cx="16" cy="12" r="0.7" />
+      <circle cx="8" cy="15" r="0.7" /><circle cx="15.5" cy="16" r="0.7" /><circle cx="11" cy="17" r="0.7" />
+      <path d="M12 6.5 13.2 4.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </IconSvg>
+  ),
+  banana: (
+    <IconSvg>
+      <path d="M5 15c0 3.5 3 6 7.5 6 4 0 6.5-2 6.5-4.3 0-1-.6-1.5-1.3-1.5-.5 0-.8.3-1.2.7C15.6 17 14 18 12 18c-3 0-5-1.7-5-4.3 0-.5.1-1 .3-1.5-1 .5-2.3 1.6-2.3 2.8z" />
+    </IconSvg>
+  ),
+  bowl: (
+    <IconSvg>
+      <path d="M4 11h16c0 4.5-3.6 8-8 8s-8-3.5-8-8z" />
+      <ellipse cx="12" cy="11" rx="8" ry="1.6" fill="none" stroke="#000" strokeWidth="1.4" />
+    </IconSvg>
+  ),
+};
+// จับคู่ชื่อรายการ → ไอคอน (เฉพาะที่มีผลไม้/รสชาติชัดเจนพอจะสื่อสารด้วยรูปได้ — Peanut Butter/Water/ถุงธรรมชาติ ไม่ใส่ เพราะไม่มีรูปที่สื่อความหมายตรง)
+const ITEM_ICON_KEY: Record<string, keyof typeof FRUIT_ICONS> = {
+  "ถุงสตรอเบอรี่": "strawberry", "Strawberry (250g)": "strawberry", "Strawberry (500g)": "strawberry",
+  "ถุงบลูเบอรี่": "blueberry", "Blueberry (125g)": "blueberry", "Blueberry (300g)": "blueberry", "Blueberry (500g)": "blueberry",
+  "ถุงลิ้นจี่": "lychee",
+  "ถุงยูส": "citrus",
+  "ถุงพีช": "peach",
+  "Apple Cinnamon": "apple",
+  "Banana": "banana",
+  "Shake (แช่แข็ง)": "bowl",
+};
+function itemIcon(name: string): React.ReactNode | null {
+  const key = ITEM_ICON_KEY[name];
+  return key ? FRUIT_ICONS[key] : null;
+}
+
 // ── CSV helpers (ใช้ร่วมทั้ง 2 โหมด) ──
 function csvEscape(s: string): string {
   const str = String(s ?? "");
@@ -163,7 +254,8 @@ function SelectableAccordion({
 }
 
 // ── ใบส่งของพิมพ์ A4 (แยกจาก CSV) — พนักงานหน้าร้านติ๊ก ☐ รับของจริง + เซ็นชื่อ ก่อนเอาตัวเลขไปกรอกหน้าสต็อก ──
-// จัด 2 คอลัมน์อัตโนมัติ (แบ่งที่ขอบหมวดใกล้ครึ่งหนึ่ง กันหมวดเดียวกันขาดคอลัมน์) ให้พอดี A4 ใบเดียว
+// คอลัมน์ตายตัวตามลำดับที่แพรกำหนด (PRINT_LEFT_CATEGORIES/PRINT_RIGHT_CATEGORIES) — ไม่ auto-balance ตามจำนวนแล้ว
+// ทุกหมวดโชว์เสมอแม้ไม่มีของเข้า (ระบุ "ไม่มีสินค้าเข้า") ให้คนจัดของเห็นครบทุกหมวดตามลำดับเดียวกันทุกใบ
 type PrintRow = RestockRow & { qty: string };
 const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
 
@@ -173,19 +265,14 @@ function PrintSheet({
   branch: Branch; date: string; weekdayLabel: string;
   printGroups: { category: string; items: PrintRow[] }[]; totalCount: number;
 }) {
-  const half = Math.ceil(totalCount / 2);
-  const col1: typeof printGroups = [];
-  const col2: typeof printGroups = [];
-  let count = 0;
-  for (const g of printGroups) {
-    if (col1.length === 0 || count < half) { col1.push(g); count += g.items.length; }
-    else { col2.push(g); }
-  }
+  const byCategory = new Map(printGroups.map((g) => [g.category, g]));
+  const col1 = PRINT_LEFT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
+  const col2 = PRINT_RIGHT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
 
   function renderColumn(colGroups: typeof printGroups, withExtra: boolean) {
     return (
       <div className="flex-1">
-        <table className="w-full border-collapse text-[9px]">
+        <table className="w-full border-collapse text-[10.5px]">
           <thead>
             <tr className="border-b-2 border-black">
               <th className="w-3 py-1"></th>
@@ -198,18 +285,29 @@ function PrintSheet({
             {colGroups.map((g) => (
               <React.Fragment key={g.category}>
                 <tr>
-                  <td colSpan={4} className="pt-2 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">
+                  <td colSpan={4} className="pt-2 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
                     {g.category}
                   </td>
                 </tr>
-                {g.items.map((r) => (
-                  <tr key={r.itemId} className="border-b border-neutral-300">
-                    <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
-                    <td className="py-[3px] text-black">{r.name}</td>
-                    <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
-                    <td className="border-b border-neutral-400 py-[3px]" />
+                {g.items.length === 0 ? (
+                  <tr className="border-b border-neutral-300">
+                    <td colSpan={4} className="py-[3px] italic text-neutral-400">— ไม่มีสินค้าเข้า —</td>
                   </tr>
-                ))}
+                ) : (
+                  g.items.map((r) => (
+                    <tr key={r.itemId} className="border-b border-neutral-300">
+                      <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
+                      <td className="py-[3px] text-black">
+                        <span className="inline-flex items-center gap-1">
+                          {itemIcon(r.name)}
+                          <span>{r.name}</span>
+                        </span>
+                      </td>
+                      <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
+                      <td className="border-b border-neutral-400 py-[3px]" />
+                    </tr>
+                  ))
+                )}
               </React.Fragment>
             ))}
           </tbody>
@@ -231,9 +329,9 @@ function PrintSheet({
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[13px] font-medium uppercase tracking-widest text-neutral-500">ใบส่งของเข้าสาขา · Yogurt Culture</div>
+          <div className="text-[19px] font-semibold leading-none text-black">ใบส่งของเข้าสาขา · Yogurt Culture</div>
           <div className="text-[32px] font-bold leading-none text-black">{branch}</div>
-          <div className="mt-0.5 text-[11px] text-neutral-600">{BRANCH_LABEL_TH[branch]}</div>
+          <div className="mt-0.5 text-[15px] font-medium text-neutral-700">{BRANCH_LABEL_TH[branch]}</div>
         </div>
         <div className="text-right">
           <div className="text-[19px] font-semibold leading-none text-black">{thaiDateSlash(date)}</div>
@@ -246,8 +344,8 @@ function PrintSheet({
       </div>
 
       <div className="flex gap-3.5">
-        {renderColumn(col1, col2.length === 0)}
-        {col2.length > 0 && renderColumn(col2, true)}
+        {renderColumn(col1, false)}
+        {renderColumn(col2, true)}
       </div>
 
       <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
@@ -412,7 +510,7 @@ function RestockByBranch() {
     });
   }
   function toggleAllGlobal() {
-    toggleCategoryAll(rows);
+    toggleCategoryAll(regularRows);
   }
 
   async function handleSave() {
@@ -468,21 +566,105 @@ function RestockByBranch() {
   }
 
   // จัดกลุ่มตาม category (คงลำดับตามที่ backend ส่งมา)
+  // ข้อ special-ฉุกเฉิน: รายการ special ที่ไม่ถึงรอบวันนี้ (isSpecial && !specialActive) ไม่ปนกับหมวดปกติ
+  // แยกไปโชว์ในส่วน "สั่งฉุกเฉินนอกรอบ" ต่างหาก (ดู emergencySpecialItems ข้างล่าง) — ถ้าเป็นวันที่ถึงรอบจริง (specialActive)
+  // ยังปนอยู่ในหมวดปกติเหมือนเดิม ไม่เปลี่ยนพฤติกรรม
   const groups = React.useMemo(() => {
     const out: { category: string; items: RestockRow[] }[] = [];
     for (const r of rows) {
+      if (r.isSpecial && !specialActive) continue;
       let g = out.find((x) => x.category === r.category);
       if (!g) { g = { category: r.category, items: [] }; out.push(g); }
       g.items.push(r);
     }
     return out;
-  }, [rows]);
+  }, [rows, specialActive]);
+
+  const emergencySpecialItems = React.useMemo(
+    () => rows.filter((r) => r.isSpecial && !specialActive),
+    [rows, specialActive]
+  );
+  // รายการปกติล้วน (ไม่รวมส่วนฉุกเฉิน) — ใช้กับตัวนับ/เลือกทั้งหมดที่หัวหน้า กันปุ่ม "เลือกทั้งหมด" ไปติ๊กของฉุกเฉินโดยไม่ตั้งใจ
+  const regularRows = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
+
+  // แถวเดียว (checkbox + par/คงเหลือ + ช่องจำนวน) ใช้ร่วมกันทั้งหมวดปกติและส่วนสั่งฉุกเฉิน
+  function renderItemRow(r: RestockRow) {
+    const entry = selEntries[r.itemId];
+    const isSel = !!entry?.selected;
+    const inProduction = PRODUCTION_ITEM_NAMES.has(r.name);
+    const status = statusOf(r);
+    return (
+      <div
+        key={r.itemId}
+        className={`mb-0.5 flex min-h-[26px] items-center gap-1.5 rounded-md border-l-[2.5px] px-1.5 py-1 ${
+          isSel ? "border-l-ok bg-ok/10" : "border-l-transparent bg-black/[.02] opacity-50"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isSel}
+          onChange={() => toggleItem(r.itemId)}
+          className="h-3.5 w-3.5 flex-shrink-0 rounded border-black/20"
+        />
+        <span className="flex min-w-0 flex-1 items-center gap-1 text-[11.5px] font-medium">
+          <span className="truncate">{r.name}</span>
+          {r.isSpecial && <Badge tone="orange">special</Badge>}
+          {inProduction && <Badge tone="blue">← สั่งผลิต</Badge>}
+        </span>
+        <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
+          {r.par ?? "—"}
+        </span>
+        {r.remainG !== undefined ? (
+          <span className="w-11 shrink-0 text-right leading-tight">
+            <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
+            <span className="block text-[9px] tabular-nums text-brand-ink/40">
+              +{r.remainG}{r.isCup ? " ชิ้น" : "g"}
+            </span>
+          </span>
+        ) : (
+          <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
+            {r.remain}
+          </span>
+        )}
+        {isSel && status === "dirty" && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="แก้ไขแล้ว ยังไม่บันทึก" />
+        )}
+        <input
+          inputMode="numeric"
+          value={entry?.qty ?? ""}
+          disabled={!isSel}
+          onChange={(e) => updateEntry(r.itemId, { qty: Number(e.target.value) || 0 })}
+          title={
+            !isSel ? undefined
+              : status === "saved" ? "บันทึกลง DB แล้ว"
+              : status === "dirty" ? "แก้ไขแล้ว ยังไม่บันทึก"
+              : "ค่าที่ระบบแนะนำ (Par − คงเหลือ) — ยังไม่ได้ยืนยัน"
+          }
+          className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${qtyFieldClass(isSel, status)}`}
+        />
+        {r.hasVariableYield && (
+          <>
+            <span className="shrink-0 text-[10px] text-brand-ink/35">+</span>
+            <input
+              inputMode="numeric"
+              value={entry?.qtyG ?? ""}
+              disabled={!isSel}
+              onChange={(e) => updateEntry(r.itemId, { qtyG: Number(e.target.value) || 0 })}
+              title={`เศษ${r.isCup ? " (ชิ้น)" : " (g)"} ที่ไม่เต็มแพ็ค — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง กรอกเฉพาะรอบที่มีจริง`}
+              placeholder={r.isCup ? "ชิ้น" : "g"}
+              className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
 
   const selectedTotal = React.useMemo(
-    () => rows.filter((r) => selEntries[r.itemId]?.selected).length,
-    [rows, selEntries]
+    () => regularRows.filter((r) => selEntries[r.itemId]?.selected).length,
+    [regularRows, selEntries]
   );
-  const allChecked = rows.length > 0 && rows.every((r) => selEntries[r.itemId]?.selected);
+  const allChecked = regularRows.length > 0 && regularRows.every((r) => selEntries[r.itemId]?.selected);
   const dirtyCount = React.useMemo(
     () => rows.filter((r) => statusOf(r) === "dirty").length,
     [rows, selEntries, savedEntries]
@@ -503,22 +685,21 @@ function RestockByBranch() {
   }
 
   // ── ใบส่งของพิมพ์ A4 — qty รวมแพ็ค+เศษเป็นข้อความเดียว (เช่น "1 แพ็ค + 700g") ──
+  // สร้างจาก rows ทั้งหมด (รวมรายการฉุกเฉินนอกรอบด้วย ถ้าถูกเลือก) ไม่ใช่แค่ groups ปกติ — แล้วจัดกลุ่มครบทุกหมวดตายตัว 22 หมวด
+  // แม้หมวดไหนไม่มีของเข้าเลยก็ยังส่งไปให้ PrintSheet โชว์ "ไม่มีสินค้าเข้า" (ไม่ตัดหมวดทิ้ง)
   const printGroups = React.useMemo(() => {
-    const out: { category: string; items: PrintRow[] }[] = [];
-    for (const g of groups) {
-      const items = g.items
-        .filter((r) => selEntries[r.itemId]?.selected)
-        .map((r) => {
-          const entry = selEntries[r.itemId];
-          const qtyText = formatOrderQty(
-            entry?.qty ?? 0, entry?.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g"
-          );
-          return { ...r, qty: qtyText };
-        });
-      if (items.length > 0) out.push({ category: g.category, items });
+    const byCategory = new Map<string, PrintRow[]>();
+    for (const r of rows) {
+      const entry = selEntries[r.itemId];
+      if (!entry?.selected) continue;
+      const qtyText = formatOrderQty(entry.qty ?? 0, entry.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
+      const arr = byCategory.get(r.category) ?? [];
+      arr.push({ ...r, qty: qtyText });
+      byCategory.set(r.category, arr);
     }
-    return out;
-  }, [groups, selEntries]);
+    const allCats = [...PRINT_LEFT_CATEGORIES, ...PRINT_RIGHT_CATEGORIES];
+    return allCats.map((category) => ({ category, items: byCategory.get(category) ?? [] }));
+  }, [rows, selEntries]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -568,7 +749,7 @@ function RestockByBranch() {
             <h2 className="text-[15px] font-semibold">
               รอบเติม · {dayLabel} · {branch}
             </h2>
-            <span className="shrink-0 text-xs text-brand-ink/50">{rows.length} รายการ</span>
+            <span className="shrink-0 text-xs text-brand-ink/50">{regularRows.length} รายการ</span>
           </div>
 
           {loading ? (
@@ -591,7 +772,7 @@ function RestockByBranch() {
                   เลือกทั้งหมด
                 </label>
                 <span className="text-xs font-semibold text-brand-ink/60">
-                  {selectedTotal}/{rows.length} รายการที่เลือก
+                  {selectedTotal}/{regularRows.length} รายการที่เลือก
                 </span>
               </div>
 
@@ -606,84 +787,26 @@ function RestockByBranch() {
                     defaultOpen={gi === 0}
                     onToggleAll={() => toggleCategoryAll(g.items)}
                   >
-                    <div>
-                      {g.items.map((r) => {
-                        const entry = selEntries[r.itemId];
-                        const isSel = !!entry?.selected;
-                        const inProduction = PRODUCTION_ITEM_NAMES.has(r.name);
-                        const status = statusOf(r);
-                        return (
-                          <div
-                            key={r.itemId}
-                            className={`mb-0.5 flex min-h-[26px] items-center gap-1.5 rounded-md border-l-[2.5px] px-1.5 py-1 ${
-                              isSel
-                                ? "border-l-ok bg-ok/10"
-                                : "border-l-transparent bg-black/[.02] opacity-50"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSel}
-                              onChange={() => toggleItem(r.itemId)}
-                              className="h-3.5 w-3.5 flex-shrink-0 rounded border-black/20"
-                            />
-                            <span className="flex min-w-0 flex-1 items-center gap-1 text-[11.5px] font-medium">
-                              <span className="truncate">{r.name}</span>
-                              {r.isSpecial && <Badge tone="orange">special</Badge>}
-                              {inProduction && <Badge tone="blue">← สั่งผลิต</Badge>}
-                            </span>
-                            <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
-                              {r.par ?? "—"}
-                            </span>
-                            {r.remainG !== undefined ? (
-                              <span className="w-11 shrink-0 text-right leading-tight">
-                                <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
-                                <span className="block text-[9px] tabular-nums text-brand-ink/40">
-                                  +{r.remainG}{r.isCup ? " ชิ้น" : "g"}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
-                                {r.remain}
-                              </span>
-                            )}
-                            {isSel && status === "dirty" && (
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="แก้ไขแล้ว ยังไม่บันทึก" />
-                            )}
-                            <input
-                              inputMode="numeric"
-                              value={entry?.qty ?? ""}
-                              disabled={!isSel}
-                              onChange={(e) => updateEntry(r.itemId, { qty: Number(e.target.value) || 0 })}
-                              title={
-                                !isSel ? undefined
-                                  : status === "saved" ? "บันทึกลง DB แล้ว"
-                                  : status === "dirty" ? "แก้ไขแล้ว ยังไม่บันทึก"
-                                  : "ค่าที่ระบบแนะนำ (Par − คงเหลือ) — ยังไม่ได้ยืนยัน"
-                              }
-                              className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${qtyFieldClass(isSel, status)}`}
-                            />
-                            {r.hasVariableYield && (
-                              <>
-                                <span className="shrink-0 text-[10px] text-brand-ink/35">+</span>
-                                <input
-                                  inputMode="numeric"
-                                  value={entry?.qtyG ?? ""}
-                                  disabled={!isSel}
-                                  onChange={(e) => updateEntry(r.itemId, { qtyG: Number(e.target.value) || 0 })}
-                                  title={`เศษ${r.isCup ? " (ชิ้น)" : " (g)"} ที่ไม่เต็มแพ็ค — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง กรอกเฉพาะรอบที่มีจริง`}
-                                  placeholder={r.isCup ? "ชิ้น" : "g"}
-                                  className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
-                                />
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <div>{g.items.map(renderItemRow)}</div>
                   </SelectableAccordion>
                 );
               })}
+
+              {emergencySpecialItems.length > 0 && (
+                <div className="mt-3 rounded-xl border border-brand-orange/40 bg-brand-orange/[.06] p-2.5">
+                  <p className="mb-2 px-0.5 text-[11px] leading-relaxed text-orange-700">
+                    ⚠️ 7 รายการ special ไม่ถึงรอบเข้าวันนี้ ({branch} เข้าเฉพาะวัน{ownSpecialDay ?? "—"}) — ใช้ส่วนนี้เฉพาะกรณีต้องสั่งฉุกเฉินนอกรอบเท่านั้น
+                  </p>
+                  <SelectableAccordion
+                    title="🚨 สั่งฉุกเฉิน (นอกรอบ special)"
+                    total={emergencySpecialItems.length}
+                    selectedCount={emergencySpecialItems.filter((r) => selEntries[r.itemId]?.selected).length}
+                    onToggleAll={() => toggleCategoryAll(emergencySpecialItems)}
+                  >
+                    <div>{emergencySpecialItems.map(renderItemRow)}</div>
+                  </SelectableAccordion>
+                </div>
+              )}
             </>
           )}
 
@@ -889,7 +1012,12 @@ function ProductionPrintSheet({
               {g.items.map((r) => (
                 <tr key={r.id} className="border-b border-neutral-300">
                   <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
-                  <td className="py-[3px] text-black">{r.name}</td>
+                  <td className="py-[3px] text-black">
+                    <span className="inline-flex items-center gap-1">
+                      {itemIcon(r.name)}
+                      <span>{r.name}</span>
+                    </span>
+                  </td>
                   <td className="py-[3px] text-center text-black">{r.snd}</td>
                   <td className="py-[3px] text-center text-black">{r.nvp}</td>
                   <td className="py-[3px] text-center text-black">{r.kcn}</td>
