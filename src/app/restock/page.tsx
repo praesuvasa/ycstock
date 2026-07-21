@@ -225,7 +225,7 @@ function PrintSheet({
   function renderColumn(colGroups: typeof printGroups, withExtra: boolean) {
     return (
       <div className="flex-1">
-        <table className="w-full border-collapse text-[10.5px]">
+        <table className="w-full border-collapse text-[9.5px]">
           <thead>
             <tr className="border-b-2 border-black">
               <th className="w-3 py-1"></th>
@@ -238,7 +238,7 @@ function PrintSheet({
             {colGroups.map((g) => (
               <React.Fragment key={g.category}>
                 <tr>
-                  <td colSpan={4} className="pt-2 text-[10px] font-bold uppercase tracking-wide text-neutral-600">
+                  <td colSpan={4} className="pt-2 text-[8.5px] font-bold uppercase tracking-wide text-neutral-600">
                     {g.category}
                   </td>
                 </tr>
