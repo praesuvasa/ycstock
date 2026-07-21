@@ -1,14 +1,16 @@
 "use client";
 // M2 · Restock — 2 โหมดสลับด้วย toggle บนสุด
 //  A) "ต้องเติมรายสาขา": date picker จริงแทนปุ่มพุธ/เสาร์เดิม + จัดกลุ่มตาม category + เลือกรายการ (compact)
-//     + จำนวนสั่งแก้ได้อิสระ + export CSV — การเลือกของแต่ละ (สาขา,วันที่) จำไว้ข้ามการสลับหน้าจอ
-//  B) "สั่งผลิต (รวมทุกสาขา)": ดึงค่าที่เลือกไว้ในโหมด A มา pre-fill อัตโนมัติ (ยังแก้เองได้อิสระ)
+//     + จำนวนสั่งแก้ได้อิสระ + export CSV — การเลือกของแต่ละ (สาขา,วันที่) persist ลง DB (v1.4)
+//  B) "สั่งผลิต (รวมทุกสาขา)": ดึงค่าล่าสุดที่บันทึกไว้ในโหมด A จาก DB มา pre-fill อัตโนมัติ (ยังแก้เองได้อิสระ)
 //     + 2 วันที่ (สั่งผลิต/จัดส่ง) + รายการพิเศษ (ชื่อ/จำนวน/หน่วย/หมายเหตุ) + export CSV
 // business logic เดิม (fetch /api/restock, specialActive, specialDayLabel, isSpecialActive) คงไว้เป๊ะ
+// v1.4: เลิกใช้ RestockStore (client memory ข้ามโหมดในแท็บเดียว) → เปลี่ยนไปเชื่อมผ่าน DB (restock_selections)
+//       เพราะคนละสาขา/อุปกรณ์/เวลากันได้ — ดู supabase/migrations/0017_restock_selections.sql + spec restock-phase1-spec.md
 import React from "react";
-import { GlassCard, Segmented, BranchPicker, Badge, PageTitle, Accordion } from "@/components/ui";
+import { GlassCard, Segmented, BranchPicker, Badge, Button, SaveBar, PageTitle, Accordion } from "@/components/ui";
 import { useMe } from "@/components/nav";
-import type { Branch, Weekday, RestockRow, Meta, Item } from "@/lib/types";
+import type { Branch, Weekday, RestockRow, RestockSelectionEntry, RestockSelectionLatestRow, Meta, Item } from "@/lib/types";
 import { BRANCH_LABEL_TH } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
@@ -75,11 +77,31 @@ function logExport(action: string, branch: string, date: string, detail: string)
   }).catch(() => {});
 }
 
-// ── state ที่ "ต้องเติมรายสาขา" เลือกไว้ (ยกขึ้นมาที่ RestockPage เพื่อให้ข้อ 3 อ่านข้ามโหมดได้) ──
-// key = `${branch}|${date}` — คนละ (สาขา,วันที่) = คนละชุดข้อมูล ไม่ทับกัน
-interface RestockEntry { selected: boolean; qty: string; ts: number }
-type RestockStore = Record<string, Record<string, RestockEntry>>;
-const storeKey = (branch: Branch, date: string) => `${branch}|${date}`;
+function thaiDateSlash(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+// เวลานาฬิกาแบบสั้น ใช้โชว์ข้าง "บันทึกล่าสุด" — ไม่มี helper กลางในระบบสำหรับ HH:mm เลยทำ local ที่นี่
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ── ข้อ 3: บังคับยืนยันสาขา/วันที่ก่อนเห็นรายการ — client-side + localStorage เท่านั้น (per-device แม่นพอ) ──
+// เก็บ "แต่ละ pair ที่เคยยืนยันแล้ว" แยกคีย์กัน (ไม่ใช่ค่าเดียวทับกัน) — admin สลับ SND→NVP→KCN→กลับ SND ต้องไม่โดน gate ซ้ำ
+// เปลี่ยน branch/date/orderDate/deliveryDate ไปเป็น pair ที่ไม่เคยยืนยัน → gate ใหม่ตามปกติ
+function useConfirmGate(storageKeyPrefix: string, pairKey: string) {
+  const storageKey = `${storageKeyPrefix}:${pairKey}`;
+  const [confirmed, setConfirmed] = React.useState(false);
+  React.useEffect(() => {
+    setConfirmed(localStorage.getItem(storageKey) === "1");
+  }, [storageKey]);
+  function confirm() {
+    localStorage.setItem(storageKey, "1");
+    setConfirmed(true);
+  }
+  return { confirmed, confirm };
+}
 
 // ── local component: Accordion หัวข้อมี checkbox "เลือกทั้งหมดในหมวดนี้" (indeterminate ได้) ──
 // เขียนแยกจาก ui kit เพราะต้องมี element ที่คลิกแยกจากปุ่ม toggle เปิด/ปิด (กัน checkbox ซ้อนใน <button>)
@@ -234,14 +256,8 @@ function PrintSheet({
   );
 }
 
-function thaiDateSlash(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-}
-
 export default function RestockPage() {
   const [mode, setMode] = React.useState<Mode>("byBranch");
-  const [store, setStore] = React.useState<RestockStore>({});
   return (
     <div>
       <div className="print:hidden">
@@ -252,11 +268,7 @@ export default function RestockPage() {
         </div>
       </div>
 
-      {mode === "byBranch" ? (
-        <RestockByBranch store={store} setStore={setStore} />
-      ) : (
-        <ProductionOrder store={store} />
-      )}
+      {mode === "byBranch" ? <RestockByBranch /> : <ProductionOrder />}
     </div>
   );
 }
@@ -264,12 +276,7 @@ export default function RestockPage() {
 // ══════════════════════════════════════════════════════════════════════
 // โหมด A — ต้องเติมรายสาขา
 // ══════════════════════════════════════════════════════════════════════
-function RestockByBranch({
-  store, setStore,
-}: {
-  store: RestockStore;
-  setStore: React.Dispatch<React.SetStateAction<RestockStore>>;
-}) {
+function RestockByBranch() {
   const me = useMe();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
@@ -284,77 +291,111 @@ function RestockByBranch({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
+  const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
+  const [saving, setSaving] = React.useState(false);
+  const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
+
   const weekday = React.useMemo(() => weekdayFromDate(date), [date]);
-  const key = React.useMemo(() => storeKey(branch, date), [branch, date]);
+
+  // ── ข้อ 3: gate ยืนยันสาขา+วันที่ก่อนเห็นรายการ ──
+  const pairKey = `${branch}|${date}`;
+  const { confirmed, confirm } = useConfirmGate("yc:restock:gate:byBranch", pairKey);
 
   React.useEffect(() => {
+    if (!confirmed) return; // กันยิง API เปล่าๆ ตอนผู้ใช้ยังเปลี่ยนวันที่ไปมาไม่นิ่ง
     let alive = true;
     setLoading(true);
     setError(null);
-    fetch(`/api/restock?branch=${branch}&day=${weekday}`)
-      .then(async (r) => {
+    setLastSavedAt(null); // สลับ (สาขา,วันที่) ใหม่ — เวลาบันทึกล่าสุดของคู่เก่าไม่เกี่ยวแล้ว
+    Promise.all([
+      fetch(`/api/restock?branch=${branch}&day=${weekday}`).then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
         return data as { rows: RestockRow[]; specialActive: boolean };
-      })
-      .then((data) => {
+      }),
+      fetch(`/api/restock/selections?branch=${branch}&date=${date}`).then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
+        return data as { entries: Record<string, { selected: boolean; qty: number }> };
+      }),
+    ])
+      .then(([restockData, selData]) => {
         if (!alive) return;
-        setRows(data.rows);
-        setSpecialActive(data.specialActive);
-        // ถ้า (สาขา,วันที่) นี้ยังไม่เคยมีข้อมูลใน store ให้ตั้งค่าเริ่มต้นจาก need — ถ้ามีอยู่แล้ว (เคยเลือก/แก้ไว้) ไม่เขียนทับ
-        setStore((prev) => {
-          if (prev[key]) return prev;
-          const entries: Record<string, RestockEntry> = {};
-          const now = Date.now();
-          for (const r of data.rows) {
-            entries[r.itemId] = { selected: r.need != null && r.need > 0, qty: String(r.need ?? 0), ts: now };
-          }
-          return { ...prev, [key]: entries };
-        });
+        setRows(restockData.rows);
+        setSpecialActive(restockData.specialActive);
+        // ถ้าเคย save (branch,date) นี้ไว้แล้ว → ใช้ค่าจาก DB ตรงๆ (ไม่ reset กลับ default)
+        // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need)
+        const next: Record<string, RestockSelectionEntry> = {};
+        for (const r of restockData.rows) {
+          const saved = selData.entries[r.itemId];
+          next[r.itemId] = saved
+            ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty }
+            : { itemId: r.itemId, selected: r.need != null && r.need > 0, qty: r.need ?? 0 };
+        }
+        setSelEntries(next);
       })
       .catch((e) => {
         if (!alive) return;
         setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
         setRows([]);
         setSpecialActive(false);
+        setSelEntries({});
       })
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [branch, weekday, key, setStore]);
+  }, [branch, weekday, date, confirmed]);
 
   const dayLabel = "วัน" + WEEKDAY_LABEL_TH[weekday];
   const ownSpecialDay = specialDayLabel(branch); // string | null — null = สาขานี้ยังไม่มีรอบ special
 
-  const entries = store[key] ?? {};
-
-  function updateEntry(itemId: string, patch: Partial<RestockEntry>) {
-    setStore((prev) => {
-      const cur = prev[key]?.[itemId] ?? { selected: false, qty: "0", ts: 0 };
-      return {
-        ...prev,
-        [key]: { ...prev[key], [itemId]: { ...cur, ...patch, ts: Date.now() } },
-      };
+  function updateEntry(itemId: string, patch: Partial<RestockSelectionEntry>) {
+    setSelEntries((prev) => {
+      const cur = prev[itemId] ?? { itemId, selected: false, qty: 0 };
+      return { ...prev, [itemId]: { ...cur, ...patch } };
     });
   }
   function toggleItem(itemId: string) {
-    updateEntry(itemId, { selected: !entries[itemId]?.selected });
+    updateEntry(itemId, { selected: !selEntries[itemId]?.selected });
   }
   function toggleCategoryAll(items: RestockRow[]) {
-    const allSel = items.length > 0 && items.every((r) => entries[r.itemId]?.selected);
-    setStore((prev) => {
-      const next = { ...(prev[key] ?? {}) };
-      const now = Date.now();
+    const allSel = items.length > 0 && items.every((r) => selEntries[r.itemId]?.selected);
+    setSelEntries((prev) => {
+      const next = { ...prev };
       for (const r of items) {
-        const cur = next[r.itemId] ?? { selected: false, qty: "0", ts: now };
-        next[r.itemId] = { ...cur, selected: !allSel, ts: now };
+        const cur = next[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0 };
+        next[r.itemId] = { ...cur, selected: !allSel };
       }
-      return { ...prev, [key]: next };
+      return next;
     });
   }
   function toggleAllGlobal() {
     toggleCategoryAll(rows);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const entries = rows.map((r) => ({
+        itemId: r.itemId,
+        selected: selEntries[r.itemId]?.selected ?? false,
+        qty: Number(selEntries[r.itemId]?.qty ?? 0),
+      }));
+      const res = await fetch("/api/restock/selections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, entries }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      setLastSavedAt(new Date());
+    } catch (e: any) {
+      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   // จัดกลุ่มตาม category (คงลำดับตามที่ backend ส่งมา)
@@ -369,17 +410,17 @@ function RestockByBranch({
   }, [rows]);
 
   const selectedTotal = React.useMemo(
-    () => rows.filter((r) => entries[r.itemId]?.selected).length,
-    [rows, entries]
+    () => rows.filter((r) => selEntries[r.itemId]?.selected).length,
+    [rows, selEntries]
   );
-  const allChecked = rows.length > 0 && rows.every((r) => entries[r.itemId]?.selected);
+  const allChecked = rows.length > 0 && rows.every((r) => selEntries[r.itemId]?.selected);
 
   function exportCsv() {
-    const selectedRows = rows.filter((r) => entries[r.itemId]?.selected);
+    const selectedRows = rows.filter((r) => selEntries[r.itemId]?.selected);
     const lines = ["หมวด,รายการ,จำนวนสั่ง"];
     for (const r of selectedRows) {
-      const q = entries[r.itemId]?.qty ?? "0";
-      lines.push([csvEscape(r.category), csvEscape(r.name), q].join(","));
+      const q = selEntries[r.itemId]?.qty ?? 0;
+      lines.push([csvEscape(r.category), csvEscape(r.name), String(q)].join(","));
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
@@ -391,12 +432,12 @@ function RestockByBranch({
     const out: { category: string; items: PrintRow[] }[] = [];
     for (const g of groups) {
       const items = g.items
-        .filter((r) => entries[r.itemId]?.selected)
-        .map((r) => ({ ...r, qty: entries[r.itemId]?.qty ?? "0" }));
+        .filter((r) => selEntries[r.itemId]?.selected)
+        .map((r) => ({ ...r, qty: String(selEntries[r.itemId]?.qty ?? 0) }));
       if (items.length > 0) out.push({ category: g.category, items });
     }
     return out;
-  }, [groups, entries]);
+  }, [groups, selEntries]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -429,134 +470,163 @@ function RestockByBranch({
         {isSpecialActive(branch, weekday) ? " — มีรอบ special ที่สาขานี้" : " — ไม่มีรอบ special วันนี้"}
       </p>
 
-      <GlassCard>
-        <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="text-[15px] font-semibold">
-            รอบเติม · {dayLabel} · {branch}
-          </h2>
-          <span className="shrink-0 text-xs text-brand-ink/50">{rows.length} รายการ</span>
-        </div>
-
-        {loading ? (
-          <div className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</div>
-        ) : error ? (
-          <div className="py-8 text-center text-sm text-warn">{error}</div>
-        ) : rows.length === 0 ? (
-          <div className="py-8 text-center text-sm text-brand-ink/50">ไม่มีรายการในรอบนี้</div>
-        ) : (
-          <>
-            {/* global toolbar */}
-            <div className="mb-2.5 flex items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2">
-              <label className="flex items-center gap-2 text-xs font-medium text-brand-ink/70">
-                <input
-                  type="checkbox"
-                  checked={allChecked}
-                  onChange={toggleAllGlobal}
-                  className="h-4 w-4 rounded border-black/20"
-                />
-                เลือกทั้งหมด
-              </label>
-              <span className="text-xs font-semibold text-brand-ink/60">
-                {selectedTotal}/{rows.length} รายการที่เลือก
-              </span>
-            </div>
-
-            {groups.map((g, gi) => {
-              const selInCat = g.items.filter((r) => entries[r.itemId]?.selected).length;
-              return (
-                <SelectableAccordion
-                  key={g.category}
-                  title={g.category}
-                  total={g.items.length}
-                  selectedCount={selInCat}
-                  defaultOpen={gi === 0}
-                  onToggleAll={() => toggleCategoryAll(g.items)}
-                >
-                  <div>
-                    {g.items.map((r) => {
-                      const entry = entries[r.itemId];
-                      const isSel = !!entry?.selected;
-                      const inProduction = PRODUCTION_ITEM_NAMES.has(r.name);
-                      return (
-                        <div
-                          key={r.itemId}
-                          className={`mb-0.5 flex min-h-[26px] items-center gap-1.5 rounded-md border-l-[2.5px] px-1.5 py-1 ${
-                            isSel
-                              ? "border-l-ok bg-ok/10"
-                              : "border-l-transparent bg-black/[.02] opacity-50"
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSel}
-                            onChange={() => toggleItem(r.itemId)}
-                            className="h-3.5 w-3.5 flex-shrink-0 rounded border-black/20"
-                          />
-                          <span className="flex min-w-0 flex-1 items-center gap-1 text-[11.5px] font-medium">
-                            <span className="truncate">{r.name}</span>
-                            {r.isSpecial && <Badge tone="orange">special</Badge>}
-                            {inProduction && <Badge tone="blue">← สั่งผลิต</Badge>}
-                          </span>
-                          <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
-                            {r.par ?? "—"}
-                          </span>
-                          {r.remainG !== undefined ? (
-                            <span className="w-11 shrink-0 text-right leading-tight">
-                              <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
-                              <span className="block text-[9px] tabular-nums text-brand-ink/40">+{r.remainG}g</span>
-                            </span>
-                          ) : (
-                            <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
-                              {r.remain}
-                            </span>
-                          )}
-                          <input
-                            inputMode="numeric"
-                            value={entry?.qty ?? ""}
-                            disabled={!isSel}
-                            onChange={(e) => updateEntry(r.itemId, { qty: e.target.value })}
-                            className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${
-                              isSel ? "font-semibold" : "opacity-40"
-                            }`}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </SelectableAccordion>
-              );
-            })}
-          </>
-        )}
-
-        {!loading && !error && rows.length > 0 && (
-          <p className="mt-3 text-xs leading-relaxed text-brand-ink/60">
-            {specialActive
-              ? `รอบนี้รวม 7 รายการ special (${branch} เข้า${dayLabel})`
-              : ownSpecialDay
-                ? `รอบนี้ไม่มี 7 รายการ special — ${branch} รับ special เฉพาะวัน${ownSpecialDay}`
-                : `สาขา ${branch} ยังไม่เปิดรับ 7 รายการ special (รอกำหนดรอบเติมของ)`}
+      {!confirmed ? (
+        // ข้อ 3: gate inline (ไม่ใช่ modal) — กันกรอกผิดสาขา/วันที่ แต่ไม่รำคาญถ้ากลับมาที่คู่เดิมซ้ำ
+        <GlassCard>
+          <h2 className="mb-2 text-[15px] font-semibold">ยืนยันสาขา + วันที่ก่อนเริ่มกรอก</h2>
+          <p className="mb-4 text-sm leading-relaxed text-brand-ink/60">
+            กำลังจะกรอกรายการเติมของของ <b className="text-brand-ink">สาขา {branch}</b> ({BRANCH_LABEL_TH[branch]})
+            <br />
+            วันที่ <b className="text-brand-ink">{thaiDateSlash(date)}</b> ({dayLabel})
           </p>
-        )}
-      </GlassCard>
+          <Button onClick={confirm}>✅ ยืนยัน เริ่มกรอกรายการ</Button>
+        </GlassCard>
+      ) : (
+        <GlassCard>
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <h2 className="text-[15px] font-semibold">
+              รอบเติม · {dayLabel} · {branch}
+            </h2>
+            <span className="shrink-0 text-xs text-brand-ink/50">{rows.length} รายการ</span>
+          </div>
 
-      {!loading && !error && rows.length > 0 && (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={exportCsv}
-            className="rounded-xl bg-white/70 px-4 py-3 text-[14px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
-          >
-            📤 Export (CSV)
-          </button>
-          <button
-            type="button"
-            onClick={printSlip}
-            className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
-          >
-            🖨️ พิมพ์ใบส่งของ
-          </button>
-        </div>
+          {loading ? (
+            <div className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</div>
+          ) : error ? (
+            <div className="py-8 text-center text-sm text-warn">{error}</div>
+          ) : rows.length === 0 ? (
+            <div className="py-8 text-center text-sm text-brand-ink/50">ไม่มีรายการในรอบนี้</div>
+          ) : (
+            <>
+              {/* global toolbar */}
+              <div className="mb-2.5 flex items-center justify-between gap-2 rounded-lg bg-black/[.03] px-3 py-2">
+                <label className="flex items-center gap-2 text-xs font-medium text-brand-ink/70">
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={toggleAllGlobal}
+                    className="h-4 w-4 rounded border-black/20"
+                  />
+                  เลือกทั้งหมด
+                </label>
+                <span className="text-xs font-semibold text-brand-ink/60">
+                  {selectedTotal}/{rows.length} รายการที่เลือก
+                </span>
+              </div>
+
+              {groups.map((g, gi) => {
+                const selInCat = g.items.filter((r) => selEntries[r.itemId]?.selected).length;
+                return (
+                  <SelectableAccordion
+                    key={g.category}
+                    title={g.category}
+                    total={g.items.length}
+                    selectedCount={selInCat}
+                    defaultOpen={gi === 0}
+                    onToggleAll={() => toggleCategoryAll(g.items)}
+                  >
+                    <div>
+                      {g.items.map((r) => {
+                        const entry = selEntries[r.itemId];
+                        const isSel = !!entry?.selected;
+                        const inProduction = PRODUCTION_ITEM_NAMES.has(r.name);
+                        return (
+                          <div
+                            key={r.itemId}
+                            className={`mb-0.5 flex min-h-[26px] items-center gap-1.5 rounded-md border-l-[2.5px] px-1.5 py-1 ${
+                              isSel
+                                ? "border-l-ok bg-ok/10"
+                                : "border-l-transparent bg-black/[.02] opacity-50"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSel}
+                              onChange={() => toggleItem(r.itemId)}
+                              className="h-3.5 w-3.5 flex-shrink-0 rounded border-black/20"
+                            />
+                            <span className="flex min-w-0 flex-1 items-center gap-1 text-[11.5px] font-medium">
+                              <span className="truncate">{r.name}</span>
+                              {r.isSpecial && <Badge tone="orange">special</Badge>}
+                              {inProduction && <Badge tone="blue">← สั่งผลิต</Badge>}
+                            </span>
+                            <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
+                              {r.par ?? "—"}
+                            </span>
+                            {r.remainG !== undefined ? (
+                              <span className="w-11 shrink-0 text-right leading-tight">
+                                <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
+                                <span className="block text-[9px] tabular-nums text-brand-ink/40">
+                                  +{r.remainG}{r.isCup ? " ชิ้น" : "g"}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
+                                {r.remain}
+                              </span>
+                            )}
+                            <input
+                              inputMode="numeric"
+                              value={entry?.qty ?? ""}
+                              disabled={!isSel}
+                              onChange={(e) => updateEntry(r.itemId, { qty: Number(e.target.value) || 0 })}
+                              className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${
+                                isSel ? "font-semibold" : "opacity-40"
+                              }`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </SelectableAccordion>
+                );
+              })}
+            </>
+          )}
+
+          {!loading && !error && rows.length > 0 && (
+            <p className="mt-3 text-xs leading-relaxed text-brand-ink/60">
+              {specialActive
+                ? `รอบนี้รวม 7 รายการ special (${branch} เข้า${dayLabel})`
+                : ownSpecialDay
+                  ? `รอบนี้ไม่มี 7 รายการ special — ${branch} รับ special เฉพาะวัน${ownSpecialDay}`
+                  : `สาขา ${branch} ยังไม่เปิดรับ 7 รายการ special (รอกำหนดรอบเติมของ)`}
+            </p>
+          )}
+        </GlassCard>
+      )}
+
+      {confirmed && !loading && !error && rows.length > 0 && (
+        <>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={exportCsv}
+              className="rounded-xl bg-white/70 px-4 py-3 text-[14px] font-semibold text-brand-ink border border-black/10 active:scale-[.98]"
+            >
+              📤 Export (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={printSlip}
+              className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
+            >
+              🖨️ พิมพ์ใบส่งของ
+            </button>
+          </div>
+          <p className="mt-2 px-1 text-[11px] text-brand-ink/45">
+            อย่าลืมกด &quot;บันทึกตัวเลือก&quot; ก่อนออกจากหน้านี้ ถ้าอยากให้หน้าสั่งผลิตเห็นค่าล่าสุด
+          </p>
+
+          <SaveBar>
+            <Button onClick={handleSave} disabled={saving || loading}>
+              {saving ? "กำลังบันทึก…" : "💾 บันทึกตัวเลือก"}
+            </Button>
+            {lastSavedAt && (
+              <p className="mt-1.5 text-center text-xs text-brand-ink/50">บันทึกล่าสุด {formatTime(lastSavedAt)}</p>
+            )}
+          </SaveBar>
+        </>
       )}
 
       <p className="mt-3 px-1 text-xs text-brand-ink/45">ต้องเติม = MAX(Par − คงเหลือ, 0) · แถบฟ้า "← สั่งผลิต" = ไอเทมนี้จะไปโผล่ในหน้าสั่งผลิตอัตโนมัติ · ใบส่งของไว้พิมพ์แนบของจริง ให้สาขาติ๊กรับ+เซ็นชื่อ</p>
@@ -567,7 +637,7 @@ function RestockByBranch({
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// โหมด B — สั่งผลิต (รวมทุกสาขา) — ไม่มี backend ใหม่ ใช้ /api/meta อย่างเดียว ไม่มีปุ่มบันทึก มีแต่ export
+// โหมด B — สั่งผลิต (รวมทุกสาขา) — ดึง reflected จาก DB (v1.4) แทน prop store · ไม่มีปุ่มบันทึก มีแต่ export
 // ══════════════════════════════════════════════════════════════════════
 type ProdField = "SND" | "NVP" | "KCN" | "other";
 const PROD_FIELDS: { key: ProdField; label: string }[] = [
@@ -734,16 +804,33 @@ function ProductionPrintSheet({
   );
 }
 
-function ProductionOrder({ store }: { store: RestockStore }) {
+function ProductionOrder() {
   const [meta, setMeta] = React.useState<Meta | null>(null);
+  const [latestRows, setLatestRows] = React.useState<RestockSelectionLatestRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
+  // ── ข้อ 3 (spec เดิม): ดึง /api/meta + ค่าล่าสุดจาก /api/restock/selections/latest พร้อมกัน ──
+  // ไม่ต้องรอ gate — reflected เป็นค่าล่าสุดรวมทุกวันที่อยู่แล้ว ไม่ผูก orderDate/deliveryDate
   React.useEffect(() => {
     let alive = true;
-    fetch("/api/meta")
-      .then((r) => r.json())
-      .then((m: Meta) => { if (alive) setMeta(m); })
+    Promise.all([
+      fetch("/api/meta").then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลด meta ไม่สำเร็จ");
+        return data as Meta;
+      }),
+      fetch("/api/restock/selections/latest").then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดค่าล่าสุดไม่สำเร็จ");
+        return data as { rows: RestockSelectionLatestRow[] };
+      }),
+    ])
+      .then(([m, sel]) => {
+        if (!alive) return;
+        setMeta(m);
+        setLatestRows(sel.rows ?? []);
+      })
       .catch((e) => { if (alive) setError(String(e?.message ?? e)); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
@@ -755,6 +842,10 @@ function ProductionOrder({ store }: { store: RestockStore }) {
   const [note, setNote] = React.useState("");
   const [orderDate, setOrderDate] = React.useState<string>(todayISO());
   const [deliveryDate, setDeliveryDate] = React.useState<string>(todayISO());
+
+  // ── ข้อ 3: gate ยืนยันวันที่สั่งผลิต/จัดส่งก่อนเห็น/แก้กริดรายการ ──
+  const pairKey = `${orderDate}|${deliveryDate}`;
+  const { confirmed, confirm } = useConfirmGate("yc:restock:gate:production", pairKey);
 
   function setProd(itemId: string, field: ProdField, value: string) {
     setProdQty((prev) => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
@@ -797,26 +888,15 @@ function ProductionOrder({ store }: { store: RestockStore }) {
       .sort((a, b) => a.sort - b.sort);
   }, [meta]);
 
-  // ── ข้อ 3: ดึงค่าที่เลือกไว้ใน "ต้องเติมรายสาขา" มา pre-fill (ค่าล่าสุดต่อ item+branch ตาม timestamp) ──
+  // ── ค่าที่เลือกไว้ใน "ต้องเติมรายสาขา" มา pre-fill — ค่าล่าสุดต่อ item+branch จาก DB (backend ทำ "last wins" ให้แล้ว) ──
   const reflected = React.useMemo(() => {
     const out: Record<string, Partial<Record<Branch, string>>> = {};
-    const latestTs: Record<string, number> = {};
-    for (const key in store) {
-      const branch = key.split("|")[0] as Branch;
-      const entries = store[key];
-      for (const itemId in entries) {
-        const entry = entries[itemId];
-        if (!entry.selected) continue;
-        const trackKey = itemId + "|" + branch;
-        if (latestTs[trackKey] === undefined || entry.ts > latestTs[trackKey]) {
-          latestTs[trackKey] = entry.ts;
-          if (!out[itemId]) out[itemId] = {};
-          out[itemId][branch] = entry.qty;
-        }
-      }
+    for (const r of latestRows) {
+      if (!out[r.itemId]) out[r.itemId] = {};
+      out[r.itemId][r.branch] = String(r.qty);
     }
     return out;
-  }, [store]);
+  }, [latestRows]);
 
   function valuesFor(itemId: string): Partial<Record<ProdField, string>> {
     return { ...reflected[itemId], ...prodQty[itemId] };
@@ -938,43 +1018,58 @@ function ProductionOrder({ store }: { store: RestockStore }) {
         </div>
       </GlassCard>
 
-      {mainGroups.map((g, gi) => (
-        <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
-          <div className="grid gap-2 py-1">
-            {g.items.map((it) => (
-              <ProductionRow
-                key={it.id}
-                item={it}
-                par={meta?.par[it.id] ?? {}}
-                values={valuesFor(it.id)}
-                onChange={(f, v) => setProd(it.id, f, v)}
-                reflected={isReflected(it.id)}
-              />
-            ))}
-          </div>
-        </Accordion>
-      ))}
-
-      <p className="my-3 text-center text-xs text-brand-ink/40">
-        ── 🍪 แผนกอื่น (แยกจากไลน์ผลิตหลัก — ใส่ชื่อแผนกจริงแทนได้) ──
-      </p>
-
-      <Accordion title="🍪 แผนกอื่น" count={`${dept2Items.length} รายการ`} defaultOpen={false}>
-        <div className="grid gap-2 py-1">
-          {dept2Items.map((it) => (
-            <ProductionRow
-              key={it.id}
-              item={it}
-              par={meta?.par[it.id] ?? {}}
-              values={valuesFor(it.id)}
-              onChange={(f, v) => setProd(it.id, f, v)}
-              tone="orange"
-              isNew={NEW_ITEM_NAMES.includes(it.name)}
-              reflected={isReflected(it.id)}
-            />
+      {!confirmed ? (
+        // ข้อ 3: gate inline แทนกริดรายการทั้งหมด — date picker ด้านบนยังแก้ได้ก่อนยืนยัน
+        <GlassCard className="mb-3">
+          <h2 className="mb-2 text-[15px] font-semibold">ยืนยันวันที่ก่อนเริ่มกรอก</h2>
+          <p className="mb-4 text-sm leading-relaxed text-brand-ink/60">
+            สั่งผลิตวันที่ <b className="text-brand-ink">{thaiDateSlash(orderDate)}</b>
+            <br />
+            จัดส่งเข้าสาขาวันที่ <b className="text-brand-ink">{thaiDateSlash(deliveryDate)}</b>
+          </p>
+          <Button onClick={confirm}>✅ ยืนยัน เริ่มกรอกรายการ</Button>
+        </GlassCard>
+      ) : (
+        <>
+          {mainGroups.map((g, gi) => (
+            <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
+              <div className="grid gap-2 py-1">
+                {g.items.map((it) => (
+                  <ProductionRow
+                    key={it.id}
+                    item={it}
+                    par={meta?.par[it.id] ?? {}}
+                    values={valuesFor(it.id)}
+                    onChange={(f, v) => setProd(it.id, f, v)}
+                    reflected={isReflected(it.id)}
+                  />
+                ))}
+              </div>
+            </Accordion>
           ))}
-        </div>
-      </Accordion>
+
+          <p className="my-3 text-center text-xs text-brand-ink/40">
+            ── 🍪 แผนกอื่น (แยกจากไลน์ผลิตหลัก — ใส่ชื่อแผนกจริงแทนได้) ──
+          </p>
+
+          <Accordion title="🍪 แผนกอื่น" count={`${dept2Items.length} รายการ`} defaultOpen={false}>
+            <div className="grid gap-2 py-1">
+              {dept2Items.map((it) => (
+                <ProductionRow
+                  key={it.id}
+                  item={it}
+                  par={meta?.par[it.id] ?? {}}
+                  values={valuesFor(it.id)}
+                  onChange={(f, v) => setProd(it.id, f, v)}
+                  tone="orange"
+                  isNew={NEW_ITEM_NAMES.includes(it.name)}
+                  reflected={isReflected(it.id)}
+                />
+              ))}
+            </div>
+          </Accordion>
+        </>
+      )}
 
       <GlassCard className="mt-3">
         <h3 className="mb-2.5 text-[15px] font-semibold">➕ เพิ่มรายการสั่งผลิตพิเศษ</h3>

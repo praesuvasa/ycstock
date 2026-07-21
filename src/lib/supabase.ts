@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockSelectionLatestRow } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -103,7 +103,8 @@ export const supabaseStore = {
       const remain = remainMap.get(it.id) ?? 0;
       rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial,
-        remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined });
+        remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
+        isCup: it.isCup || undefined });
     }
     return { rows, specialActive: active };
   },
@@ -280,6 +281,52 @@ export const supabaseStore = {
   async markAllRequisitionsSeen(): Promise<void> {
     const { error } = await sb().from("requisitions").update({ seen_at: new Date().toISOString() }).is("seen_at", null);
     if (error) throw error;
+  },
+
+  // ── ตัวเลือกเติมของ (v1.4) ──
+  async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number }>> {
+    const { data, error } = await sb().from("restock_selections")
+      .select("item_id,selected,qty").eq("branch_id", branch).eq("date", date);
+    if (error) throw error;
+    const out: Record<string, { selected: boolean; qty: number }> = {};
+    for (const r of data ?? []) out[r.item_id] = { selected: r.selected, qty: Number(r.qty) };
+    return out;
+  },
+
+  async saveRestockSelections(branch: Branch, date: string, entries: RestockSelectionEntry[], userId: string, userName: string) {
+    const now = new Date().toISOString();
+    const payload = entries.map((e) => ({
+      date, branch_id: branch, item_id: e.itemId,
+      selected: e.selected, qty: e.qty,
+      updated_by_user_id: userId, updated_by_name: userName, updated_at: now,
+    }));
+    const { error } = await sb().from("restock_selections").upsert(payload, { onConflict: "date,branch_id,item_id" });
+    if (error) throw error;
+    return { ok: true, savedCount: payload.length };
+  },
+
+  // โหมดสั่งผลิต: ค่าล่าสุดต่อ (สาขา,ไอเทม) ไม่ผูกวันที่เดียว (แต่ละสาขา restock คนละวันได้)
+  // reduce แบบเดียวกับ getStock's prevMap — query ที่ selected=true เรียง date,updated_at asc แล้วให้ตัวหลังทับตัวก่อน (last wins = ค่าล่าสุดจริง)
+  // ตัดช่วงย้อนหลัง 90 วันกันตารางโตไม่จำกัด — ต้องกรองด้วย date ไม่ใช่ .limit() เฉยๆ เพราะ order เป็น ascending
+  // (limit หลัง ascending จะตัดแถวเก่าสุดออกจากผลลัพธ์ ไม่ใช่แถวใหม่สุด — ถ้าข้อมูลเกิน limit จะได้ค่าเก่าแทนค่าล่าสุดซึ่งผิดจุดประสงค์)
+  async getLatestRestockSelections(): Promise<RestockSelectionLatestRow[]> {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+    const { data, error } = await sb().from("restock_selections")
+      .select("item_id,branch_id,qty,date,updated_at")
+      .eq("selected", true)
+      .gte("date", cutoffIso)
+      .order("date", { ascending: true })
+      .order("updated_at", { ascending: true });
+    if (error) throw error;
+    const map = new Map<string, RestockSelectionLatestRow>();
+    for (const r of data ?? []) {
+      map.set(r.item_id + "|" + r.branch_id, {
+        itemId: r.item_id, branch: r.branch_id as Branch, qty: Number(r.qty), date: r.date, updatedAt: r.updated_at,
+      });
+    }
+    return [...map.values()];
   },
 
   // ── audit ──

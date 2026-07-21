@@ -218,6 +218,9 @@ const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
   "ผงโกโก้ (COCOA)", "ผงมาคิ (MAQUI)", "ผงคาม (CAMU)", "น้ำเชื่อม (Syrup)",
   "Biscoff Spread เล็ก", "ซอส Chocolate", "ซอส Strawberry", "ปีโป้", "ปีโป้ลิ้นจี่",
   "พิสตาชิโอ้เครป", "พิสตาชิโอ้บัตเตอร์", "พิสตาชิโอ้ท๊อปปิ้ง",
+  // ข้อ 4 (2026-07-21): 4 รายการ CUP — gramsPerUOM=50 (UOM1_QTY) จริงๆคือ "50 ชิ้น/แพ็ค" ไม่ใช่ 50 กรัม
+  // โชว์เศษเป็นจำนวนชิ้นที่แกะแพ็คแล้วเหลือ (ไม่ใช่น้ำหนัก) — ดู isCup flag ใน RestockRow สำหรับ unit label
+  "Cup P (5oz)", "Cup S (9oz)", "Small Bowl", "Cup (14oz)",
 ]);
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");

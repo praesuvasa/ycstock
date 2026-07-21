@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockSelectionLatestRow } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -22,6 +22,9 @@ interface CupRec extends CupRow { date: string; branch: Branch; }
 const stock = new Map<string, StockRec>();   // `${date}|${branch}|${itemId}`
 const sales = new Map<string, SalesRec>();    // `${date}|${branch}`
 const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
+
+interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
+const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
 
 const sk = (d: string, b: Branch, i: string) => `${d}|${b}|${i}`;
 const vk = (d: string, b: Branch) => `${d}|${b}`;
@@ -142,6 +145,7 @@ export const memoryStore = {
         itemId: it.id, name: it.name, category: it.category, unit: it.unit,
         par, remain, need: restockNeed(par, remain), isSpecial: it.isSpecial,
         remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
+        isCup: it.isCup || undefined,
       });
     }
     return { rows, specialActive: active };
@@ -295,6 +299,38 @@ export const memoryStore = {
   markAllRequisitionsSeen(): void {
     const now = new Date().toISOString();
     for (const r of requisitions) if (!r.seenAt) r.seenAt = now;
+  },
+
+  // ── ตัวเลือกเติมของ (v1.4) ──
+  getRestockSelections(branch: Branch, date: string): Record<string, { selected: boolean; qty: number }> {
+    const out: Record<string, { selected: boolean; qty: number }> = {};
+    for (const rec of restockSelections.values()) {
+      if (rec.branch !== branch || rec.date !== date) continue;
+      out[rec.itemId] = { selected: rec.selected, qty: rec.qty };
+    }
+    return out;
+  },
+
+  saveRestockSelections(branch: Branch, date: string, entries: RestockSelectionEntry[], userId: string, userName: string) {
+    const now = new Date().toISOString();
+    for (const e of entries) {
+      restockSelections.set(sk(date, branch, e.itemId), {
+        date, branch, itemId: e.itemId, selected: e.selected, qty: e.qty,
+        updatedByUserId: userId, updatedByName: userName, updatedAt: now,
+      });
+    }
+    return { ok: true, savedCount: entries.length };
+  },
+
+  getLatestRestockSelections(): RestockSelectionLatestRow[] {
+    const map = new Map<string, RestockSelectionLatestRow>();
+    const sorted = [...restockSelections.values()]
+      .filter((r) => r.selected)
+      .sort((a, b) => (a.date === b.date ? a.updatedAt.localeCompare(b.updatedAt) : a.date.localeCompare(b.date)));
+    for (const r of sorted) {
+      map.set(r.itemId + "|" + r.branch, { itemId: r.itemId, branch: r.branch, qty: r.qty, date: r.date, updatedAt: r.updatedAt });
+    }
+    return [...map.values()];
   },
 
   // ── audit ──

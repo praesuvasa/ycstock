@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockSelectionLatestRow } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -66,6 +66,18 @@ export const db = {
     useSupabase ? supabaseStore.countUnseenRequisitions() : Promise.resolve(memoryStore.countUnseenRequisitions()),
   markAllRequisitionsSeen: () =>
     useSupabase ? supabaseStore.markAllRequisitionsSeen() : Promise.resolve(memoryStore.markAllRequisitionsSeen()),
+
+  // ── restock selections (v1.4) ──
+  getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number }>> =>
+    useSupabase ? supabaseStore.getRestockSelections(branch, date) : Promise.resolve(memoryStore.getRestockSelections(branch, date)),
+
+  saveRestockSelections: (branch: Branch, date: string, entries: RestockSelectionEntry[], userId: string, userName: string) =>
+    useSupabase
+      ? supabaseStore.saveRestockSelections(branch, date, entries, userId, userName)
+      : Promise.resolve(memoryStore.saveRestockSelections(branch, date, entries, userId, userName)),
+
+  getLatestRestockSelections: (): Promise<RestockSelectionLatestRow[]> =>
+    useSupabase ? supabaseStore.getLatestRestockSelections() : Promise.resolve(memoryStore.getLatestRestockSelections()),
 };
 
 // helper สำหรับ BFF validate branch

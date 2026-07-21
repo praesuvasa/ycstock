@@ -89,6 +89,25 @@ export interface RestockRow {
   isSpecial: boolean;
   // เศษกรัมคงเหลือในแพ็คที่เปิดอยู่วันนี้ — มีความหมายเฉพาะรายการที่ showRemainderOnRestock=true
   remainG?: number;
+  // true = 4 รายการ Cup P(5oz)/Cup S(9oz)/Small Bowl/Cup(14oz) → remainG ข้างบนคือ "จำนวนชิ้น" ไม่ใช่กรัม (ข้อ 4)
+  isCup?: boolean;
+}
+
+// ── Restock selections persisted (v1.4) — เก็บ "ตัวเลือกเติมของ" ต่อ (สาขา,วันที่,ไอเทม) ลง DB แทน client memory ──
+export interface RestockSelectionEntry {
+  itemId: string;
+  selected: boolean;
+  qty: number;
+}
+
+// แถวรวมข้ามสาขา ใช้ในหน้าสั่งผลิต (โหมด B) — ค่าล่าสุดต่อ (สาขา,ไอเทม) ไม่ผูกกับวันที่เดียว
+// (สาขาแต่ละที่เลือกวันเติมของของตัวเอง คนละวันกันได้)
+export interface RestockSelectionLatestRow {
+  itemId: string;
+  branch: Branch;
+  qty: number;
+  date: string;       // วันที่ restock ที่ค่านี้มาจาก (debug/tooltip เผื่อค่าดูแปลก)
+  updatedAt: string;   // ISO
 }
 
 // ── Auth / RBAC / Audit (v1.2) ──
