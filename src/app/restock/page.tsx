@@ -225,7 +225,7 @@ function PrintSheet({
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-neutral-500">ใบส่งของเข้าสาขา · Yogurt Culture</div>
+          <div className="text-[13px] font-medium uppercase tracking-widest text-neutral-500">ใบส่งของเข้าสาขา · Yogurt Culture</div>
           <div className="text-[32px] font-bold leading-none text-black">{branch}</div>
           <div className="mt-0.5 text-[11px] text-neutral-600">{BRANCH_LABEL_TH[branch]}</div>
         </div>
@@ -825,7 +825,7 @@ function ProductionPrintSheet({
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[9px] uppercase tracking-widest text-neutral-500">ใบสั่งผลิต · Yogurt Culture</div>
+          <div className="text-[13px] font-medium uppercase tracking-widest text-neutral-500">ใบสั่งผลิต · Yogurt Culture</div>
           <div className="text-[26px] font-bold leading-tight text-black">สั่งผลิต {thaiDateSlash(orderDate)}</div>
         </div>
         <div className="text-right">
