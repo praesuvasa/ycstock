@@ -59,68 +59,19 @@ const PRINT_RIGHT_CATEGORIES = [
   "SPOON/ช้อน", "BAG/ถุง", "STICKER", "ของใช้", "น้ำยาทำความสะอาด", "Yogurt Smoothies Powder",
 ];
 
-// ── ไอคอนผลไม้/ถ้วย สีดำล้วน (ใบพิมพ์ขาวดำ) — ช่วยคนจัดของที่อ่านภาษาไทยไม่ออกจำรายการจากรูปแทน ──
-// เจตนาวาดเรียบง่ายเป็น pictogram ไม่ใช่ emoji สี (พิมพ์ขาวดำแล้ว emoji สีมักเพี้ยน/จาง)
-function IconSvg({ children, size = 10 }: { children: React.ReactNode; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="#000" className="inline-block shrink-0 align-[-1px]">
-      {children}
-    </svg>
-  );
-}
-const FRUIT_ICONS: Record<string, React.ReactNode> = {
-  strawberry: (
-    <IconSvg>
-      <path d="M12 8c-4.5 0-7.5 4-7.5 8.5C4.5 20 7.8 22 12 22s7.5-2 7.5-5.5C19.5 12 16.5 8 12 8z" />
-      <path d="M8 6.5 10 8.5M16 6.5 14 8.5M12 5.5 12 8.5" stroke="#000" strokeWidth="1.6" strokeLinecap="round" fill="none" />
-    </IconSvg>
-  ),
-  blueberry: (
-    <IconSvg>
-      <circle cx="12" cy="13" r="7.5" />
-      <path d="M9 6.5 A3 3 0 0 1 15 6.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </IconSvg>
-  ),
-  apple: (
-    <IconSvg>
-      <path d="M12 9c-4 0-6.5 3-6.5 6.8 0 3.3 2.5 6.2 5.3 6.2.9 0 1.5-.3 2.2-.3.7 0 1.3.3 2.2.3 2.8 0 5.3-3.1 5.3-6.5C20.5 12 18 9 15 9c-1 0-1.7.4-2.5.4-.6 0-1-.4-.5-.4z" />
-      <path d="M12 9V6M12 6c0-1.2 1-2 2-2" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </IconSvg>
-  ),
-  peach: (
-    <IconSvg>
-      <path d="M12 9c-4.2 0-7 3.4-7 7.3 0 3.2 2.7 5.7 5.5 5.7 .6 0 1-.2 1.5-.2s.9.2 1.5.2c2.8 0 5.5-2.5 5.5-5.7C19 12.4 16.2 9 12 9z" />
-      <path d="M12 9c0 3.5 0 8.5 0 13" stroke="#fff" strokeWidth="1" fill="none" />
-      <path d="M12 9V6.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </IconSvg>
-  ),
-  // ยูสไม่มี emoji เฉพาะ ใช้รูปทรงส้ม/เลมอน (ผลไม้ตระกูลส้มใกล้เคียงที่สุด) แทน
-  citrus: (
-    <IconSvg>
-      <ellipse cx="12" cy="12.5" rx="7.5" ry="6.5" />
-      <path d="M12 6 13.5 4" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </IconSvg>
-  ),
-  // ลิ้นจี่ไม่มี emoji ในระบบเลย — วาดผลกลมผิวขรุขระ (จุดเล็กรอบผล) + ก้าน ให้ต่างจากบลูเบอร์รี่ชัดเจน
-  lychee: (
-    <IconSvg>
-      <circle cx="12" cy="13.5" r="7" />
-      <circle cx="9" cy="10.5" r="0.7" /><circle cx="13" cy="9" r="0.7" /><circle cx="16" cy="12" r="0.7" />
-      <circle cx="8" cy="15" r="0.7" /><circle cx="15.5" cy="16" r="0.7" /><circle cx="11" cy="17" r="0.7" />
-      <path d="M12 6.5 13.2 4.5" stroke="#000" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </IconSvg>
-  ),
-  banana: (
-    <IconSvg>
-      <path d="M5 15c0 3.5 3 6 7.5 6 4 0 6.5-2 6.5-4.3 0-1-.6-1.5-1.3-1.5-.5 0-.8.3-1.2.7C15.6 17 14 18 12 18c-3 0-5-1.7-5-4.3 0-.5.1-1 .3-1.5-1 .5-2.3 1.6-2.3 2.8z" />
-    </IconSvg>
-  ),
-  bowl: (
-    <IconSvg>
-      <path d="M4 11h16c0 4.5-3.6 8-8 8s-8-3.5-8-8z" />
-      <ellipse cx="12" cy="11" rx="8" ry="1.6" fill="none" stroke="#000" strokeWidth="1.4" />
-    </IconSvg>
-  ),
+// ── ไอคอนผลไม้/ถ้วย — ช่วยคนจัดของที่อ่านภาษาไทยไม่ออกจำรายการจากรูปแทน ──
+// v2 (2026-07-21): เปลี่ยนจาก SVG วาดเองมาใช้ emoji จริงแทน — ของเดิมแพรบอกว่าดูไม่รู้เรื่องเลย
+// emoji มีรายละเอียด/รูปทรงที่คนคุ้นตากว่าเยอะ แม้พิมพ์ขาวดำก็ยังพอเห็นรูปทรงจากโทนสีเทาได้
+// ลิ้นจี่ไม่มี emoji ตรงตัวในระบบ Unicode เลย ใช้ 🍈 (แตงโม/เมล่อน ทรงกลมใกล้เคียงที่สุด) แทนไปก่อน
+const FRUIT_ICONS: Record<string, string> = {
+  strawberry: "🍓",
+  blueberry: "🫐",
+  apple: "🍎",
+  peach: "🍑",
+  citrus: "🍋", // ยูสไม่มี emoji เฉพาะ ใช้เลมอน (ผลไม้ตระกูลส้มใกล้เคียงที่สุด) แทน
+  lychee: "🍈", // ไม่มี emoji ลิ้นจี่ตรงตัว — ใช้ทรงกลมใกล้เคียงที่สุดแทน
+  banana: "🍌",
+  bowl: "🥣",
 };
 // จับคู่ชื่อรายการ → ไอคอน (เฉพาะที่มีผลไม้/รสชาติชัดเจนพอจะสื่อสารด้วยรูปได้ — Peanut Butter/Water/ถุงธรรมชาติ ไม่ใส่ เพราะไม่มีรูปที่สื่อความหมายตรง)
 const ITEM_ICON_KEY: Record<string, keyof typeof FRUIT_ICONS> = {
@@ -135,7 +86,8 @@ const ITEM_ICON_KEY: Record<string, keyof typeof FRUIT_ICONS> = {
 };
 function itemIcon(name: string): React.ReactNode | null {
   const key = ITEM_ICON_KEY[name];
-  return key ? FRUIT_ICONS[key] : null;
+  if (!key) return null;
+  return <span className="text-[11px] leading-none">{FRUIT_ICONS[key]}</span>;
 }
 
 // ── CSV helpers (ใช้ร่วมทั้ง 2 โหมด) ──
@@ -255,7 +207,8 @@ function SelectableAccordion({
 
 // ── ใบส่งของพิมพ์ A4 (แยกจาก CSV) — พนักงานหน้าร้านติ๊ก ☐ รับของจริง + เซ็นชื่อ ก่อนเอาตัวเลขไปกรอกหน้าสต็อก ──
 // คอลัมน์ตายตัวตามลำดับที่แพรกำหนด (PRINT_LEFT_CATEGORIES/PRINT_RIGHT_CATEGORIES) — ไม่ auto-balance ตามจำนวนแล้ว
-// ทุกหมวดโชว์เสมอแม้ไม่มีของเข้า (ระบุ "ไม่มีสินค้าเข้า") ให้คนจัดของเห็นครบทุกหมวดตามลำดับเดียวกันทุกใบ
+// v2 (2026-07-21): หมวด/รายการที่ไม่มีของจริง ไม่ส่งมาให้ component นี้เลย (กรองไว้ตั้งแต่ printGroups ฝั่งเรียกใช้)
+// เพราะโชว์ครบทุกหมวดทำให้ปริ้นยาวเป็น 2 หน้า อ่านยากกว่าเดิม
 type PrintRow = RestockRow & { qty: string };
 const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
 
@@ -289,25 +242,19 @@ function PrintSheet({
                     {g.category}
                   </td>
                 </tr>
-                {g.items.length === 0 ? (
-                  <tr className="border-b border-neutral-300">
-                    <td colSpan={4} className="py-[3px] italic text-neutral-400">— ไม่มีสินค้าเข้า —</td>
+                {g.items.map((r) => (
+                  <tr key={r.itemId} className="border-b border-neutral-300">
+                    <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
+                    <td className="py-[3px] text-black">
+                      <span className="inline-flex items-center gap-1">
+                        {itemIcon(r.name)}
+                        <span>{r.name}</span>
+                      </span>
+                    </td>
+                    <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
+                    <td className="border-b border-neutral-400 py-[3px]" />
                   </tr>
-                ) : (
-                  g.items.map((r) => (
-                    <tr key={r.itemId} className="border-b border-neutral-300">
-                      <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
-                      <td className="py-[3px] text-black">
-                        <span className="inline-flex items-center gap-1">
-                          {itemIcon(r.name)}
-                          <span>{r.name}</span>
-                        </span>
-                      </td>
-                      <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
-                      <td className="border-b border-neutral-400 py-[3px]" />
-                    </tr>
-                  ))
-                )}
+                ))}
               </React.Fragment>
             ))}
           </tbody>
@@ -685,20 +632,25 @@ function RestockByBranch() {
   }
 
   // ── ใบส่งของพิมพ์ A4 — qty รวมแพ็ค+เศษเป็นข้อความเดียว (เช่น "1 แพ็ค + 700g") ──
-  // สร้างจาก rows ทั้งหมด (รวมรายการฉุกเฉินนอกรอบด้วย ถ้าถูกเลือก) ไม่ใช่แค่ groups ปกติ — แล้วจัดกลุ่มครบทุกหมวดตายตัว 22 หมวด
-  // แม้หมวดไหนไม่มีของเข้าเลยก็ยังส่งไปให้ PrintSheet โชว์ "ไม่มีสินค้าเข้า" (ไม่ตัดหมวดทิ้ง)
+  // สร้างจาก rows ทั้งหมด (รวมรายการฉุกเฉินนอกรอบด้วย ถ้าถูกเลือก) ไม่ใช่แค่ groups ปกติ
+  // v2 (2026-07-21): เลิกโชว์หมวด/รายการที่ไม่มีของจริง (แพรบอกว่าทำให้ปริ้นยาวเป็น 2 หน้า อ่านยากกว่าเดิม)
+  // กลับไปโชว์เฉพาะรายการที่ติ๊ก + มีจำนวนจริง >0 (ติ๊กไว้แต่ใส่ 0 ก็ไม่โชว์) และข้ามหมวดที่ไม่มีรายการเลย
+  // ยังคงลำดับ 2 คอลัมน์ตายตัวไว้ (PRINT_LEFT/RIGHT_CATEGORIES) แค่ข้ามหมวดว่างไปเฉยๆ ไม่พิมพ์ "ไม่มีสินค้าเข้า" อีกต่อไป
   const printGroups = React.useMemo(() => {
     const byCategory = new Map<string, PrintRow[]>();
     for (const r of rows) {
       const entry = selEntries[r.itemId];
       if (!entry?.selected) continue;
+      if ((entry.qty ?? 0) <= 0 && (entry.qtyG ?? 0) <= 0) continue;
       const qtyText = formatOrderQty(entry.qty ?? 0, entry.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
       const arr = byCategory.get(r.category) ?? [];
       arr.push({ ...r, qty: qtyText });
       byCategory.set(r.category, arr);
     }
     const allCats = [...PRINT_LEFT_CATEGORIES, ...PRINT_RIGHT_CATEGORIES];
-    return allCats.map((category) => ({ category, items: byCategory.get(category) ?? [] }));
+    return allCats
+      .map((category) => ({ category, items: byCategory.get(category) ?? [] }))
+      .filter((g) => g.items.length > 0);
   }, [rows, selEntries]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
