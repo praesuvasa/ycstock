@@ -77,7 +77,7 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
         {busy ? "กำลังส่ง…" : row ? "เปลี่ยนรูป" : "แนบรูป"}
       </button>
       <input
-        ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
+        ref={inputRef} type="file" accept="image/*" className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
       />
     </div>

@@ -145,7 +145,7 @@ export default function CashRemittancePage() {
               {submitting ? "กำลังส่ง…" : "แนบสลิปโอนเงิน"}
             </Button>
             <input
-              ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
+              ref={inputRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
             />
           </div>
