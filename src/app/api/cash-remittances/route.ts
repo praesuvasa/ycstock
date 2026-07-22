@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
-import { readEvidenceImage, computeMatchStatus, describeMismatch } from "@/lib/ocr";
+import { readEvidenceImage, computeMatchStatus, describeMismatch, checkFlags } from "@/lib/ocr";
 import type { MatchStatus } from "@/lib/types";
 import { thaiDate } from "@/lib/fmt";
 
@@ -64,13 +64,14 @@ export async function POST(req: Request) {
     let duplicateNote: string | null = null;
     let mismatchNote: string | null = null;
     try {
-      const ocr = await readEvidenceImage(body.imageBase64, mediaType, "cash");
+      const { checkName, checkDate } = checkFlags("cash");
+      const ocr = await readEvidenceImage(body.imageBase64, mediaType, "cash", body.transferredAt);
       ocrAmount = ocr.amount;
       ocrNameMatch = ocr.nameMatch;
       ocrTxnRef = ocr.txnRef;
       ocrTxnTime = ocr.txnTime;
-      matchStatus = computeMatchStatus(declaredAmount, ocr, true);
-      if (matchStatus === "mismatch") mismatchNote = describeMismatch(declaredAmount, ocr, true);
+      matchStatus = computeMatchStatus(declaredAmount, ocr, checkName, checkDate);
+      if (matchStatus === "mismatch") mismatchNote = describeMismatch(declaredAmount, ocr, checkName, checkDate);
       if (ocrTxnRef) {
         const dup = await db.findDuplicateRemittance(ocrTxnRef);
         if (dup) {
