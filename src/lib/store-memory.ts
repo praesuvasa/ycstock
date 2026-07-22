@@ -417,6 +417,10 @@ export const memoryStore = {
   listCashRemittances(branch: Branch, limit = 50): CashRemittance[] {
     return cashRemittanceRows.filter((r) => r.branch === branch).slice(0, limit);
   },
+  deleteCashRemittance(id: string): void {
+    const idx = cashRemittanceRows.findIndex((r) => r.id === id);
+    if (idx >= 0) cashRemittanceRows.splice(idx, 1);
+  },
 
   // ── ตัวเลือกเติมของ (v1.4) ──
   getRestockSelections(branch: Branch, date: string): Record<string, { selected: boolean; qty: number; qtyG: number }> {

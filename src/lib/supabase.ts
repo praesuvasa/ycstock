@@ -384,6 +384,10 @@ export const supabaseStore = {
     }
     return rows.map((r: any) => rowFromRemittanceDb(r, (byId.get(r.id) ?? []).sort()));
   },
+  async deleteCashRemittance(id: string): Promise<void> {
+    const { error } = await sb().from("cash_remittances").delete().eq("id", id);
+    if (error) throw error;
+  },
 
   // ── ตัวเลือกเติมของ (v1.4) ──
   async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> {

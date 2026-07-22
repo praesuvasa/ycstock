@@ -100,6 +100,8 @@ export const db = {
     useSupabase ? supabaseStore.createCashRemittance(input) : Promise.resolve(memoryStore.createCashRemittance(input)),
   listCashRemittances: (branch: Branch, limit?: number): Promise<CashRemittance[]> =>
     useSupabase ? supabaseStore.listCashRemittances(branch, limit) : Promise.resolve(memoryStore.listCashRemittances(branch, limit)),
+  deleteCashRemittance: (id: string) =>
+    useSupabase ? supabaseStore.deleteCashRemittance(id) : Promise.resolve(memoryStore.deleteCashRemittance(id)),
 
   // ── restock selections (v1.4) ──
   getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> =>
