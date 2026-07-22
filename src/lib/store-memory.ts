@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -16,6 +16,13 @@ const auditRows: AuditEntry[] = [];
 const requisitions: Requisition[] = [];
 let noticeSeq = 1;
 const branchNotices: BranchNotice[] = [];
+
+// ── หลักฐานยอดขาย / การโอนเงินสด (v1.7) — เก็บ bytes ใน memory, ไม่มี real storage ในโหมด dev ──
+const evidenceImages = new Map<string, { base64: string; contentType: string }>();
+let evidenceSeq = 1;
+const salesEvidenceRows: SalesEvidence[] = [];
+let remittanceSeq = 1;
+const cashRemittanceRows: CashRemittance[] = [];
 
 interface StockRec extends StockRow { date: string; branch: Branch; }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
@@ -355,6 +362,60 @@ export const memoryStore = {
   deleteNotice(id: string): void {
     const idx = branchNotices.findIndex((n) => n.id === id);
     if (idx >= 0) branchNotices.splice(idx, 1);
+  },
+
+  // ── หลักฐานยอดขาย (v1.7) ──
+  uploadEvidenceImage(path: string, bytes: Buffer, contentType: string): void {
+    evidenceImages.set(path, { base64: bytes.toString("base64"), contentType });
+  },
+  getEvidenceSignedUrl(path: string): string | null {
+    const rec = evidenceImages.get(path);
+    return rec ? `data:${rec.contentType};base64,${rec.base64}` : null;
+  },
+  upsertSalesEvidence(input: {
+    branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    userId: string; userName: string;
+  }): SalesEvidence {
+    const idx = salesEvidenceRows.findIndex((r) => r.branch === input.branch && r.date === input.date && r.type === input.type);
+    const rec: SalesEvidence = {
+      id: idx >= 0 ? salesEvidenceRows[idx].id : String(evidenceSeq++),
+      branch: input.branch, date: input.date, type: input.type, imagePath: input.imagePath,
+      enteredAmount: input.enteredAmount, ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
+      matchStatus: input.matchStatus, uploadedBy: input.userName, createdAt: new Date().toISOString(),
+    };
+    if (idx >= 0) salesEvidenceRows[idx] = rec; else salesEvidenceRows.push(rec);
+    return rec;
+  },
+  listSalesEvidence(branch: Branch, date: string): SalesEvidence[] {
+    return salesEvidenceRows.filter((r) => r.branch === branch && r.date === date);
+  },
+
+  // ── การโอนเงินสด (v1.7) ──
+  listUnremittedCashDays(branch: Branch): { date: string; cash: number }[] {
+    const coveredDates = new Set(cashRemittanceRows.filter((r) => r.branch === branch).flatMap((r) => r.coveredDates));
+    return [...sales.values()]
+      .filter((r) => r.branch === branch && r.cash > 0 && !coveredDates.has(r.date))
+      .map((r) => ({ date: r.date, cash: r.cash }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  },
+  createCashRemittance(input: {
+    branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    userId: string; userName: string;
+  }): CashRemittance {
+    const rec: CashRemittance = {
+      id: String(remittanceSeq++), branch: input.branch, transferredAt: input.transferredAt,
+      declaredAmount: input.declaredAmount, imagePath: input.imagePath,
+      ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
+      matchStatus: input.matchStatus, coveredDates: [...input.dates].sort(),
+      uploadedBy: input.userName, createdAt: new Date().toISOString(),
+    };
+    cashRemittanceRows.unshift(rec);
+    return rec;
+  },
+  listCashRemittances(branch: Branch, limit = 50): CashRemittance[] {
+    return cashRemittanceRows.filter((r) => r.branch === branch).slice(0, limit);
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──

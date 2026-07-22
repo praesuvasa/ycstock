@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -76,6 +76,30 @@ export const db = {
     useSupabase ? supabaseStore.createNotice(input, userName) : Promise.resolve(memoryStore.createNotice(input, userName)),
   deleteNotice: (id: string) =>
     useSupabase ? supabaseStore.deleteNotice(id) : Promise.resolve(memoryStore.deleteNotice(id)),
+
+  // ── หลักฐานยอดขาย (v1.7) ──
+  uploadEvidenceImage: (path: string, bytes: Buffer, contentType: string) =>
+    useSupabase ? supabaseStore.uploadEvidenceImage(path, bytes, contentType) : Promise.resolve(memoryStore.uploadEvidenceImage(path, bytes, contentType)),
+  getEvidenceSignedUrl: (path: string): Promise<string | null> =>
+    useSupabase ? supabaseStore.getEvidenceSignedUrl(path) : Promise.resolve(memoryStore.getEvidenceSignedUrl(path)),
+  upsertSalesEvidence: (input: {
+    branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus; userId: string; userName: string;
+  }): Promise<SalesEvidence> =>
+    useSupabase ? supabaseStore.upsertSalesEvidence(input) : Promise.resolve(memoryStore.upsertSalesEvidence(input)),
+  listSalesEvidence: (branch: Branch, date: string): Promise<SalesEvidence[]> =>
+    useSupabase ? supabaseStore.listSalesEvidence(branch, date) : Promise.resolve(memoryStore.listSalesEvidence(branch, date)),
+
+  // ── การโอนเงินสด (v1.7) ──
+  listUnremittedCashDays: (branch: Branch): Promise<{ date: string; cash: number }[]> =>
+    useSupabase ? supabaseStore.listUnremittedCashDays(branch) : Promise.resolve(memoryStore.listUnremittedCashDays(branch)),
+  createCashRemittance: (input: {
+    branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus; userId: string; userName: string;
+  }): Promise<CashRemittance> =>
+    useSupabase ? supabaseStore.createCashRemittance(input) : Promise.resolve(memoryStore.createCashRemittance(input)),
+  listCashRemittances: (branch: Branch, limit?: number): Promise<CashRemittance[]> =>
+    useSupabase ? supabaseStore.listCashRemittances(branch, limit) : Promise.resolve(memoryStore.listCashRemittances(branch, limit)),
 
   // ── restock selections (v1.4) ──
   getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> =>

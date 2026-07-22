@@ -12,6 +12,7 @@ const USER_TABS: Tab[] = [
   { href: "/stock", label: "สต็อก", icon: "📝" },
   { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
+  { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "🙋" },
 ];
 const ADMIN_TABS: Tab[] = [
@@ -20,6 +21,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
+  { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
   { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
 ];

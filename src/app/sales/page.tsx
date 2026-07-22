@@ -1,9 +1,82 @@
 "use client";
 import React from "react";
-import type { Branch, SalesRow } from "@/lib/types";
+import type { Branch, SalesRow, SalesEvidence, EvidenceType, MatchStatus } from "@/lib/types";
 import { baht, todayISO } from "@/lib/fmt";
 import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge } from "@/components/ui";
 import { useMe } from "@/components/nav";
+import { resizeImageToBase64 } from "@/lib/image-client";
+
+const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "neutral" }> = {
+  ok: { text: "✅ ตรงกับที่กรอก", tone: "ok" },
+  mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
+  unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
+  pending: { text: "⏳ กำลังตรวจสอบ", tone: "neutral" },
+};
+
+// ช่องแนบรูปหลักฐาน (QR/Grab/Lineman) — อัปโหลดแล้วให้ Claude อ่านยอด+เทียบกับที่กรอกทันที
+function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploaded }: {
+  branch: Branch; date: string; type: EvidenceType; label: string; enteredAmount: number;
+  row?: SalesEvidence; onUploaded: (row: SalesEvidence) => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { base64, mediaType } = await resizeImageToBase64(file);
+      const res = await fetch("/api/sales-evidence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, type, imageBase64: base64, mediaType, enteredAmount }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "อัปโหลดไม่สำเร็จ");
+      onUploaded(data.evidence as SalesEvidence);
+    } catch (e: any) {
+      setErr(e?.message ?? "อัปโหลดไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const m = row ? MATCH_LABEL[row.matchStatus] : null;
+
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-black/5 bg-white/60 px-2.5 py-2">
+      {row?.imageUrl ? (
+        <a href={row.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+          <img src={row.imageUrl} alt={label} className="h-10 w-10 rounded-lg object-cover" />
+        </a>
+      ) : (
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/5 text-[9px] text-brand-ink/35">ไม่มีรูป</div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] text-brand-ink/50">หลักฐาน{label}</div>
+        {m ? (
+          <Badge tone={m.tone}>
+            {m.text}{row?.matchStatus === "mismatch" && row.ocrAmount != null ? ` (อ่านได้ ${baht(row.ocrAmount)})` : ""}
+          </Badge>
+        ) : (
+          <span className="text-[11px] text-brand-ink/35">ยังไม่แนบ</span>
+        )}
+        {err && <div className="mt-0.5 text-[10px] text-warn">{err}</div>}
+      </div>
+      <button
+        type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+        className="shrink-0 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
+      >
+        {busy ? "กำลังส่ง…" : row ? "เปลี่ยนรูป" : "แนบรูป"}
+      </button>
+      <input
+        ref={inputRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+      />
+    </div>
+  );
+}
 
 // เก็บ input เป็น string เพื่อให้ลบ/พิมพ์ได้ลื่น แล้วค่อยแปลงเป็นเลขตอนคำนวณ
 type Field = keyof SalesRow;
@@ -67,6 +140,20 @@ export default function SalesPage() {
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // หลักฐาน QR/Grab/Lineman ของสาขา+วันที่นี้
+  const [evidence, setEvidence] = React.useState<Partial<Record<EvidenceType, SalesEvidence>>>({});
+  const loadEvidence = React.useCallback(() => {
+    fetch(`/api/sales-evidence?branch=${branch}&date=${date}`)
+      .then((r) => r.json())
+      .then((d: { rows?: SalesEvidence[] }) => {
+        const map: Partial<Record<EvidenceType, SalesEvidence>> = {};
+        for (const row of d.rows ?? []) map[row.type] = row;
+        setEvidence(map);
+      })
+      .catch(() => {});
+  }, [branch, date]);
+  React.useEffect(() => { loadEvidence(); }, [loadEvidence]);
 
   const set = (f: Field) => (v: string) => setForm((p) => ({ ...p, [f]: v }));
 
@@ -142,6 +229,14 @@ export default function SalesPage() {
           <NumberField label="PromptPay / QR" value={form.qr} onChange={set("qr")} />
           <NumberField label="EDC บัตร" value={form.edc} onChange={set("edc")} />
         </div>
+        {toNum(form.qr) > 0 && (
+          <div className="mt-2.5">
+            <EvidenceSlot
+              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={toNum(form.qr)}
+              row={evidence.qr} onUploaded={(row) => setEvidence((p) => ({ ...p, qr: row }))}
+            />
+          </div>
+        )}
         <div className="mt-3">
           <Stat label="รวม In-store" value={baht(inStore)} tone="default" />
         </div>
@@ -156,6 +251,20 @@ export default function SalesPage() {
         <div className="grid grid-cols-2 gap-2.5">
           <NumberField label="Grab" value={form.grab} onChange={set("grab")} />
           <NumberField label="Lineman" value={form.lineman} onChange={set("lineman")} />
+        </div>
+        <div className="mt-2.5 grid gap-2">
+          {toNum(form.grab) > 0 && (
+            <EvidenceSlot
+              branch={branch} date={date} type="grab" label="สรุปยอด Grab" enteredAmount={toNum(form.grab)}
+              row={evidence.grab} onUploaded={(row) => setEvidence((p) => ({ ...p, grab: row }))}
+            />
+          )}
+          {toNum(form.lineman) > 0 && (
+            <EvidenceSlot
+              branch={branch} date={date} type="lineman" label="สรุปยอด Lineman" enteredAmount={toNum(form.lineman)}
+              row={evidence.lineman} onUploaded={(row) => setEvidence((p) => ({ ...p, lineman: row }))}
+            />
+          )}
         </div>
         <div className="mt-3">
           <Stat label="รวม Delivery" value={baht(delivery)} tone="default" />

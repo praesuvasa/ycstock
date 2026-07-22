@@ -144,6 +144,41 @@ export interface Requisition {
   seenAt?: string;     // ISO — undefined/null = ยังไม่มีใครเปิดดู (ใช้ทำ badge เตือนที่เมนู/Dashboard)
 }
 
+// ── หลักฐานยอดขาย (v1.7) — แนบรูปสลิป/สรุปยอด ให้ Claude vision อ่านยอด+ชื่อผู้รับ เทียบกับที่กรอก ──
+export type EvidenceType = "qr" | "grab" | "lineman";
+export type MatchStatus = "ok" | "mismatch" | "unclear" | "pending";
+
+export interface SalesEvidence {
+  id: string;
+  branch: Branch;
+  date: string; // yyyy-mm-dd
+  type: EvidenceType;
+  imagePath: string;
+  imageUrl?: string; // signed URL — เติมตอนส่งให้ frontend เท่านั้น ไม่เก็บใน DB
+  enteredAmount: number;
+  ocrAmount?: number;
+  ocrNameMatch?: boolean; // undefined = ไม่เช็คชื่อ (grab/lineman ไม่มี concept ผู้รับเงิน)
+  matchStatus: MatchStatus;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+// การโอนเงินสด (v1.7) — แยกจากยอดขายรายวัน เพราะพนักงานอาจรวมเงินสดหลายวันแล้วโอนทีเดียว
+export interface CashRemittance {
+  id: string;
+  branch: Branch;
+  transferredAt: string; // yyyy-mm-dd — วันที่โอนจริง
+  declaredAmount: number; // ผลรวมยอดเงินสดของวันที่เลือกครอบคลุม
+  imagePath: string;
+  imageUrl?: string;
+  ocrAmount?: number;
+  ocrNameMatch?: boolean;
+  matchStatus: MatchStatus;
+  coveredDates: string[]; // วันที่ (yyyy-mm-dd) ที่ถูกครอบคลุมโดยการโอนครั้งนี้
+  uploadedBy: string;
+  createdAt: string;
+}
+
 // ── ประกาศพิเศษ (v1.6) — admin ตั้งข้อความแจ้งเตือนชั่วคราวต่อสาขา เช่น รอบส่งของเลื่อนเพราะวันหยุดพนักงานส่งของ/วันหยุดสาขา ──
 export interface BranchNotice {
   id: string;

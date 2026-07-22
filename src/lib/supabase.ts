@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -309,6 +309,82 @@ export const supabaseStore = {
     if (error) throw error;
   },
 
+  // ── หลักฐานยอดขาย (v1.7) ──
+  async uploadEvidenceImage(path: string, bytes: Buffer, contentType: string): Promise<void> {
+    const { error } = await sb().storage.from("sales-evidence").upload(path, bytes, { contentType, upsert: true });
+    if (error) throw error;
+  },
+  async getEvidenceSignedUrl(path: string): Promise<string | null> {
+    const { data, error } = await sb().storage.from("sales-evidence").createSignedUrl(path, 900);
+    if (error) return null;
+    return data?.signedUrl ?? null;
+  },
+  async upsertSalesEvidence(input: {
+    branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    userId: string; userName: string;
+  }): Promise<SalesEvidence> {
+    const { data, error } = await sb().from("sales_evidence").upsert({
+      branch_id: input.branch, date: input.date, evidence_type: input.type, image_path: input.imagePath,
+      entered_amount: input.enteredAmount, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
+      match_status: input.matchStatus, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+      created_at: new Date().toISOString(),
+    }, { onConflict: "branch_id,date,evidence_type" }).select().single();
+    if (error) throw error;
+    return rowFromEvidenceDb(data);
+  },
+  async listSalesEvidence(branch: Branch, date: string): Promise<SalesEvidence[]> {
+    const { data, error } = await sb().from("sales_evidence").select("*").eq("branch_id", branch).eq("date", date);
+    if (error) throw error;
+    return (data ?? []).map(rowFromEvidenceDb);
+  },
+
+  // ── การโอนเงินสด (v1.7) ──
+  async listUnremittedCashDays(branch: Branch): Promise<{ date: string; cash: number }[]> {
+    const { data: sales, error: e2 } = await sb().from("sales_daily").select("date,cash").eq("branch_id", branch).gt("cash", 0);
+    if (e2) throw e2;
+    const { data: covered, error: e3 } = await sb().from("cash_remittance_days").select("date").eq("branch_id", branch);
+    if (e3) throw e3;
+    const coveredSet = new Set((covered ?? []).map((r: any) => r.date));
+    return (sales ?? [])
+      .filter((r: any) => !coveredSet.has(r.date))
+      .map((r: any) => ({ date: r.date, cash: Number(r.cash) }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  },
+  async createCashRemittance(input: {
+    branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    userId: string; userName: string;
+  }): Promise<CashRemittance> {
+    const { data, error } = await sb().from("cash_remittances").insert({
+      branch_id: input.branch, transferred_at: input.transferredAt, declared_amount: input.declaredAmount,
+      image_path: input.imagePath, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
+      match_status: input.matchStatus, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+    }).select().single();
+    if (error) throw error;
+    const days = input.dates.map((d) => ({ remittance_id: data.id, branch_id: input.branch, date: d }));
+    const { error: e2 } = await sb().from("cash_remittance_days").insert(days);
+    if (e2) throw e2;
+    return rowFromRemittanceDb(data, input.dates);
+  },
+  async listCashRemittances(branch: Branch, limit = 50): Promise<CashRemittance[]> {
+    const { data, error } = await sb().from("cash_remittances").select("*").eq("branch_id", branch)
+      .order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    const rows = data ?? [];
+    if (rows.length === 0) return [];
+    const ids = rows.map((r: any) => r.id);
+    const { data: days, error: e2 } = await sb().from("cash_remittance_days").select("remittance_id,date").in("remittance_id", ids);
+    if (e2) throw e2;
+    const byId = new Map<number, string[]>();
+    for (const d of days ?? []) {
+      const arr = byId.get(d.remittance_id) ?? [];
+      arr.push(d.date);
+      byId.set(d.remittance_id, arr);
+    }
+    return rows.map((r: any) => rowFromRemittanceDb(r, (byId.get(r.id) ?? []).sort()));
+  },
+
   // ── ตัวเลือกเติมของ (v1.4) ──
   async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> {
     const { data, error } = await sb().from("restock_selections")
@@ -504,6 +580,24 @@ function rowFromNoticeDb(r: any): BranchNotice {
   return {
     id: String(r.id), branch: r.branch_id ?? null, message: r.message,
     createdBy: r.created_by, createdAt: r.created_at,
+  };
+}
+
+function rowFromEvidenceDb(r: any): SalesEvidence {
+  return {
+    id: String(r.id), branch: r.branch_id, date: r.date, type: r.evidence_type, imagePath: r.image_path,
+    enteredAmount: Number(r.entered_amount), ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
+    ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status,
+    uploadedBy: r.uploaded_by, createdAt: r.created_at,
+  };
+}
+
+function rowFromRemittanceDb(r: any, coveredDates: string[]): CashRemittance {
+  return {
+    id: String(r.id), branch: r.branch_id, transferredAt: r.transferred_at, declaredAmount: Number(r.declared_amount),
+    imagePath: r.image_path, ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
+    ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status, coveredDates,
+    uploadedBy: r.uploaded_by, createdAt: r.created_at,
   };
 }
 
