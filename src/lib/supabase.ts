@@ -322,14 +322,15 @@ export const supabaseStore = {
   async upsertSalesEvidence(input: {
     branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
-    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; mismatchNote: string | null;
     userId: string; userName: string;
   }): Promise<SalesEvidence> {
     const { data, error } = await sb().from("sales_evidence").upsert({
       branch_id: input.branch, date: input.date, evidence_type: input.type, image_path: input.imagePath,
       entered_amount: input.enteredAmount, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
       match_status: input.matchStatus, ocr_txn_ref: input.ocrTxnRef, ocr_txn_time: input.ocrTxnTime,
-      duplicate_note: input.duplicateNote, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+      duplicate_note: input.duplicateNote, mismatch_note: input.mismatchNote,
+      uploaded_by: input.userName, uploaded_by_user_id: input.userId,
       created_at: new Date().toISOString(),
     }, { onConflict: "branch_id,date,evidence_type" }).select().single();
     if (error) throw error;
@@ -366,14 +367,15 @@ export const supabaseStore = {
   async createCashRemittance(input: {
     branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
-    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; mismatchNote: string | null;
     userId: string; userName: string;
   }): Promise<CashRemittance> {
     const { data, error } = await sb().from("cash_remittances").insert({
       branch_id: input.branch, transferred_at: input.transferredAt, declared_amount: input.declaredAmount,
       image_path: input.imagePath, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
       match_status: input.matchStatus, ocr_txn_ref: input.ocrTxnRef, ocr_txn_time: input.ocrTxnTime,
-      duplicate_note: input.duplicateNote, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+      duplicate_note: input.duplicateNote, mismatch_note: input.mismatchNote,
+      uploaded_by: input.userName, uploaded_by_user_id: input.userId,
     }).select().single();
     if (error) throw error;
     const days = input.dates.map((d) => ({ remittance_id: data.id, branch_id: input.branch, date: d }));
@@ -614,7 +616,7 @@ function rowFromEvidenceDb(r: any): SalesEvidence {
     id: String(r.id), branch: r.branch_id, date: r.date, type: r.evidence_type, imagePath: r.image_path,
     enteredAmount: Number(r.entered_amount), ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
     ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status,
-    duplicateNote: r.duplicate_note ?? undefined,
+    duplicateNote: r.duplicate_note ?? undefined, mismatchNote: r.mismatch_note ?? undefined,
     uploadedBy: r.uploaded_by, createdAt: r.created_at,
   };
 }
@@ -624,7 +626,7 @@ function rowFromRemittanceDb(r: any, coveredDates: string[]): CashRemittance {
     id: String(r.id), branch: r.branch_id, transferredAt: r.transferred_at, declaredAmount: Number(r.declared_amount),
     imagePath: r.image_path, ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
     ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status,
-    duplicateNote: r.duplicate_note ?? undefined, coveredDates,
+    duplicateNote: r.duplicate_note ?? undefined, mismatchNote: r.mismatch_note ?? undefined, coveredDates,
     uploadedBy: r.uploaded_by, createdAt: r.created_at,
   };
 }

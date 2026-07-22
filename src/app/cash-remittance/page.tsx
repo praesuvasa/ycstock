@@ -173,9 +173,7 @@ export default function CashRemittancePage() {
                       ยอดเงินสดวันที่: {r.coveredDates.map(thaiDate).join(", ")}
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">
-                      <Badge tone={m.tone}>
-                        {m.text}{r.matchStatus === "mismatch" && r.ocrAmount != null ? ` (อ่านได้ ${baht(r.ocrAmount)})` : ""}
-                      </Badge>
+                      <Badge tone={m.tone}>{m.text}</Badge>
                       <button
                         type="button" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}
                         className="ml-auto rounded-lg border border-brand-red/25 bg-brand-red/5 px-2.5 py-1 text-[11px] font-medium text-brand-red disabled:opacity-50"
@@ -183,6 +181,9 @@ export default function CashRemittancePage() {
                         {deletingId === r.id ? "กำลังลบ…" : "ลบ / อัปโหลดใหม่"}
                       </button>
                     </div>
+                    {r.matchStatus === "mismatch" && r.mismatchNote && (
+                      <div className="mt-1 text-[10px] text-warn">{r.mismatchNote}</div>
+                    )}
                     {r.matchStatus === "duplicate" && r.duplicateNote && (
                       <div className="mt-1 text-[10px] text-warn">{r.duplicateNote}</div>
                     )}

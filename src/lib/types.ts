@@ -161,6 +161,7 @@ export interface SalesEvidence {
   ocrNameMatch?: boolean; // undefined = ไม่เช็คชื่อ (grab/lineman ไม่มี concept ผู้รับเงิน)
   matchStatus: MatchStatus;
   duplicateNote?: string; // มีค่าเมื่อ matchStatus === "duplicate" — บอกว่าซ้ำกับรายการไหน
+  mismatchNote?: string; // มีค่าเมื่อ matchStatus === "mismatch" — บอกสาเหตุจริง (ยอด/ชื่อผู้รับ/ทั้งคู่) กันสับสน
   uploadedBy: string;
   createdAt: string;
 }
@@ -177,6 +178,7 @@ export interface CashRemittance {
   ocrNameMatch?: boolean;
   matchStatus: MatchStatus;
   duplicateNote?: string;
+  mismatchNote?: string;
   coveredDates: string[]; // วันที่ (yyyy-mm-dd) ที่ถูกครอบคลุมโดยการโอนครั้งนี้
   uploadedBy: string;
   createdAt: string;

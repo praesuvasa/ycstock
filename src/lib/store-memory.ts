@@ -377,7 +377,7 @@ export const memoryStore = {
   upsertSalesEvidence(input: {
     branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
-    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; mismatchNote: string | null;
     userId: string; userName: string;
   }): SalesEvidence {
     const idx = salesEvidenceRows.findIndex((r) => r.branch === input.branch && r.date === input.date && r.type === input.type);
@@ -385,7 +385,8 @@ export const memoryStore = {
       id: idx >= 0 ? salesEvidenceRows[idx].id : String(evidenceSeq++),
       branch: input.branch, date: input.date, type: input.type, imagePath: input.imagePath,
       enteredAmount: input.enteredAmount, ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
-      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, ocrTxnRef: input.ocrTxnRef,
+      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, mismatchNote: input.mismatchNote ?? undefined,
+      ocrTxnRef: input.ocrTxnRef,
       uploadedBy: input.userName, createdAt: new Date().toISOString(),
     };
     if (idx >= 0) salesEvidenceRows[idx] = rec; else salesEvidenceRows.push(rec);
@@ -413,14 +414,15 @@ export const memoryStore = {
   createCashRemittance(input: {
     branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
-    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; mismatchNote: string | null;
     userId: string; userName: string;
   }): CashRemittance {
     const rec: CashRemittanceRec = {
       id: String(remittanceSeq++), branch: input.branch, transferredAt: input.transferredAt,
       declaredAmount: input.declaredAmount, imagePath: input.imagePath,
       ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
-      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, ocrTxnRef: input.ocrTxnRef,
+      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, mismatchNote: input.mismatchNote ?? undefined,
+      ocrTxnRef: input.ocrTxnRef,
       coveredDates: [...input.dates].sort(),
       uploadedBy: input.userName, createdAt: new Date().toISOString(),
     };

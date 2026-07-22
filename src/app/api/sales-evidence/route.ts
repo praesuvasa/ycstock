@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
-import { readEvidenceImage, computeMatchStatus } from "@/lib/ocr";
+import { readEvidenceImage, computeMatchStatus, describeMismatch } from "@/lib/ocr";
 import type { EvidenceType, MatchStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     let ocrTxnRef: string | null = null;
     let ocrTxnTime: string | null = null;
     let duplicateNote: string | null = null;
+    let mismatchNote: string | null = null;
     try {
       const ocr = await readEvidenceImage(body.imageBase64, mediaType, type);
       ocrAmount = ocr.amount;
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       ocrTxnRef = ocr.txnRef;
       ocrTxnTime = ocr.txnTime;
       matchStatus = computeMatchStatus(enteredAmount, ocr, type === "qr");
+      if (matchStatus === "mismatch") mismatchNote = describeMismatch(enteredAmount, ocr, type === "qr");
       if (ocrTxnRef) {
         const dup = await db.findDuplicateEvidence(ocrTxnRef, branch, date, type);
         if (dup) {
@@ -81,7 +83,7 @@ export async function POST(req: Request) {
 
     const evidence = await db.upsertSalesEvidence({
       branch, date, type, imagePath: path, enteredAmount, ocrAmount, ocrNameMatch, matchStatus,
-      ocrTxnRef, ocrTxnTime, duplicateNote, userId: s.userId, userName: s.name,
+      ocrTxnRef, ocrTxnTime, duplicateNote, mismatchNote, userId: s.userId, userName: s.name,
     });
     const imageUrl = await db.getEvidenceSignedUrl(path);
     return NextResponse.json({ ok: true, evidence: { ...evidence, imageUrl: imageUrl ?? undefined } });

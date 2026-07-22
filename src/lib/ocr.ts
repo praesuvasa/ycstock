@@ -2,6 +2,7 @@
 // เรียก Anthropic Messages API ตรงๆ ผ่าน fetch (ไม่มี SDK ติดตั้ง — ตัวเรียกเดียว ไม่คุ้มเพิ่ม dependency)
 import { VALID_RECIPIENT_NAMES } from "./recipients";
 import type { EvidenceType, MatchStatus } from "./types";
+import { baht } from "./fmt";
 
 export interface OcrResult {
   amount: number | null;
@@ -81,4 +82,14 @@ export function computeMatchStatus(enteredAmount: number, ocr: OcrResult, checkN
   if (checkName && ocr.nameMatch === false) return "mismatch";
   if (Math.abs(ocr.amount - enteredAmount) > 1) return "mismatch";
   return "ok";
+}
+
+// อธิบายสาเหตุที่ไม่ตรงให้ชัดเจน — กันสับสนเวลายอดตรงเป๊ะแต่ระบบขึ้น "ไม่ตรง" เพราะจริงๆ คือชื่อผู้รับเงินไม่ตรง
+export function describeMismatch(enteredAmount: number, ocr: OcrResult, checkName: boolean): string | null {
+  const amountWrong = ocr.amount !== null && Math.abs(ocr.amount - enteredAmount) > 1;
+  const nameWrong = checkName && ocr.nameMatch === false;
+  if (amountWrong && nameWrong) return `ยอดไม่ตรง (อ่านได้ ${baht(ocr.amount!)}) และชื่อผู้รับเงินไม่ตรงกับที่ยืนยันไว้`;
+  if (amountWrong) return `ยอดไม่ตรง (อ่านได้ ${baht(ocr.amount!)})`;
+  if (nameWrong) return "ชื่อผู้รับเงินในรูปไม่ตรงกับบัญชีที่ยืนยันไว้ (ยอดถูกต้อง)";
+  return null;
 }

@@ -58,9 +58,10 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
         <div className="text-[11px] text-brand-ink/50">หลักฐาน{label}</div>
         {m ? (
           <>
-            <Badge tone={m.tone}>
-              {m.text}{row?.matchStatus === "mismatch" && row.ocrAmount != null ? ` (อ่านได้ ${baht(row.ocrAmount)})` : ""}
-            </Badge>
+            <Badge tone={m.tone}>{m.text}</Badge>
+            {row?.matchStatus === "mismatch" && row.mismatchNote && (
+              <div className="mt-0.5 text-[10px] text-warn">{row.mismatchNote}</div>
+            )}
             {row?.matchStatus === "duplicate" && row.duplicateNote && (
               <div className="mt-0.5 text-[10px] text-warn">{row.duplicateNote}</div>
             )}
