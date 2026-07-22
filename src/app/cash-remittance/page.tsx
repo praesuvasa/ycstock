@@ -12,6 +12,7 @@ const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "ne
   ok: { text: "✅ ตรงกับยอดที่เลือก", tone: "ok" },
   mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
   unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
+  duplicate: { text: "🚫 สลิปนี้ถูกใช้ไปแล้ว", tone: "warn" },
   pending: { text: "⏳ กำลังตรวจสอบ", tone: "neutral" },
 };
 
@@ -182,6 +183,9 @@ export default function CashRemittancePage() {
                         {deletingId === r.id ? "กำลังลบ…" : "ลบ / อัปโหลดใหม่"}
                       </button>
                     </div>
+                    {r.matchStatus === "duplicate" && r.duplicateNote && (
+                      <div className="mt-1 text-[10px] text-warn">{r.duplicateNote}</div>
+                    )}
                   </div>
                 </div>
               );

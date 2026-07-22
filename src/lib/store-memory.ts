@@ -20,9 +20,11 @@ const branchNotices: BranchNotice[] = [];
 // ── หลักฐานยอดขาย / การโอนเงินสด (v1.7) — เก็บ bytes ใน memory, ไม่มี real storage ในโหมด dev ──
 const evidenceImages = new Map<string, { base64: string; contentType: string }>();
 let evidenceSeq = 1;
-const salesEvidenceRows: SalesEvidence[] = [];
+type SalesEvidenceRec = SalesEvidence & { ocrTxnRef?: string | null };
+type CashRemittanceRec = CashRemittance & { ocrTxnRef?: string | null };
+const salesEvidenceRows: SalesEvidenceRec[] = [];
 let remittanceSeq = 1;
-const cashRemittanceRows: CashRemittance[] = [];
+const cashRemittanceRows: CashRemittanceRec[] = [];
 
 interface StockRec extends StockRow { date: string; branch: Branch; }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
@@ -375,20 +377,29 @@ export const memoryStore = {
   upsertSalesEvidence(input: {
     branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
     userId: string; userName: string;
   }): SalesEvidence {
     const idx = salesEvidenceRows.findIndex((r) => r.branch === input.branch && r.date === input.date && r.type === input.type);
-    const rec: SalesEvidence = {
+    const rec: SalesEvidenceRec = {
       id: idx >= 0 ? salesEvidenceRows[idx].id : String(evidenceSeq++),
       branch: input.branch, date: input.date, type: input.type, imagePath: input.imagePath,
       enteredAmount: input.enteredAmount, ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
-      matchStatus: input.matchStatus, uploadedBy: input.userName, createdAt: new Date().toISOString(),
+      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, ocrTxnRef: input.ocrTxnRef,
+      uploadedBy: input.userName, createdAt: new Date().toISOString(),
     };
     if (idx >= 0) salesEvidenceRows[idx] = rec; else salesEvidenceRows.push(rec);
     return rec;
   },
   listSalesEvidence(branch: Branch, date: string): SalesEvidence[] {
     return salesEvidenceRows.filter((r) => r.branch === branch && r.date === date);
+  },
+  findDuplicateEvidence(
+    txnRef: string, excludeBranch: Branch, excludeDate: string, excludeType: EvidenceType
+  ): { branch: Branch; date: string; type: EvidenceType } | null {
+    const hit = salesEvidenceRows.find((r) =>
+      r.ocrTxnRef === txnRef && !(r.branch === excludeBranch && r.date === excludeDate && r.type === excludeType));
+    return hit ? { branch: hit.branch, date: hit.date, type: hit.type } : null;
   },
 
   // ── การโอนเงินสด (v1.7) ──
@@ -402,13 +413,15 @@ export const memoryStore = {
   createCashRemittance(input: {
     branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
     userId: string; userName: string;
   }): CashRemittance {
-    const rec: CashRemittance = {
+    const rec: CashRemittanceRec = {
       id: String(remittanceSeq++), branch: input.branch, transferredAt: input.transferredAt,
       declaredAmount: input.declaredAmount, imagePath: input.imagePath,
       ocrAmount: input.ocrAmount ?? undefined, ocrNameMatch: input.ocrNameMatch ?? undefined,
-      matchStatus: input.matchStatus, coveredDates: [...input.dates].sort(),
+      matchStatus: input.matchStatus, duplicateNote: input.duplicateNote ?? undefined, ocrTxnRef: input.ocrTxnRef,
+      coveredDates: [...input.dates].sort(),
       uploadedBy: input.userName, createdAt: new Date().toISOString(),
     };
     cashRemittanceRows.unshift(rec);
@@ -420,6 +433,10 @@ export const memoryStore = {
   deleteCashRemittance(id: string): void {
     const idx = cashRemittanceRows.findIndex((r) => r.id === id);
     if (idx >= 0) cashRemittanceRows.splice(idx, 1);
+  },
+  findDuplicateRemittance(txnRef: string): { branch: Branch; transferredAt: string } | null {
+    const hit = cashRemittanceRows.find((r) => r.ocrTxnRef === txnRef);
+    return hit ? { branch: hit.branch, transferredAt: hit.transferredAt } : null;
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──

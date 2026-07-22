@@ -10,6 +10,7 @@ const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "ne
   ok: { text: "✅ ตรงกับที่กรอก", tone: "ok" },
   mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
   unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
+  duplicate: { text: "🚫 รูปนี้ถูกใช้ไปแล้ว", tone: "warn" },
   pending: { text: "⏳ กำลังตรวจสอบ", tone: "neutral" },
 };
 
@@ -56,9 +57,14 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-brand-ink/50">หลักฐาน{label}</div>
         {m ? (
-          <Badge tone={m.tone}>
-            {m.text}{row?.matchStatus === "mismatch" && row.ocrAmount != null ? ` (อ่านได้ ${baht(row.ocrAmount)})` : ""}
-          </Badge>
+          <>
+            <Badge tone={m.tone}>
+              {m.text}{row?.matchStatus === "mismatch" && row.ocrAmount != null ? ` (อ่านได้ ${baht(row.ocrAmount)})` : ""}
+            </Badge>
+            {row?.matchStatus === "duplicate" && row.duplicateNote && (
+              <div className="mt-0.5 text-[10px] text-warn">{row.duplicateNote}</div>
+            )}
+          </>
         ) : (
           <span className="text-[11px] text-brand-ink/35">ยังไม่แนบ</span>
         )}

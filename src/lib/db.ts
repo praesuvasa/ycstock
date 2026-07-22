@@ -84,22 +84,32 @@ export const db = {
     useSupabase ? supabaseStore.getEvidenceSignedUrl(path) : Promise.resolve(memoryStore.getEvidenceSignedUrl(path)),
   upsertSalesEvidence: (input: {
     branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
-    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus; userId: string; userName: string;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; userId: string; userName: string;
   }): Promise<SalesEvidence> =>
     useSupabase ? supabaseStore.upsertSalesEvidence(input) : Promise.resolve(memoryStore.upsertSalesEvidence(input)),
   listSalesEvidence: (branch: Branch, date: string): Promise<SalesEvidence[]> =>
     useSupabase ? supabaseStore.listSalesEvidence(branch, date) : Promise.resolve(memoryStore.listSalesEvidence(branch, date)),
+  findDuplicateEvidence: (
+    txnRef: string, excludeBranch: Branch, excludeDate: string, excludeType: EvidenceType
+  ): Promise<{ branch: Branch; date: string; type: EvidenceType } | null> =>
+    useSupabase
+      ? supabaseStore.findDuplicateEvidence(txnRef, excludeBranch, excludeDate, excludeType)
+      : Promise.resolve(memoryStore.findDuplicateEvidence(txnRef, excludeBranch, excludeDate, excludeType)),
 
   // ── การโอนเงินสด (v1.7) ──
   listUnremittedCashDays: (branch: Branch): Promise<{ date: string; cash: number }[]> =>
     useSupabase ? supabaseStore.listUnremittedCashDays(branch) : Promise.resolve(memoryStore.listUnremittedCashDays(branch)),
   createCashRemittance: (input: {
     branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
-    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus; userId: string; userName: string;
+    ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null; userId: string; userName: string;
   }): Promise<CashRemittance> =>
     useSupabase ? supabaseStore.createCashRemittance(input) : Promise.resolve(memoryStore.createCashRemittance(input)),
   listCashRemittances: (branch: Branch, limit?: number): Promise<CashRemittance[]> =>
     useSupabase ? supabaseStore.listCashRemittances(branch, limit) : Promise.resolve(memoryStore.listCashRemittances(branch, limit)),
+  findDuplicateRemittance: (txnRef: string): Promise<{ branch: Branch; transferredAt: string } | null> =>
+    useSupabase ? supabaseStore.findDuplicateRemittance(txnRef) : Promise.resolve(memoryStore.findDuplicateRemittance(txnRef)),
   deleteCashRemittance: (id: string) =>
     useSupabase ? supabaseStore.deleteCashRemittance(id) : Promise.resolve(memoryStore.deleteCashRemittance(id)),
 

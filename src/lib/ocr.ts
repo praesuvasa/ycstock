@@ -7,6 +7,8 @@ export interface OcrResult {
   amount: number | null;
   nameMatch: boolean | null; // null = ไม่ได้เช็คชื่อ (grab/lineman)
   clarity: "clear" | "unclear";
+  txnRef: string | null; // เลขอ้างอิง/เลขที่รายการ/เลขที่เอกสาร — ใช้เช็คว่ารูปนี้ถูกใช้ซ้ำที่อื่นไหม
+  txnTime: string | null; // วันที่-เวลาที่ปรากฏในเอกสาร (ตามที่เห็นตรงตัว)
 }
 
 const CHECK_NAME: Record<EvidenceType | "cash", boolean> = {
@@ -28,9 +30,11 @@ export async function readEvidenceImage(
     properties: {
       amount: { type: ["number", "null"], description: "ยอดเงินรวมที่อ่านได้จากรูป เป็นตัวเลขล้วน ไม่มี comma/สกุลเงิน — null ถ้าอ่านไม่ได้เลย" },
       clarity: { type: "string", enum: ["clear", "unclear"], description: "unclear ถ้าลายมือ/คุณภาพภาพไม่ชัดจนไม่มั่นใจตัวเลขหรือชื่อ" },
+      txnRef: { type: ["string", "null"], description: "เลขอ้างอิง/เลขที่รายการ/หมายเลขเอกสารที่ปรากฏในรูป (transaction ID, เลขที่รายการโอน, เลขที่ใบเสร็จ ฯลฯ) คัดลอกตรงตัวตามที่เห็น — null ถ้าไม่มี/อ่านไม่ออก" },
+      txnTime: { type: ["string", "null"], description: "วันที่และเวลาที่ปรากฏในรูป (เวลาทำรายการ หรือเวลาที่ออกรายงาน) ตรงตัวตามที่เห็น — null ถ้าไม่มี/อ่านไม่ออก" },
       ...(checkName ? { nameMatch: { type: "boolean", description: "true ถ้าชื่อผู้รับเงินตรงกับรายชื่อที่ให้มา" } } : {}),
     },
-    required: checkName ? ["amount", "clarity", "nameMatch"] : ["amount", "clarity"],
+    required: checkName ? ["amount", "clarity", "txnRef", "txnTime", "nameMatch"] : ["amount", "clarity", "txnRef", "txnTime"],
   };
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -49,7 +53,7 @@ export async function readEvidenceImage(
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-          { type: "text", text: `อ่านรูปสลิปโอนเงิน/หน้าจอสรุปยอดนี้ แล้วรายงาน 1) ยอดเงินรวม${nameInstruction ? " " + nameInstruction : ""}` },
+          { type: "text", text: `อ่านรูปสลิปโอนเงิน/หน้าจอสรุปยอดนี้ แล้วรายงาน 1) ยอดเงินรวม${nameInstruction ? " " + nameInstruction : ""} — และเสมอ: เลขอ้างอิง/เลขที่รายการ/หมายเลขเอกสารที่ปรากฏในรูป (ถ้ามี) กับวันที่-เวลาที่ปรากฏในรูป (ถ้ามี) เพื่อใช้ตรวจสอบว่ารูปนี้เคยถูกใช้มาก่อนหรือไม่` },
         ],
       }],
     }),
@@ -67,6 +71,8 @@ export async function readEvidenceImage(
     amount: typeof input.amount === "number" ? input.amount : null,
     nameMatch: checkName ? (typeof input.nameMatch === "boolean" ? input.nameMatch : null) : null,
     clarity: input.clarity === "unclear" ? "unclear" : "clear",
+    txnRef: typeof input.txnRef === "string" && input.txnRef.trim() ? input.txnRef.trim() : null,
+    txnTime: typeof input.txnTime === "string" && input.txnTime.trim() ? input.txnTime.trim() : null,
   };
 }
 

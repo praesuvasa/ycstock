@@ -322,12 +322,14 @@ export const supabaseStore = {
   async upsertSalesEvidence(input: {
     branch: Branch; date: string; type: EvidenceType; imagePath: string; enteredAmount: number;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
     userId: string; userName: string;
   }): Promise<SalesEvidence> {
     const { data, error } = await sb().from("sales_evidence").upsert({
       branch_id: input.branch, date: input.date, evidence_type: input.type, image_path: input.imagePath,
       entered_amount: input.enteredAmount, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
-      match_status: input.matchStatus, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+      match_status: input.matchStatus, ocr_txn_ref: input.ocrTxnRef, ocr_txn_time: input.ocrTxnTime,
+      duplicate_note: input.duplicateNote, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
       created_at: new Date().toISOString(),
     }, { onConflict: "branch_id,date,evidence_type" }).select().single();
     if (error) throw error;
@@ -337,6 +339,16 @@ export const supabaseStore = {
     const { data, error } = await sb().from("sales_evidence").select("*").eq("branch_id", branch).eq("date", date);
     if (error) throw error;
     return (data ?? []).map(rowFromEvidenceDb);
+  },
+  // หาว่าเลขอ้างอิงนี้เคยถูกใช้ในหลักฐานอื่น (ต่างวัน/ต่างสาขา/ต่างช่องทาง) มาก่อนหรือไม่ — กันอัปโหลดเอกสารเดิมซ้ำ
+  async findDuplicateEvidence(
+    txnRef: string, excludeBranch: Branch, excludeDate: string, excludeType: EvidenceType
+  ): Promise<{ branch: Branch; date: string; type: EvidenceType } | null> {
+    const { data, error } = await sb().from("sales_evidence").select("branch_id,date,evidence_type")
+      .eq("ocr_txn_ref", txnRef).limit(5);
+    if (error) throw error;
+    const hit = (data ?? []).find((r: any) => !(r.branch_id === excludeBranch && r.date === excludeDate && r.evidence_type === excludeType));
+    return hit ? { branch: hit.branch_id, date: hit.date, type: hit.evidence_type } : null;
   },
 
   // ── การโอนเงินสด (v1.7) ──
@@ -354,18 +366,28 @@ export const supabaseStore = {
   async createCashRemittance(input: {
     branch: Branch; transferredAt: string; dates: string[]; declaredAmount: number; imagePath: string;
     ocrAmount: number | null; ocrNameMatch: boolean | null; matchStatus: MatchStatus;
+    ocrTxnRef: string | null; ocrTxnTime: string | null; duplicateNote: string | null;
     userId: string; userName: string;
   }): Promise<CashRemittance> {
     const { data, error } = await sb().from("cash_remittances").insert({
       branch_id: input.branch, transferred_at: input.transferredAt, declared_amount: input.declaredAmount,
       image_path: input.imagePath, ocr_amount: input.ocrAmount, ocr_name_match: input.ocrNameMatch,
-      match_status: input.matchStatus, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
+      match_status: input.matchStatus, ocr_txn_ref: input.ocrTxnRef, ocr_txn_time: input.ocrTxnTime,
+      duplicate_note: input.duplicateNote, uploaded_by: input.userName, uploaded_by_user_id: input.userId,
     }).select().single();
     if (error) throw error;
     const days = input.dates.map((d) => ({ remittance_id: data.id, branch_id: input.branch, date: d }));
     const { error: e2 } = await sb().from("cash_remittance_days").insert(days);
     if (e2) throw e2;
     return rowFromRemittanceDb(data, input.dates);
+  },
+  // หาว่าเลขอ้างอิงนี้เคยถูกใช้ในใบโอนอื่นมาก่อนหรือไม่
+  async findDuplicateRemittance(txnRef: string): Promise<{ branch: Branch; transferredAt: string } | null> {
+    const { data, error } = await sb().from("cash_remittances").select("branch_id,transferred_at")
+      .eq("ocr_txn_ref", txnRef).limit(1);
+    if (error) throw error;
+    const hit = (data ?? [])[0];
+    return hit ? { branch: hit.branch_id, transferredAt: hit.transferred_at } : null;
   },
   async listCashRemittances(branch: Branch, limit = 50): Promise<CashRemittance[]> {
     const { data, error } = await sb().from("cash_remittances").select("*").eq("branch_id", branch)
@@ -592,6 +614,7 @@ function rowFromEvidenceDb(r: any): SalesEvidence {
     id: String(r.id), branch: r.branch_id, date: r.date, type: r.evidence_type, imagePath: r.image_path,
     enteredAmount: Number(r.entered_amount), ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
     ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status,
+    duplicateNote: r.duplicate_note ?? undefined,
     uploadedBy: r.uploaded_by, createdAt: r.created_at,
   };
 }
@@ -600,7 +623,8 @@ function rowFromRemittanceDb(r: any, coveredDates: string[]): CashRemittance {
   return {
     id: String(r.id), branch: r.branch_id, transferredAt: r.transferred_at, declaredAmount: Number(r.declared_amount),
     imagePath: r.image_path, ocrAmount: r.ocr_amount != null ? Number(r.ocr_amount) : undefined,
-    ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status, coveredDates,
+    ocrNameMatch: r.ocr_name_match ?? undefined, matchStatus: r.match_status,
+    duplicateNote: r.duplicate_note ?? undefined, coveredDates,
     uploadedBy: r.uploaded_by, createdAt: r.created_at,
   };
 }

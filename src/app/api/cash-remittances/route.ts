@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
 import { readEvidenceImage, computeMatchStatus } from "@/lib/ocr";
+import type { MatchStatus } from "@/lib/types";
+import { thaiDate } from "@/lib/fmt";
 
 export const dynamic = "force-dynamic";
 
@@ -56,12 +58,24 @@ export async function POST(req: Request) {
 
     let ocrAmount: number | null = null;
     let ocrNameMatch: boolean | null = null;
-    let matchStatus: "ok" | "mismatch" | "unclear" | "pending" = "pending";
+    let matchStatus: MatchStatus = "pending";
+    let ocrTxnRef: string | null = null;
+    let ocrTxnTime: string | null = null;
+    let duplicateNote: string | null = null;
     try {
       const ocr = await readEvidenceImage(body.imageBase64, mediaType, "cash");
       ocrAmount = ocr.amount;
       ocrNameMatch = ocr.nameMatch;
+      ocrTxnRef = ocr.txnRef;
+      ocrTxnTime = ocr.txnTime;
       matchStatus = computeMatchStatus(declaredAmount, ocr, true);
+      if (ocrTxnRef) {
+        const dup = await db.findDuplicateRemittance(ocrTxnRef);
+        if (dup) {
+          matchStatus = "duplicate";
+          duplicateNote = `ซ้ำกับใบโอนสาขา ${dup.branch} วันที่ ${thaiDate(dup.transferredAt)}`;
+        }
+      }
     } catch (ocrErr: any) {
       console.error("[cash-remittances] OCR failed:", ocrErr?.message ?? ocrErr);
       matchStatus = "unclear";
@@ -69,7 +83,7 @@ export async function POST(req: Request) {
 
     const remittance = await db.createCashRemittance({
       branch, transferredAt: body.transferredAt, dates, declaredAmount, imagePath: path,
-      ocrAmount, ocrNameMatch, matchStatus, userId: s.userId, userName: s.name,
+      ocrAmount, ocrNameMatch, matchStatus, ocrTxnRef, ocrTxnTime, duplicateNote, userId: s.userId, userName: s.name,
     });
     const imageUrl = await db.getEvidenceSignedUrl(path);
     return NextResponse.json({ ok: true, remittance: { ...remittance, imageUrl: imageUrl ?? undefined } });

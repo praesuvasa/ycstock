@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { readEvidenceImage, computeMatchStatus } from "@/lib/ocr";
-import type { EvidenceType } from "@/lib/types";
+import type { EvidenceType, MatchStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 const isDate = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
 const TYPES: EvidenceType[] = ["qr", "grab", "lineman"];
+const TYPE_LABEL: Record<EvidenceType, string> = { qr: "QR", grab: "Grab", lineman: "Lineman" };
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 function fail(e: unknown, msg: string) {
@@ -55,12 +56,24 @@ export async function POST(req: Request) {
 
     let ocrAmount: number | null = null;
     let ocrNameMatch: boolean | null = null;
-    let matchStatus: "ok" | "mismatch" | "unclear" | "pending" = "pending";
+    let matchStatus: MatchStatus = "pending";
+    let ocrTxnRef: string | null = null;
+    let ocrTxnTime: string | null = null;
+    let duplicateNote: string | null = null;
     try {
       const ocr = await readEvidenceImage(body.imageBase64, mediaType, type);
       ocrAmount = ocr.amount;
       ocrNameMatch = ocr.nameMatch;
+      ocrTxnRef = ocr.txnRef;
+      ocrTxnTime = ocr.txnTime;
       matchStatus = computeMatchStatus(enteredAmount, ocr, type === "qr");
+      if (ocrTxnRef) {
+        const dup = await db.findDuplicateEvidence(ocrTxnRef, branch, date, type);
+        if (dup) {
+          matchStatus = "duplicate";
+          duplicateNote = `ซ้ำกับหลักฐาน ${TYPE_LABEL[dup.type]} สาขา ${dup.branch} วันที่ ${dup.date}`;
+        }
+      }
     } catch (ocrErr: any) {
       console.error("[sales-evidence] OCR failed:", ocrErr?.message ?? ocrErr);
       matchStatus = "unclear";
@@ -68,7 +81,7 @@ export async function POST(req: Request) {
 
     const evidence = await db.upsertSalesEvidence({
       branch, date, type, imagePath: path, enteredAmount, ocrAmount, ocrNameMatch, matchStatus,
-      userId: s.userId, userName: s.name,
+      ocrTxnRef, ocrTxnTime, duplicateNote, userId: s.userId, userName: s.name,
     });
     const imageUrl = await db.getEvidenceSignedUrl(path);
     return NextResponse.json({ ok: true, evidence: { ...evidence, imageUrl: imageUrl ?? undefined } });

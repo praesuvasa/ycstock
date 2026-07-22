@@ -145,8 +145,9 @@ export interface Requisition {
 }
 
 // ── หลักฐานยอดขาย (v1.7) — แนบรูปสลิป/สรุปยอด ให้ Claude vision อ่านยอด+ชื่อผู้รับ เทียบกับที่กรอก ──
+// v1.8: เพิ่มตรวจจับเอกสารซ้ำ (อัปโหลดซ้ำ/ถ่ายคนละมุม/ใช้ยอดเดิมหลายวัน/ถ่ายจอซ้ำ) โดยเทียบเลขอ้างอิงที่อ่านได้จากรูป
 export type EvidenceType = "qr" | "grab" | "lineman";
-export type MatchStatus = "ok" | "mismatch" | "unclear" | "pending";
+export type MatchStatus = "ok" | "mismatch" | "unclear" | "duplicate" | "pending";
 
 export interface SalesEvidence {
   id: string;
@@ -159,6 +160,7 @@ export interface SalesEvidence {
   ocrAmount?: number;
   ocrNameMatch?: boolean; // undefined = ไม่เช็คชื่อ (grab/lineman ไม่มี concept ผู้รับเงิน)
   matchStatus: MatchStatus;
+  duplicateNote?: string; // มีค่าเมื่อ matchStatus === "duplicate" — บอกว่าซ้ำกับรายการไหน
   uploadedBy: string;
   createdAt: string;
 }
@@ -174,6 +176,7 @@ export interface CashRemittance {
   ocrAmount?: number;
   ocrNameMatch?: boolean;
   matchStatus: MatchStatus;
+  duplicateNote?: string;
   coveredDates: string[]; // วันที่ (yyyy-mm-dd) ที่ถูกครอบคลุมโดยการโอนครั้งนี้
   uploadedBy: string;
   createdAt: string;
