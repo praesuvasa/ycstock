@@ -62,7 +62,8 @@ export async function POST(req: Request) {
       ocrAmount = ocr.amount;
       ocrNameMatch = ocr.nameMatch;
       matchStatus = computeMatchStatus(declaredAmount, ocr, true);
-    } catch {
+    } catch (ocrErr: any) {
+      console.error("[cash-remittances] OCR failed:", ocrErr?.message ?? ocrErr);
       matchStatus = "unclear";
     }
 

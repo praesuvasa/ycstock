@@ -62,6 +62,7 @@ export async function POST(req: Request) {
       ocrNameMatch = ocr.nameMatch;
       matchStatus = computeMatchStatus(enteredAmount, ocr, type === "qr");
     } catch (ocrErr: any) {
+      console.error("[sales-evidence] OCR failed:", ocrErr?.message ?? ocrErr);
       matchStatus = "unclear";
     }
 
