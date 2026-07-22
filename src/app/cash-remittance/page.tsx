@@ -84,7 +84,7 @@ export default function CashRemittancePage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("ลบใบโอนนี้? วันที่ที่ครอบคลุมจะกลับไปเป็น \"ยังไม่โอน\" ให้เลือกโอนใหม่ได้")) return;
+    if (!window.confirm("ลบเอกสารนี้? ยอดนี้จะกลับไปเป็น \"ยังไม่โอน\"")) return;
     setDeletingId(id);
     setErr(null);
     try {
