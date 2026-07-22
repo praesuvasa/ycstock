@@ -168,9 +168,9 @@ export default function CashRemittancePage() {
                     </a>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium">โอนวันที่ {thaiDate(r.transferredAt)} · {baht(r.declaredAmount)}</div>
+                    <div className="text-[13px] font-medium">วันที่แนบเอกสาร {thaiDate(r.transferredAt)} · {baht(r.declaredAmount)}</div>
                     <div className="mt-0.5 text-[11px] text-brand-ink/45">
-                      ครอบคลุม: {r.coveredDates.map(thaiDate).join(", ")}
+                      ยอดเงินสดวันที่: {r.coveredDates.map(thaiDate).join(", ")}
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">
                       <Badge tone={m.tone}>
