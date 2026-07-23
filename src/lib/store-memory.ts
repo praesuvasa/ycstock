@@ -36,6 +36,7 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
+const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 
 // ── ใบสั่งผลิต (v1.5) ──
 interface ProductionOrderRec {
@@ -460,6 +461,13 @@ export const memoryStore = {
       });
     }
     return { ok: true, savedCount: entries.length };
+  },
+
+  getRestockNote(branch: Branch, date: string): string {
+    return restockNotes.get(`${branch}|${date}`) ?? "";
+  },
+  saveRestockNote(branch: Branch, date: string, note: string): void {
+    restockNotes.set(`${branch}|${date}`, note);
   },
 
   // ── ใบสั่งผลิต (v1.5) — ตรรกะเดียวกับฝั่ง supabase แต่ทำงานบน Map ล้วนๆ ──

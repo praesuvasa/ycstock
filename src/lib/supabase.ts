@@ -435,6 +435,19 @@ export const supabaseStore = {
     return { ok: true, savedCount: payload.length };
   },
 
+  async getRestockNote(branch: Branch, date: string): Promise<string> {
+    const { data, error } = await sb().from("restock_notes").select("note")
+      .eq("branch_id", branch).eq("date", date).maybeSingle();
+    if (error) throw error;
+    return data?.note ?? "";
+  },
+  async saveRestockNote(branch: Branch, date: string, note: string, userId: string, userName: string): Promise<void> {
+    const { error } = await sb().from("restock_notes").upsert({
+      branch_id: branch, date, note, updated_by: userName, updated_by_user_id: userId, updated_at: new Date().toISOString(),
+    }, { onConflict: "branch_id,date" });
+    if (error) throw error;
+  },
+
   // ── ใบสั่งผลิต (v1.5) ──
   async listProductionOrders(limit = 50): Promise<ProductionOrderSummary[]> {
     const { data, error } = await sb().from("production_orders")

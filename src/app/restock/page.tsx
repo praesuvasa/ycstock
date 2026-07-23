@@ -378,7 +378,7 @@ function RestockByBranch() {
   const [specialActive, setSpecialActive] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  // โน้ตถึงพนักงาน — พิมพ์ลงในใบส่งของ ณ ตอนพิมพ์เท่านั้น ไม่บันทึกลง DB (กรอกใหม่ทุกครั้งที่ต้องการ)
+  // โน้ตถึงพนักงาน ต่อ (สาขา,วันที่) — พิมพ์ลงในใบส่งของ + บันทึกลง DB พร้อมตอนกด "บันทึกตัวเลือก" กลับมาเปิดคู่เดิมต้องเจอ
   const [printNote, setPrintNote] = React.useState("");
 
   // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
@@ -410,13 +410,14 @@ function RestockByBranch() {
       fetch(`/api/restock/selections?branch=${branch}&date=${date}`).then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
-        return data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }> };
+        return data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }>; note?: string };
       }),
     ])
       .then(([restockData, selData]) => {
         if (!alive) return;
         setRows(restockData.rows);
         setSpecialActive(restockData.specialActive);
+        setPrintNote(selData.note ?? "");
         // ถ้าเคย save (branch,date) นี้ไว้แล้ว → ใช้ค่าจาก DB ตรงๆ (ไม่ reset กลับ default)
         // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need, qtyG = 0)
         const next: Record<string, RestockSelectionEntry> = {};
@@ -482,7 +483,7 @@ function RestockByBranch() {
       const res = await fetch("/api/restock/selections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, entries }),
+        body: JSON.stringify({ branch, date, entries, note: printNote }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
@@ -787,7 +788,7 @@ function RestockByBranch() {
       {confirmed && !loading && !error && rows.length > 0 && (
         <>
           <label className="mt-3 flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">โน้ตถึงพนักงาน (แสดงในใบส่งของที่พิมพ์ ไม่บังคับ)</span>
+            <span className="text-[11px] text-brand-ink/50">โน้ตถึงพนักงาน (แสดงในใบส่งของที่พิมพ์ ไม่บังคับ — กดบันทึกตัวเลือกแล้วจะจำไว้)</span>
             <textarea
               value={printNote} onChange={(e) => setPrintNote(e.target.value)}
               rows={2} placeholder="เช่น เช็คน้ำหนักก่อนเซ็นรับ / ระวังกล่องแตก"

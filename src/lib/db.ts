@@ -124,6 +124,13 @@ export const db = {
       ? supabaseStore.saveRestockSelections(branch, date, entries, userId, userName)
       : Promise.resolve(memoryStore.saveRestockSelections(branch, date, entries, userId, userName)),
 
+  getRestockNote: (branch: Branch, date: string): Promise<string> =>
+    useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  saveRestockNote: (branch: Branch, date: string, note: string, userId: string, userName: string): Promise<void> =>
+    useSupabase
+      ? supabaseStore.saveRestockNote(branch, date, note, userId, userName)
+      : Promise.resolve(memoryStore.saveRestockNote(branch, date, note)),
+
   // ── ใบสั่งผลิต (v1.5) ──
   listProductionOrders: (limit?: number): Promise<ProductionOrderSummary[]> =>
     useSupabase ? supabaseStore.listProductionOrders(limit) : Promise.resolve(memoryStore.listProductionOrders(limit)),

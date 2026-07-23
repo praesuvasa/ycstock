@@ -26,8 +26,11 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date");
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
 
-    const entries = await db.getRestockSelections(branch, date);
-    return NextResponse.json({ entries });
+    const [entries, note] = await Promise.all([
+      db.getRestockSelections(branch, date),
+      db.getRestockNote(branch, date),
+    ]);
+    return NextResponse.json({ entries, note });
   } catch (e) {
     return fail(e, "getRestockSelections failed");
   }
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const s = await requireAdminOrRestock();
-    const body = (await req.json()) as { branch?: string; date?: string; entries?: RestockSelectionEntry[] };
+    const body = (await req.json()) as { branch?: string; date?: string; entries?: RestockSelectionEntry[]; note?: string };
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
       return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
@@ -47,7 +50,10 @@ export async function POST(req: NextRequest) {
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
     if (!Array.isArray(body.entries)) return NextResponse.json({ error: "entries จำเป็น" }, { status: 400 });
 
-    const result = await db.saveRestockSelections(branch, date, body.entries, s.userId, s.name);
+    const [result] = await Promise.all([
+      db.saveRestockSelections(branch, date, body.entries, s.userId, s.name),
+      db.saveRestockNote(branch, date, body.note ?? "", s.userId, s.name),
+    ]);
     const selectedCount = body.entries.filter((e) => e.selected).length;
     await writeAudit(s, "save_restock_selection", {
       branch, date, detail: `บันทึกตัวเลือกเติมของ ${body.entries.length} รายการ (เลือก ${selectedCount})`,
