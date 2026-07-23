@@ -546,6 +546,10 @@ export const supabaseStore = {
     }
     return this.getProductionOrder(id);
   },
+  async deleteProductionOrder(id: number): Promise<void> {
+    const { error } = await sb().from("production_orders").delete().eq("id", id);
+    if (error) throw error;
+  },
 
   async updateProductionOrderItem(
     id: number,

@@ -561,6 +561,12 @@ export const memoryStore = {
     }
     return this.getProductionOrder(id);
   },
+  deleteProductionOrder(id: number): void {
+    productionOrders.delete(id);
+    for (const [itemId, rec] of productionOrderItems) {
+      if (rec.orderId === id) productionOrderItems.delete(itemId);
+    }
+  },
 
   updateProductionOrderItem(
     id: number,

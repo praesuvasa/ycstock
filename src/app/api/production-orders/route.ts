@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAdminOrRestock, authErrorResponse } from "@/lib/authz";
+import { requireAdminOrRestock, requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import type { ProductionOrderItemInput } from "@/lib/types";
 
@@ -86,5 +86,26 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ ok: true, order });
   } catch (e) {
     return fail(e, "updateProductionOrder failed");
+  }
+}
+
+// DELETE /api/production-orders?id=123 → { ok } — admin เท่านั้น (ลบใบผิด/ซ้ำ กันสับสนในหน้าประวัติ)
+export async function DELETE(req: NextRequest) {
+  try {
+    const s = await requireAdmin();
+    const { searchParams } = new URL(req.url);
+    const id = Number(searchParams.get("id"));
+    if (!Number.isFinite(id)) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
+
+    const order = await db.getProductionOrder(id);
+    if (!order) return NextResponse.json({ error: "ไม่พบใบสั่งผลิต" }, { status: 404 });
+
+    await db.deleteProductionOrder(id);
+    await writeAudit(s, "delete_production_order", {
+      date: order.orderDate, detail: `ลบใบสั่งผลิต #${id} (${order.items.length} รายการ)`,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return fail(e, "deleteProductionOrder failed");
   }
 }

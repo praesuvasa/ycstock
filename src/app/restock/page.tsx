@@ -1644,7 +1644,10 @@ function ProductionOrder({
 // โหมด C — ประวัติสั่งผลิต (v1.5) — list → detail 2 ระดับ + ติ๊กคอนเฟิร์มทีละ item×สาขา
 // ══════════════════════════════════════════════════════════════════════
 function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
+  const me = useMe();
+  const isAdmin = me?.role === "admin";
   const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
 
   // ── list view ──
   const [orders, setOrders] = React.useState<ProductionOrderSummary[]>([]);
@@ -1766,6 +1769,22 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
     }
   }
 
+  async function handleDeleteOrder() {
+    if (!order) return;
+    if (!window.confirm(`ลบใบสั่งผลิต ${thaiDateSlash(order.orderDate)} นี้? ลบแล้วกู้คืนไม่ได้`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/production-orders?id=${order.id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "ลบไม่สำเร็จ");
+      setSelectedOrderId(null);
+    } catch (e: any) {
+      window.alert(`ลบไม่สำเร็จ: ${e?.message ?? e}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function badgeToneFor(o: ProductionOrderSummary): "ok" | "warn" | "neutral" {
     if (o.itemCount === 0) return "neutral";
     if (o.confirmedCount === o.itemCount) return "ok";
@@ -1835,13 +1854,25 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                   ส่งเข้าสาขา {thaiDateSlash(order!.deliveryDate)} · โดย {order!.createdByName}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => onEdit(order!.id)}
-                className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink active:scale-[.98]"
-              >
-                ✏️ แก้ไขใบนี้
-              </button>
+              <div className="flex shrink-0 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onEdit(order!.id)}
+                  className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink active:scale-[.98]"
+                >
+                  ✏️ แก้ไขใบนี้
+                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteOrder}
+                    disabled={deleting}
+                    className="rounded-lg border border-brand-red/25 bg-brand-red/5 px-3 py-1.5 text-xs font-semibold text-brand-red active:scale-[.98] disabled:opacity-50"
+                  >
+                    {deleting ? "กำลังลบ…" : "🗑️ ลบใบนี้"}
+                  </button>
+                )}
+              </div>
             </div>
             {order!.note.trim() && <p className="text-xs text-brand-ink/60">📝 {order!.note}</p>}
           </GlassCard>

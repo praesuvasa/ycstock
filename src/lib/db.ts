@@ -145,6 +145,9 @@ export const db = {
   ): Promise<ProductionOrder | null> =>
     useSupabase ? supabaseStore.updateProductionOrder(id, patch) : Promise.resolve(memoryStore.updateProductionOrder(id, patch)),
 
+  deleteProductionOrder: (id: number) =>
+    useSupabase ? supabaseStore.deleteProductionOrder(id) : Promise.resolve(memoryStore.deleteProductionOrder(id)),
+
   updateProductionOrderItem: (
     id: number,
     patch: { qty?: number; qtyG?: number; confirmed?: boolean; confirmedQty?: number; confirmedQtyG?: number },
