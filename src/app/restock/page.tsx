@@ -214,10 +214,10 @@ type PrintRow = RestockRow & { qty: string };
 const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
 
 function PrintSheet({
-  branch, date, weekdayLabel, printGroups, totalCount,
+  branch, date, weekdayLabel, printGroups, totalCount, note,
 }: {
   branch: Branch; date: string; weekdayLabel: string;
-  printGroups: { category: string; items: PrintRow[] }[]; totalCount: number;
+  printGroups: { category: string; items: PrintRow[] }[]; totalCount: number; note?: string;
 }) {
   const byCategory = new Map(printGroups.map((g) => [g.category, g]));
   const col1 = PRINT_LEFT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
@@ -286,6 +286,13 @@ function PrintSheet({
           <div className="text-[11px] text-neutral-600">{weekdayLabel}</div>
         </div>
       </div>
+      {note && note.trim() && (
+        <div className="mb-2 border-[1.3px] border-black px-2 py-1.5">
+          <span className="text-[9.5px] font-bold uppercase tracking-wide text-black">หมายเหตุถึงพนักงาน: </span>
+          <span className="text-[10px] font-medium text-black">{note}</span>
+        </div>
+      )}
+
       <div className="mb-2 flex justify-between text-[9.5px] text-neutral-600">
         <span>รวม {totalCount} รายการ</span>
         <span>ผู้จัดเตรียม: ____________________</span>
@@ -371,6 +378,8 @@ function RestockByBranch() {
   const [specialActive, setSpecialActive] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  // โน้ตถึงพนักงาน — พิมพ์ลงในใบส่งของ ณ ตอนพิมพ์เท่านั้น ไม่บันทึกลง DB (กรอกใหม่ทุกครั้งที่ต้องการ)
+  const [printNote, setPrintNote] = React.useState("");
 
   // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
   const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
@@ -777,7 +786,15 @@ function RestockByBranch() {
 
       {confirmed && !loading && !error && rows.length > 0 && (
         <>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+          <label className="mt-3 flex flex-col gap-1">
+            <span className="text-[11px] text-brand-ink/50">โน้ตถึงพนักงาน (แสดงในใบส่งของที่พิมพ์ ไม่บังคับ)</span>
+            <textarea
+              value={printNote} onChange={(e) => setPrintNote(e.target.value)}
+              rows={2} placeholder="เช่น เช็คน้ำหนักก่อนเซ็นรับ / ระวังกล่องแตก"
+              className="field text-left"
+            />
+          </label>
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={exportCsv}
@@ -818,7 +835,7 @@ function RestockByBranch() {
         </p>
       )}
     </div>
-    <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} />
+    <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} note={printNote} />
     </>
   );
 }
