@@ -288,8 +288,8 @@ function PrintSheet({
       </div>
       {note && note.trim() && (
         <div className="mb-2 border-[1.3px] border-black px-2 py-1.5">
-          <span className="text-[9.5px] font-bold uppercase tracking-wide text-black">หมายเหตุถึงพนักงาน: </span>
-          <span className="text-[10px] font-medium text-black">{note}</span>
+          <span className="text-[9.5px] font-bold uppercase tracking-wide text-black">NOTE: </span>
+          <span className="text-[10px] font-bold text-black">{note}</span>
         </div>
       )}
 
