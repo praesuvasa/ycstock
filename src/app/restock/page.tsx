@@ -1813,7 +1813,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[14px] font-medium">
-                  สั่งผลิต {thaiDateSlash(o.orderDate)} → ส่ง {thaiDateSlash(o.deliveryDate)}
+                  <span className="text-brand-ink/45">ใบ #{o.id}</span> · สั่งผลิต {thaiDateSlash(o.orderDate)} → ส่ง {thaiDateSlash(o.deliveryDate)}
                 </span>
                 <Badge tone={badgeToneFor(o)}>{o.confirmedCount}/{o.itemCount}</Badge>
               </div>
@@ -1850,7 +1850,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
           <GlassCard className="mb-3">
             <div className="mb-2 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-[15px] font-semibold">สั่งผลิต {thaiDateSlash(order!.orderDate)}</h2>
+                <h2 className="text-[15px] font-semibold">ใบ #{order!.id} · สั่งผลิต {thaiDateSlash(order!.orderDate)}</h2>
                 <p className="text-xs text-brand-ink/50">
                   ส่งเข้าสาขา {thaiDateSlash(order!.deliveryDate)} · โดย {order!.createdByName}
                 </p>
