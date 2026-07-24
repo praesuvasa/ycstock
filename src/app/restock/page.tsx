@@ -962,14 +962,14 @@ function ProductionPrintSheet({
       <table className="w-full border-collapse text-[9px]">
         <thead>
           <tr className="border-b-2 border-black">
-            <th className="w-3 py-1"></th>
-            <th className="py-1 text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.SND}</span></th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.NVP}</span></th>
-            <th className="w-8 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-400">{BRANCH_LABEL_TH.KCN}</span></th>
-            <th className="w-10 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
-            <th className="w-9 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">รวม</th>
-            <th className="w-16 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+            <th className="w-3 py-1 align-top"></th>
+            <th className="py-1 align-top text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
+            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.SND}</span></th>
+            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.NVP}</span></th>
+            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.KCN}</span></th>
+            <th className="w-10 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
+            <th className="w-9 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">รวม</th>
+            <th className="w-16 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
