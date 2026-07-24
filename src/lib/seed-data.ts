@@ -119,6 +119,7 @@ const RAW: Row[] = [
   ["Gloves YG M / ถุงมือ", "ของใช้", "Box", 1, 1, null],
   ["Gloves YG L / ถุงมือ", "ของใช้", "Box", 1, 1, null],
   ["Black Bag 30x40 / ถุงขยะ", "ของใช้", "Roll", 1, 1, null],
+  ["Black Bag 24x28 / ถุงขยะ", "ของใช้", "Roll", null, 1, null],
   ["Dry Tissue / ทิชชู่แห้ง", "ของใช้", "Pack", 3, 3, null],
   ["Wet Tissue / ทิชชู่เปียก", "ของใช้", "Pack", 2, 2, null],
   ["Tissue ทิชชู่ลูกค้า", "ของใช้", "Pack", null, 1, null],
