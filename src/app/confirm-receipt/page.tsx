@@ -196,11 +196,16 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   }
 
   const pendingItems = items.filter((i) => i.receivedQty === null);
+  const allSelected = pendingItems.length > 0 && pendingItems.every((item) => selection[item.itemId] === "received");
 
-  function selectAll() {
+  // กดครั้งแรก = เลือกทั้งหมด (ได้รับ) · กดซ้ำ (ตอนเลือกครบแล้ว) = เอาที่ติ๊กออกทั้งหมด
+  function toggleSelectAll() {
     setSelection((s) => {
       const next = { ...s };
-      for (const item of pendingItems) next[item.itemId] = "received";
+      for (const item of pendingItems) {
+        if (allSelected) delete next[item.itemId];
+        else next[item.itemId] = "received";
+      }
       return next;
     });
   }
@@ -246,10 +251,10 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       {pendingItems.length > 0 && (
         <button
           type="button"
-          onClick={selectAll}
+          onClick={toggleSelectAll}
           className="mb-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink"
         >
-          เลือกทั้งหมด
+          {allSelected ? "เอาที่เลือกออกทั้งหมด" : "เลือกทั้งหมด"}
         </button>
       )}
       <div className="mb-1 flex justify-end pr-1">
@@ -274,33 +279,12 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           return (
             <div key={item.itemId} className="rounded-lg bg-black/[.02] px-2.5 py-2.5">
               <div className="flex items-center gap-2.5">
-                {confirmed ? (
-                  <input
-                    type="checkbox"
-                    checked
-                    onChange={() => handleUncheck(item)}
-                    className="h-[18px] w-[18px] shrink-0 accent-brand-red"
-                  />
-                ) : (
-                  <div className="flex shrink-0 flex-col items-center gap-1">
-                    <label className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={sel === "received"}
-                        onChange={() => toggleSelection(item.itemId, "received")}
-                        className="h-[18px] w-[18px] accent-brand-red"
-                      />
-                    </label>
-                    <label className="flex items-center gap-1" title="ไม่ได้รับ">
-                      <input
-                        type="checkbox"
-                        checked={sel === "notReceived"}
-                        onChange={() => toggleSelection(item.itemId, "notReceived")}
-                        className="h-[15px] w-[15px] accent-red-600"
-                      />
-                    </label>
-                  </div>
-                )}
+                <input
+                  type="checkbox"
+                  checked={confirmed ? true : sel === "received"}
+                  onChange={() => (confirmed ? handleUncheck(item) : toggleSelection(item.itemId, "received"))}
+                  className="h-[18px] w-[18px] shrink-0 accent-ok"
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium">
                     {item.name} {item.isExtra && <Badge tone="orange">นอกใบ</Badge>}
@@ -360,6 +344,15 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   >
                     ลบ
                   </button>
+                )}
+                {!confirmed && (
+                  <input
+                    type="checkbox"
+                    checked={sel === "notReceived"}
+                    onChange={() => toggleSelection(item.itemId, "notReceived")}
+                    title="ไม่ได้รับ"
+                    className="h-[18px] w-[18px] shrink-0 accent-warn"
+                  />
                 )}
               </div>
               {isNoteOpen && (
