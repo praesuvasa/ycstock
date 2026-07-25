@@ -5,6 +5,7 @@
 // v1.9.2: ติ๊กเลือก/ไม่ได้รับ(แดง)เป็น draft ก่อน กด "ยืนยันทั้งหมด" ทีเดียว + "เลือกทั้งหมด"
 // รายการที่ยืนยันไปแล้วยังกลับมาแก้ทีหลังได้ตามปกติ (บันทึกทันทีเมื่อแก้)
 import React from "react";
+import Link from "next/link";
 import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, RestockReceiptBatchEntry } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
@@ -58,7 +59,15 @@ export default function ConfirmReceiptPage() {
         <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
       ) : sheets.length === 0 ? (
         <GlassCard>
-          <p className="py-6 text-center text-sm text-brand-ink/50">ยืนยันรับครบทุกใบแล้ว ✓</p>
+          <div className="py-6 text-center">
+            <p className="text-sm text-brand-ink/50">ยืนยันรับครบทุกใบแล้ว ✓</p>
+            <p className="mt-1 text-xs text-brand-ink/40">
+              หากต้องการตรวจสอบสินค้ารับเข้า สามารถตรวจสอบและแก้ไขได้ที่หน้า{" "}
+              <Link href={`/stock?branch=${branch}`} className="font-medium text-brand-red underline underline-offset-2">
+                สต็อก
+              </Link>
+            </p>
+          </div>
         </GlassCard>
       ) : (
         <>
