@@ -220,7 +220,12 @@ export const memoryStore = {
     let updated = 0, inserted = 0;
     for (const r of rows) {
       const key = sk(date, branch, r.itemId);
-      const v = variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack);
+      // ยกมาคำนวณสดจาก DB ตอนบันทึกเสมอ — ห้ามเชื่อ carryPack ที่ client ส่งมา เพราะอาจเป็นค่าเก่าที่ค้าง
+      // อยู่ในหน้าเว็บตั้งแต่ก่อนมีการแก้ไขคงเหลือของวันก่อนหน้าไปแล้ว (กันเซฟทับค่าที่แก้ไปแล้วกลับเป็นค่าผิดเดิม)
+      const prev = latestBefore(branch, r.itemId, date);
+      const carryPack = prev?.remainPack ?? 0;
+      const carryG = prev?.remainG ?? 0;
+      const v = variance(carryPack, r.inPack, r.used, r.returned, r.remainPack);
       const existing = stock.get(key);
       if (existing) updated++; else inserted++;
       let inAutoPack = existing?.inAutoPack;
@@ -232,7 +237,7 @@ export const memoryStore = {
           `ระบบเติมให้ ${inAutoPack} → พนักงานแก้เป็น ${r.inPack}`);
         inAutoPack = undefined; inAutoG = undefined;
       }
-      stock.set(key, { ...r, date, branch, variance: v, inAutoPack, inAutoG, remainConfirmed: true });
+      stock.set(key, { ...r, date, branch, carryPack, carryG, variance: v, inAutoPack, inAutoG, remainConfirmed: true });
     }
     return { ok: true, updated, inserted };
   },

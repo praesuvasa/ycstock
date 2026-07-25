@@ -132,10 +132,18 @@ export const supabaseStore = {
     const { data: existingRows } = await sb().from("stock_daily")
       .select("item_id,in_auto_pack,in_auto_g").eq("branch_id", branch).eq("date", date);
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
+    // ยกมาคำนวณสดจาก DB ตอนบันทึกเสมอ — ห้ามเชื่อ carryPack ที่ client ส่งมา เพราะอาจเป็นค่าเก่าที่ค้างอยู่ในหน้าเว็บ
+    // ตั้งแต่ก่อนมีการแก้ไขคงเหลือของวันก่อนหน้าไปแล้ว (กันเซฟทับค่าที่แก้ไปแล้วกลับเป็นค่าผิดเดิม)
+    const { data: prevRows } = await sb().from("stock_daily")
+      .select("item_id,remain_pack,remain_g,date").eq("branch_id", branch).lt("date", date).order("date");
+    const prevMap = new Map<string, any>();
+    for (const r of prevRows ?? []) prevMap.set(r.item_id, r);
     const flags: any[] = [];
     let itemNameMap: Map<string, string> | null = null;
     const payload = [];
     for (const r of rows) {
+      const p = prevMap.get(r.itemId);
+      const carryPack = p?.remain_pack ?? 0, carryG = p?.remain_g ?? 0;
       const auto = autoMap.get(r.itemId);
       let inAutoPack: number | null = auto?.pack != null ? Number(auto.pack) : null;
       let inAutoG: number | null = auto?.g != null ? Number(auto.g) : null;
@@ -152,10 +160,10 @@ export const supabaseStore = {
       }
       payload.push({
         date, branch_id: branch, item_id: r.itemId,
-        carry_pack: r.carryPack, carry_g: r.carryG, in_pack: r.inPack, in_g: r.inG,
+        carry_pack: carryPack, carry_g: carryG, in_pack: r.inPack, in_g: r.inG,
         used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
         returned_g: r.returnedG ?? 0,
-        note: r.note, variance: variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack),
+        note: r.note, variance: variance(carryPack, r.inPack, r.used, r.returned, r.remainPack),
         in_auto_pack: inAutoPack, in_auto_g: inAutoG, remain_confirmed: true,
       });
     }
