@@ -116,10 +116,12 @@ export const supabaseStore = {
     const prevMap = new Map<string, any>();
     for (const r of prev ?? []) prevMap.set(r.item_id, r); // last wins (ordered asc)
     return items.map((it) => {
-      const s = savedMap.get(it.id) as any;
-      if (s) return rowFromDb(s);
+      // ยกมา = คงเหลือของวันก่อนหน้าล่าสุดเสมอ คำนวณสดทุกครั้ง (ไม่ใช่ carry_pack ที่ freeze ไว้ตอนบันทึกแถวนี้ครั้งแรก)
+      // กันเคสแก้ไขคงเหลือของวันก่อนหน้าย้อนหลัง แล้วยกมาของวันถัดไปไม่อัปเดตตาม
       const p = prevMap.get(it.id);
       const carryPack = p?.remain_pack ?? 0, carryG = p?.remain_g ?? 0;
+      const s = savedMap.get(it.id) as any;
+      if (s) return { ...rowFromDb(s), carryPack, carryG };
       return { itemId: it.id, carryPack, carryG, inPack: 0, inG: 0, used: 0,
         remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0, hasEntry: false };
     });

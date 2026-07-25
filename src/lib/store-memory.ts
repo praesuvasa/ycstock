@@ -198,14 +198,16 @@ export const memoryStore = {
   getStock(branch: Branch, date: string): StockRow[] {
     seed();
     return ITEMS.map((it) => {
-      const saved = stock.get(sk(date, branch, it.id));
-      if (saved) {
-        const { date: _d, branch: _b, ...row } = saved;
-        return { ...row, hasEntry: !!saved.remainConfirmed };
-      }
+      // ยกมา = คงเหลือของวันก่อนหน้าล่าสุดเสมอ คำนวณสดทุกครั้ง (ไม่ใช่ค่าที่ freeze ไว้ตอนบันทึกแถวนี้ครั้งแรก)
+      // กันเคสแก้ไขคงเหลือของวันก่อนหน้าย้อนหลัง แล้วยกมาของวันถัดไปไม่อัปเดตตาม
       const prev = latestBefore(branch, it.id, date);
       const carryPack = prev?.remainPack ?? 0;
       const carryG = prev?.remainG ?? 0;
+      const saved = stock.get(sk(date, branch, it.id));
+      if (saved) {
+        const { date: _d, branch: _b, ...row } = saved;
+        return { ...row, carryPack, carryG, hasEntry: !!saved.remainConfirmed };
+      }
       return {
         itemId: it.id, carryPack, carryG, inPack: 0, inG: 0, used: 0,
         remainPack: carryPack, remainG: carryG, returned: 0, note: "", variance: 0, hasEntry: false,
