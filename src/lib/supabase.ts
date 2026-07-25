@@ -42,9 +42,9 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
 
   if (existing) {
     if (existing.in_auto_pack === null || existing.in_auto_pack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
+    // อัปเดตเฉพาะ "รับเข้า" — ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว
     const { error: updErr } = await sb().from("stock_daily").update({
       in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG,
-      remain_pack: Number(existing.carry_pack) + sumPack, remain_g: Number(existing.carry_g) + sumG, variance: 0,
     }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
     if (updErr) throw updErr;
   } else {
@@ -53,11 +53,13 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
       .order("date", { ascending: false }).limit(1).maybeSingle();
     const carryPack = prev?.remain_pack ?? 0;
     const carryG = prev?.remain_g ?? 0;
+    // แถวใหม่จาก auto-fill ล้วน ๆ ยังไม่มีใครนับ/ยืนยันคงเหลือจริง — remain_confirmed: false
+    // ให้หน้าสต็อกโชว์ช่องคงเหลือเป็นค่าว่างรอพนักงานกรอกเอง ไม่ใช่โชว์เลขที่คำนวณไว้ล่วงหน้า
     const { error: insErr } = await sb().from("stock_daily").insert({
       date: todayStr, branch_id: branch, item_id: itemId,
       carry_pack: carryPack, carry_g: carryG, in_pack: sumPack, in_g: sumG, used: 0,
       remain_pack: carryPack + sumPack, remain_g: carryG + sumG, returned: 0, returned_g: 0,
-      note: "", variance: 0, in_auto_pack: sumPack, in_auto_g: sumG,
+      note: "", variance: 0, in_auto_pack: sumPack, in_auto_g: sumG, remain_confirmed: false,
     });
     if (insErr) throw insErr;
   }
@@ -152,7 +154,7 @@ export const supabaseStore = {
         used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
         returned_g: r.returnedG ?? 0,
         note: r.note, variance: variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack),
-        in_auto_pack: inAutoPack, in_auto_g: inAutoG,
+        in_auto_pack: inAutoPack, in_auto_g: inAutoG, remain_confirmed: true,
       });
     }
     const { error } = await sb().from("stock_daily").upsert(payload, { onConflict: "date,branch_id,item_id" });
@@ -910,7 +912,7 @@ function rowFromDb(s: any): StockRow {
     itemId: s.item_id, carryPack: s.carry_pack, carryG: s.carry_g, inPack: s.in_pack, inG: s.in_g,
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
     returnedG: s.returned_g ?? 0,
-    note: s.note ?? "", variance: s.variance, hasEntry: true,
+    note: s.note ?? "", variance: s.variance, hasEntry: !!s.remain_confirmed,
   };
 }
 

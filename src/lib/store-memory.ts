@@ -31,6 +31,9 @@ interface StockRec extends StockRow {
   // ค่าที่ auto-fill ให้ล่าสุดจากการยืนยันรับของ (v1.9) — ใช้ตรวจจับว่าพนักงานแก้ทับทีหลังไหม
   inAutoPack?: number;
   inAutoG?: number;
+  // พนักงานกดยืนยันยอด "คงเหลือ" เองที่หน้าสต็อกแล้วหรือยัง (v1.9.3) — true เฉพาะตอน save ผ่านหน้าสต็อกจริง
+  // แถวที่เกิดจาก auto-fill รับของอย่างเดียว (ยังไม่มีใครมานับ/ยืนยันคงเหลือ) จะเป็น false ไว้ก่อน
+  remainConfirmed?: boolean;
 }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
 interface CupRec extends CupRow { date: string; branch: Branch; }
@@ -171,7 +174,7 @@ function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: str
     stock.set(key, {
       date: todayStr, branch, itemId, carryPack, carryG, inPack: sumPack, inG: sumG, used: 0,
       remainPack: carryPack + sumPack, remainG: carryG + sumG, returned: 0, note: "", variance: 0,
-      inAutoPack: sumPack, inAutoG: sumG,
+      inAutoPack: sumPack, inAutoG: sumG, remainConfirmed: false,
     });
   }
 }
@@ -198,7 +201,7 @@ export const memoryStore = {
       const saved = stock.get(sk(date, branch, it.id));
       if (saved) {
         const { date: _d, branch: _b, ...row } = saved;
-        return { ...row, hasEntry: true };
+        return { ...row, hasEntry: !!saved.remainConfirmed };
       }
       const prev = latestBefore(branch, it.id, date);
       const carryPack = prev?.remainPack ?? 0;
@@ -227,7 +230,7 @@ export const memoryStore = {
           `ระบบเติมให้ ${inAutoPack} → พนักงานแก้เป็น ${r.inPack}`);
         inAutoPack = undefined; inAutoG = undefined;
       }
-      stock.set(key, { ...r, date, branch, variance: v, inAutoPack, inAutoG });
+      stock.set(key, { ...r, date, branch, variance: v, inAutoPack, inAutoG, remainConfirmed: true });
     }
     return { ok: true, updated, inserted };
   },
