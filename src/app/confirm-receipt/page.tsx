@@ -2,8 +2,9 @@
 // v1.9 · ยืนยันรับของ — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้
 // ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" เผื่อของมาส่งช้ากว่าที่นัด
 // รับจริงที่ยืนยัน → auto-fill เข้าช่อง "รับเข้า" หน้าสต็อกของวันที่ติ๊กจริงทันที
+// v1.9.1: ติ๊กออกได้ (กันพลาดติ๊ก) + กรอกเศษกรัมได้สำหรับรายการที่นับเศษ
 import React from "react";
-import type { Branch, Meta, RestockSheetSummary, RestockReceiptStatus } from "@/lib/types";
+import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
@@ -45,7 +46,7 @@ export default function ConfirmReceiptPage() {
       <PageTitle title="ยืนยันรับของ" />
 
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
-        ติ๊กเฉพาะรายการที่ได้รับของจริงแล้วเท่านั้น — หากสินค้ายังไม่จัดส่งถึง อย่ายืนยันรับ
+        ติ๊กเฉพาะรายการที่ได้รับของจริงแล้วเท่านั้น — หากสินค้ายังไม่จัดส่งถึง อย่ายืนยันรับ (พลาดติ๊กไป กดที่ช่องติ๊กอีกครั้งเพื่อยกเลิกได้)
       </div>
 
       <GlassCard className="mb-3">
@@ -91,6 +92,8 @@ export default function ConfirmReceiptPage() {
   );
 }
 
+interface Draft { qty: string; qtyG: string }
+
 function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;
 }) {
@@ -98,7 +101,13 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const isAdmin = me?.role === "admin";
   const [items, setItems] = React.useState<RestockReceiptStatus[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [drafts, setDrafts] = React.useState<Record<string, string>>({});
+  const [drafts, setDrafts] = React.useState<Record<string, Draft>>({});
+
+  const itemMeta = React.useMemo(() => new Map((meta?.items ?? []).map((it) => [it.id, it])), [meta]);
+  const showGrams = (itemId: string) => {
+    const it = itemMeta.get(itemId);
+    return !!it && (it.hasRemainder || it.variableYield);
+  };
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -110,12 +119,25 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   }, [branch, date]);
   React.useEffect(() => { load(); }, [load]);
 
-  async function submit(itemId: string, qty: number, isExtra: boolean) {
+  async function submit(itemId: string, qty: number, qtyG: number, isExtra: boolean) {
     await fetch("/api/confirm-receipt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: 0, isExtra }),
+      body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra }),
     });
+    setDrafts((d) => { const { [itemId]: _drop, ...rest } = d; return rest; });
+    load();
+    onChanged();
+  }
+
+  async function handleUncheck(item: RestockReceiptStatus) {
+    if (!window.confirm(`ยกเลิกยืนยันรับ "${item.name}"? (พลาดติ๊กไป)`)) return;
+    await fetch("/api/confirm-receipt", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branch, date, itemId: item.itemId }),
+    });
+    setDrafts((d) => { const { [item.itemId]: _drop, ...rest } = d; return rest; });
     load();
     onChanged();
   }
@@ -136,16 +158,17 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   }
 
   function handleCheck(item: RestockReceiptStatus) {
-    submit(item.itemId, item.orderedQty, false);
+    submit(item.itemId, item.orderedQty, item.orderedQtyG, false);
   }
 
   function handleEditCommit(item: RestockReceiptStatus) {
-    const raw = drafts[item.itemId];
-    if (raw === undefined) return;
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 0) return;
-    if (item.receivedQty !== null && n === item.receivedQty) return;
-    submit(item.itemId, n, item.isExtra);
+    const draft = drafts[item.itemId];
+    if (!draft) return;
+    const n = Number(draft.qty);
+    const g = Number(draft.qtyG || "0");
+    if (!Number.isFinite(n) || n < 0 || !Number.isFinite(g) || g < 0) return;
+    if (item.receivedQty !== null && n === item.receivedQty && g === (item.receivedQtyG ?? 0)) return;
+    submit(item.itemId, n, g, item.isExtra);
   }
 
   // รายการที่เพิ่มนอกใบแล้ว + รายการในใบ ไม่ให้เลือกซ้ำในช่อง "เพิ่มรายการอื่น"
@@ -159,15 +182,17 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       <div className="grid gap-1.5">
         {items.map((item) => {
           const confirmed = item.receivedQty !== null;
-          const mismatch = confirmed && !item.isExtra && item.receivedQty !== item.orderedQty;
-          const val = drafts[item.itemId] ?? (confirmed ? String(item.receivedQty) : String(item.orderedQty));
+          const mismatch = confirmed && !item.isExtra
+            && (item.receivedQty !== item.orderedQty || (item.receivedQtyG ?? 0) !== item.orderedQtyG);
+          const draft = drafts[item.itemId];
+          const qtyVal = draft?.qty ?? (confirmed ? String(item.receivedQty) : String(item.orderedQty));
+          const qtyGVal = draft?.qtyG ?? (confirmed ? String(item.receivedQtyG ?? 0) : String(item.orderedQtyG));
           return (
             <div key={item.itemId} className="flex items-center gap-2.5 rounded-lg bg-black/[.02] px-2.5 py-2.5">
               <input
                 type="checkbox"
                 checked={confirmed}
-                disabled={confirmed}
-                onChange={() => handleCheck(item)}
+                onChange={() => (confirmed ? handleUncheck(item) : handleCheck(item))}
                 className="h-[18px] w-[18px] shrink-0 accent-brand-red"
               />
               <div className="min-w-0 flex-1">
@@ -175,19 +200,35 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   {item.name} {item.isExtra && <Badge tone="orange">นอกใบ</Badge>}
                 </div>
                 <div className="text-[11px] text-brand-ink/45">
-                  {item.isExtra ? "เพิ่มนอกใบเดิม" : `สั่งไว้ ${item.orderedQty} ${item.unit}`}
-                  {mismatch && <span className="text-warn"> · ได้รับจริง {item.receivedQty}</span>}
+                  {item.isExtra ? "เพิ่มนอกใบเดิม" : `สั่งไว้ ${item.orderedQty} ${item.unit}${item.orderedQtyG ? ` +${item.orderedQtyG}g` : ""}`}
+                  {mismatch && (
+                    <span className="text-warn"> · ได้รับจริง {item.receivedQty}{(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}</span>
+                  )}
                 </div>
               </div>
               <input
                 inputMode="numeric"
-                value={val}
+                value={qtyVal}
                 disabled={!confirmed}
-                onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: e.target.value }))}
+                onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
                 onBlur={() => handleEditCommit(item)}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                className={`field w-16 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
+                className={`field w-14 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
               />
+              {(showGrams(item.itemId) || item.isExtra) && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-[11px] text-brand-ink/40">+g</span>
+                  <input
+                    inputMode="numeric"
+                    value={qtyGVal}
+                    disabled={!confirmed}
+                    onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
+                    onBlur={() => handleEditCommit(item)}
+                    onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    className={`field w-12 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
+                  />
+                </div>
+              )}
               {!confirmed && isAdmin && (
                 <button
                   type="button"
@@ -202,23 +243,26 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
         })}
       </div>
 
-      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty) => submit(itemId, qty, true)} />
+      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty, qtyG) => submit(itemId, qty, qtyG, true)} />
     </GlassCard>
   );
 }
 
 function AddExtraItem({ candidates, onAdd }: {
-  candidates: { id: string; name: string; unit: string }[];
-  onAdd: (itemId: string, qty: number) => void;
+  candidates: Item[];
+  onAdd: (itemId: string, qty: number, qtyG: number) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [filter, setFilter] = React.useState("");
   const [itemId, setItemId] = React.useState("");
   const [qty, setQty] = React.useState("");
+  const [qtyG, setQtyG] = React.useState("");
 
   const filtered = filter.trim()
     ? candidates.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()))
     : candidates;
+  const selected = candidates.find((c) => c.id === itemId);
+  const showGrams = !!selected && (selected.hasRemainder || selected.variableYield);
 
   if (!open) {
     return (
@@ -247,13 +291,22 @@ function AddExtraItem({ candidates, onAdd }: {
           inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)}
           placeholder="จำนวน" className="field flex-1"
         />
+        {showGrams && (
+          <input
+            inputMode="numeric" value={qtyG} onChange={(e) => setQtyG(e.target.value)}
+            placeholder="เศษ (g)" className="field w-20"
+          />
+        )}
         <button
           type="button"
           onClick={() => {
             const n = Number(qty);
-            if (!itemId || !Number.isFinite(n) || n <= 0) { window.alert("เลือกรายการและกรอกจำนวนให้ถูกต้อง"); return; }
-            onAdd(itemId, n);
-            setOpen(false); setFilter(""); setItemId(""); setQty("");
+            const g = Number(qtyG || "0");
+            if (!itemId || !Number.isFinite(n) || n <= 0 || !Number.isFinite(g) || g < 0) {
+              window.alert("เลือกรายการและกรอกจำนวนให้ถูกต้อง"); return;
+            }
+            onAdd(itemId, n, g);
+            setOpen(false); setFilter(""); setItemId(""); setQty(""); setQtyG("");
           }}
           className="shrink-0 rounded-xl border border-black/10 bg-white/70 px-4 text-sm font-semibold text-brand-ink"
         >

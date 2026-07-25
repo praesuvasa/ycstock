@@ -54,3 +54,22 @@ export async function POST(req: Request) {
     return fail(e, "confirmRestockReceipt failed");
   }
 }
+
+// DELETE /api/confirm-receipt { branch, date, itemId } — ยกเลิกยืนยันรับ (พลาดติ๊ก) กลับไปเป็น "ยังไม่ยืนยัน"
+export async function DELETE(req: Request) {
+  try {
+    const s = await requireSession();
+    const body = (await req.json()) as { branch?: string; date?: string; itemId?: string };
+    const branch = resolveBranch(s, parseBranch(body.branch ?? null));
+    const date = body.date;
+    const itemId = body.itemId;
+    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!itemId) return NextResponse.json({ error: "itemId จำเป็น" }, { status: 400 });
+
+    await db.unconfirmRestockReceipt(branch, date, itemId);
+    await writeAudit(s, "unconfirm_restock_receipt", { branch, date, entity: itemId, detail: `ยกเลิกยืนยันรับ ${itemId}` });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return fail(e, "unconfirmRestockReceipt failed");
+  }
+}

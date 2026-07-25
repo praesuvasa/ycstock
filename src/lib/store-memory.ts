@@ -582,6 +582,27 @@ export const memoryStore = {
     return { ok: true };
   },
 
+  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
+  // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
+  unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): void {
+    const key = sk(date, branch, itemId);
+    const receipt = restockReceipts.get(key);
+    if (!receipt) return;
+    restockReceipts.delete(key);
+    const todayStr = receipt.confirmedAt.slice(0, 10);
+    const stockKey = sk(todayStr, branch, itemId);
+    const existing = stock.get(stockKey);
+    if (
+      existing && existing.inPack === receipt.receivedQty && existing.inG === receipt.receivedQtyG
+      && existing.used === 0 && existing.returned === 0
+    ) {
+      stock.set(stockKey, {
+        ...existing, inPack: 0, inG: 0, inAutoPack: undefined, inAutoG: undefined,
+        remainPack: existing.carryPack, remainG: existing.carryG, variance: 0,
+      });
+    }
+  },
+
   getPendingReceiptCount(branch: Branch): number {
     return this.listOutstandingRestockSheets(branch).reduce((sum, s) => sum + s.pendingCount, 0);
   },

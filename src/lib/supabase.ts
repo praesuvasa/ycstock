@@ -598,6 +598,34 @@ export const supabaseStore = {
     }
   },
 
+  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
+  // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
+  async unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): Promise<void> {
+    const { data: receipt } = await sb().from("restock_receipts")
+      .select("received_qty,received_qty_g,confirmed_at")
+      .eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
+    if (!receipt) return;
+    const { error: delErr } = await sb().from("restock_receipts")
+      .delete().eq("branch_id", branch).eq("date", date).eq("item_id", itemId);
+    if (delErr) throw delErr;
+
+    const todayStr = String(receipt.confirmed_at).slice(0, 10);
+    const { data: existing } = await sb().from("stock_daily")
+      .select("carry_pack,carry_g,in_pack,in_g,used,returned")
+      .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
+    if (
+      existing && Number(existing.in_pack) === Number(receipt.received_qty)
+      && Number(existing.in_g) === Number(receipt.received_qty_g)
+      && Number(existing.used) === 0 && Number(existing.returned) === 0
+    ) {
+      const { error: updErr } = await sb().from("stock_daily").update({
+        in_pack: 0, in_g: 0, in_auto_pack: null, in_auto_g: null,
+        remain_pack: existing.carry_pack, remain_g: existing.carry_g, variance: 0,
+      }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
+      if (updErr) throw updErr;
+    }
+  },
+
   async getPendingReceiptCount(branch: Branch): Promise<number> {
     const sheets = await this.listOutstandingRestockSheets(branch);
     return sheets.reduce((sum, s) => sum + s.pendingCount, 0);

@@ -176,6 +176,10 @@ export const db = {
     useSupabase
       ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)
       : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)).then(() => undefined),
+  unconfirmRestockReceipt: (branch: Branch, date: string, itemId: string): Promise<void> =>
+    useSupabase
+      ? supabaseStore.unconfirmRestockReceipt(branch, date, itemId)
+      : Promise.resolve(memoryStore.unconfirmRestockReceipt(branch, date, itemId)),
   getPendingReceiptCount: (branch: Branch): Promise<number> =>
     useSupabase ? supabaseStore.getPendingReceiptCount(branch) : Promise.resolve(memoryStore.getPendingReceiptCount(branch)),
   listAdminFlags: (includeResolved?: boolean): Promise<AdminFlag[]> =>
