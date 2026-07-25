@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     const s = await requireSession();
     const body = (await req.json()) as {
       branch?: string; date?: string; itemId?: string;
-      receivedQty?: number; receivedQtyG?: number; isExtra?: boolean; note?: string;
+      receivedQty?: number; receivedQtyG?: number; isExtra?: boolean; note?: string; notReceived?: boolean;
     };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
@@ -43,9 +43,10 @@ export async function POST(req: Request) {
     const receivedQty = Number(body.receivedQty ?? 0);
     const receivedQtyG = Number(body.receivedQtyG ?? 0);
     const isExtra = !!body.isExtra;
+    const notReceived = !!body.notReceived;
     const note = (body.note ?? "").trim();
 
-    await db.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, s.userId, s.name, note);
+    await db.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, s.userId, s.name, note, notReceived);
     await writeAudit(s, "confirm_restock_receipt", {
       branch, date, entity: itemId,
       detail: isExtra ? `เพิ่มรายการนอกใบ จำนวน ${receivedQty}` : `ยืนยันรับ ${itemId} จำนวน ${receivedQty}`,

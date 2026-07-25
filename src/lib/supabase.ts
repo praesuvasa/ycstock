@@ -2,7 +2,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
-import { variance, restockNeed, isSpecialActive, isPastCutoff } from "./calc";
+import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
@@ -500,7 +500,7 @@ export const supabaseStore = {
       const confirmed = confirmedByDate.get(date) ?? new Set();
       const pending = Array.from(items).filter((id) => !confirmed.has(id)).length;
       if (pending === 0) continue;
-      out.push({ date, pendingCount: pending, totalCount: items.size, isPastCutoff: isPastCutoff(branch, date) });
+      out.push({ date, pendingCount: pending, totalCount: items.size });
     }
     return out.sort((a, b) => (a.date < b.date ? -1 : 1));
   },
@@ -508,7 +508,7 @@ export const supabaseStore = {
   async getRestockReceiptStatus(branch: Branch, date: string): Promise<RestockReceiptStatus[]> {
     const [selRes, receiptRes, meta] = await Promise.all([
       sb().from("restock_selections").select("item_id,qty,qty_g").eq("branch_id", branch).eq("date", date).eq("selected", true),
-      sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,note,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
+      sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,not_received,note,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
       this.getMeta(),
     ]);
     if (selRes.error) throw selRes.error;
@@ -523,7 +523,8 @@ export const supabaseStore = {
         orderedQty: Number(r.qty), orderedQtyG: Number(r.qty_g),
         receivedQty: receipt ? Number((receipt as any).received_qty) : null,
         receivedQtyG: receipt ? Number((receipt as any).received_qty_g) : null,
-        isExtra: false, note: (receipt as any)?.note ?? undefined,
+        isExtra: false, notReceived: (receipt as any)?.not_received ?? false,
+        note: (receipt as any)?.note ?? undefined,
         confirmedByName: (receipt as any)?.confirmed_by_name ?? undefined,
         confirmedAt: (receipt as any)?.confirmed_at ?? undefined,
       };
@@ -535,7 +536,8 @@ export const supabaseStore = {
         itemId: receipt.item_id, name: it?.name ?? receipt.item_id, unit: it?.unit ?? "",
         orderedQty: 0, orderedQtyG: 0,
         receivedQty: Number(receipt.received_qty), receivedQtyG: Number(receipt.received_qty_g),
-        isExtra: true, note: receipt.note ?? undefined,
+        isExtra: true, notReceived: receipt.not_received ?? false,
+        note: receipt.note ?? undefined,
         confirmedByName: receipt.confirmed_by_name ?? undefined, confirmedAt: receipt.confirmed_at ?? undefined,
       });
     }
@@ -544,7 +546,7 @@ export const supabaseStore = {
 
   async confirmRestockReceipt(
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string, note = ""
+    isExtra: boolean, userId: string, userName: string, note = "", notReceived = false
   ): Promise<void> {
     const now = new Date().toISOString();
     let orderedQty = 0;
@@ -555,7 +557,7 @@ export const supabaseStore = {
     }
     const { error } = await sb().from("restock_receipts").upsert({
       date, branch_id: branch, item_id: itemId, ordered_qty: orderedQty,
-      received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra, note,
+      received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra, not_received: notReceived, note,
       confirmed_by_user_id: userId, confirmed_by_name: userName, confirmed_at: now,
     }, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
@@ -567,6 +569,11 @@ export const supabaseStore = {
         branch_id: branch, date, item_id: itemId, item_name: itemName,
         reason: "receipt_extra", detail: `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`,
       });
+    } else if (notReceived) {
+      await sb().from("stock_admin_flags").insert({
+        branch_id: branch, date, item_id: itemId, item_name: itemName,
+        reason: "receipt_mismatch", detail: `ไม่ได้รับสินค้า (สั่งไว้ ${orderedQty})`,
+      });
     } else if (receivedQty !== orderedQty) {
       await sb().from("stock_admin_flags").insert({
         branch_id: branch, date, item_id: itemId, item_name: itemName,
@@ -574,6 +581,7 @@ export const supabaseStore = {
       });
     }
 
+    if (notReceived) return; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
     // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
     const todayStr = now.slice(0, 10);
     const { data: existing } = await sb().from("stock_daily")
@@ -599,16 +607,28 @@ export const supabaseStore = {
     }
   },
 
+  // ยืนยันรับทีเดียวหลายรายการ (กด "ยืนยันทั้งหมด") — วน confirmRestockReceipt ต่อรายการ
+  async batchConfirmRestockReceipt(
+    branch: Branch, date: string,
+    entries: { itemId: string; receivedQty: number; receivedQtyG: number; isExtra: boolean; notReceived: boolean; note?: string }[],
+    userId: string, userName: string
+  ): Promise<void> {
+    for (const e of entries) {
+      await this.confirmRestockReceipt(branch, date, e.itemId, e.receivedQty, e.receivedQtyG, e.isExtra, userId, userName, e.note ?? "", e.notReceived);
+    }
+  },
+
   // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
   // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
   async unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): Promise<void> {
     const { data: receipt } = await sb().from("restock_receipts")
-      .select("received_qty,received_qty_g,confirmed_at")
+      .select("received_qty,received_qty_g,confirmed_at,not_received")
       .eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
     if (!receipt) return;
     const { error: delErr } = await sb().from("restock_receipts")
       .delete().eq("branch_id", branch).eq("date", date).eq("item_id", itemId);
     if (delErr) throw delErr;
+    if (receipt.not_received) return; // "ไม่ได้รับ" ไม่เคยแตะสต็อก ไม่ต้องคืนค่าอะไร
 
     const todayStr = String(receipt.confirmed_at).slice(0, 10);
     const { data: existing } = await sb().from("stock_daily")

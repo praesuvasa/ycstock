@@ -3,7 +3,7 @@
 import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
-import { variance, restockNeed, isSpecialActive, isPastCutoff } from "./calc";
+import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // ── users + audit (memory) ──
@@ -46,7 +46,7 @@ const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
   date: string; branch: Branch; itemId: string;
-  orderedQty: number; receivedQty: number; receivedQtyG: number; isExtra: boolean; note: string;
+  orderedQty: number; receivedQty: number; receivedQtyG: number; isExtra: boolean; notReceived: boolean; note: string;
   confirmedByUserId: string; confirmedByName: string; confirmedAt: string;
 }
 const restockReceipts = new Map<string, RestockReceiptRec>(); // key = sk(date,branch,itemId)
@@ -515,7 +515,7 @@ export const memoryStore = {
       const total = selectedItems.length;
       const pending = selectedItems.filter((r) => !restockReceipts.has(sk(date, branch, r.itemId))).length;
       if (pending === 0) continue;
-      out.push({ date, pendingCount: pending, totalCount: total, isPastCutoff: isPastCutoff(branch, date) });
+      out.push({ date, pendingCount: pending, totalCount: total });
     }
     return out.sort((a, b) => (a.date < b.date ? -1 : 1));
   },
@@ -529,7 +529,8 @@ export const memoryStore = {
         itemId: r.itemId, name: it?.name ?? r.itemId, unit: it?.unit ?? "",
         orderedQty: r.qty, orderedQtyG: r.qtyG,
         receivedQty: receipt?.receivedQty ?? null, receivedQtyG: receipt?.receivedQtyG ?? null,
-        isExtra: false, note: receipt?.note, confirmedByName: receipt?.confirmedByName, confirmedAt: receipt?.confirmedAt,
+        isExtra: false, notReceived: receipt?.notReceived ?? false,
+        note: receipt?.note, confirmedByName: receipt?.confirmedByName, confirmedAt: receipt?.confirmedAt,
       };
     });
     for (const receipt of restockReceipts.values()) {
@@ -538,7 +539,8 @@ export const memoryStore = {
       out.push({
         itemId: receipt.itemId, name: it?.name ?? receipt.itemId, unit: it?.unit ?? "",
         orderedQty: 0, orderedQtyG: 0, receivedQty: receipt.receivedQty, receivedQtyG: receipt.receivedQtyG,
-        isExtra: true, note: receipt.note, confirmedByName: receipt.confirmedByName, confirmedAt: receipt.confirmedAt,
+        isExtra: true, notReceived: receipt.notReceived,
+        note: receipt.note, confirmedByName: receipt.confirmedByName, confirmedAt: receipt.confirmedAt,
       });
     }
     return out;
@@ -546,23 +548,26 @@ export const memoryStore = {
 
   confirmRestockReceipt(
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string, note = ""
+    isExtra: boolean, userId: string, userName: string, note = "", notReceived = false
   ): { ok: true } {
     seed();
     const now = new Date().toISOString();
     const sel = restockSelections.get(sk(date, branch, itemId));
     const orderedQty = isExtra ? 0 : (sel?.qty ?? 0);
     restockReceipts.set(sk(date, branch, itemId), {
-      date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra, note,
+      date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra, notReceived, note,
       confirmedByUserId: userId, confirmedByName: userName, confirmedAt: now,
     });
     const it = ITEMS.find((x) => x.id === itemId);
     const itemName = it?.name ?? itemId;
     if (isExtra) {
       pushAdminFlag(branch, date, itemId, itemName, "receipt_extra", `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`);
+    } else if (notReceived) {
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `ไม่ได้รับสินค้า (สั่งไว้ ${orderedQty})`);
     } else if (receivedQty !== orderedQty) {
       pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `สั่งไว้ ${orderedQty} ได้รับจริง ${receivedQty}`);
     }
+    if (notReceived) return { ok: true }; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
     // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
     const todayStr = now.slice(0, 10);
     const key = sk(todayStr, branch, itemId);
@@ -582,6 +587,18 @@ export const memoryStore = {
     return { ok: true };
   },
 
+  // ยืนยันรับทีเดียวหลายรายการ (กด "ยืนยันทั้งหมด") — วน confirmRestockReceipt ต่อรายการ
+  batchConfirmRestockReceipt(
+    branch: Branch, date: string,
+    entries: { itemId: string; receivedQty: number; receivedQtyG: number; isExtra: boolean; notReceived: boolean; note?: string }[],
+    userId: string, userName: string
+  ): { ok: true } {
+    for (const e of entries) {
+      this.confirmRestockReceipt(branch, date, e.itemId, e.receivedQty, e.receivedQtyG, e.isExtra, userId, userName, e.note ?? "", e.notReceived);
+    }
+    return { ok: true };
+  },
+
   // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
   // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
   unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): void {
@@ -589,6 +606,7 @@ export const memoryStore = {
     const receipt = restockReceipts.get(key);
     if (!receipt) return;
     restockReceipts.delete(key);
+    if (receipt.notReceived) return; // "ไม่ได้รับ" ไม่เคยแตะสต็อก ไม่ต้องคืนค่าอะไร
     const todayStr = receipt.confirmedAt.slice(0, 10);
     const stockKey = sk(todayStr, branch, itemId);
     const existing = stock.get(stockKey);

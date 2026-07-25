@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -171,11 +171,17 @@ export const db = {
     useSupabase ? supabaseStore.getRestockReceiptStatus(branch, date) : Promise.resolve(memoryStore.getRestockReceiptStatus(branch, date)),
   confirmRestockReceipt: (
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string, note?: string
+    isExtra: boolean, userId: string, userName: string, note?: string, notReceived?: boolean
   ): Promise<void> =>
     useSupabase
-      ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note)
-      : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note)).then(() => undefined),
+      ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note, notReceived)
+      : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note, notReceived)).then(() => undefined),
+  batchConfirmRestockReceipt: (
+    branch: Branch, date: string, entries: RestockReceiptBatchEntry[], userId: string, userName: string
+  ): Promise<void> =>
+    useSupabase
+      ? supabaseStore.batchConfirmRestockReceipt(branch, date, entries, userId, userName)
+      : Promise.resolve(memoryStore.batchConfirmRestockReceipt(branch, date, entries, userId, userName)).then(() => undefined),
   unconfirmRestockReceipt: (branch: Branch, date: string, itemId: string): Promise<void> =>
     useSupabase
       ? supabaseStore.unconfirmRestockReceipt(branch, date, itemId)

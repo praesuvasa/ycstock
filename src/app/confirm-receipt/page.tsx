@@ -2,9 +2,10 @@
 // v1.9 · ยืนยันรับของ — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้
 // ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" เผื่อของมาส่งช้ากว่าที่นัด
 // รับจริงที่ยืนยัน → auto-fill เข้าช่อง "รับเข้า" หน้าสต็อกของวันที่ติ๊กจริงทันที
-// v1.9.1: ติ๊กออกได้ (กันพลาดติ๊ก) + กรอกเศษกรัมได้สำหรับรายการที่นับเศษ
+// v1.9.2: ติ๊กเลือก/ไม่ได้รับ(แดง)เป็น draft ก่อน กด "ยืนยันทั้งหมด" ทีเดียว + "เลือกทั้งหมด"
+// รายการที่ยืนยันไปแล้วยังกลับมาแก้ทีหลังได้ตามปกติ (บันทึกทันทีเมื่อแก้)
 import React from "react";
-import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus } from "@/lib/types";
+import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, RestockReceiptBatchEntry } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
@@ -46,7 +47,7 @@ export default function ConfirmReceiptPage() {
       <PageTitle title="ยืนยันรับของ" />
 
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
-        ติ๊กเฉพาะรายการที่ได้รับของจริงแล้วเท่านั้น — หากสินค้ายังไม่จัดส่งถึง อย่ายืนยันรับ (พลาดติ๊กไป กดที่ช่องติ๊กอีกครั้งเพื่อยกเลิกได้)
+        กรุณาตรวจสอบรายการและจำนวนให้ถูกต้องก่อนกดยืนยันรับสินค้า
       </div>
 
       <GlassCard className="mb-3">
@@ -72,7 +73,7 @@ export default function ConfirmReceiptPage() {
               >
                 <div>ใบ {thaiDate(s.date)}</div>
                 <div className={activeDate === s.date ? "text-white/70" : "text-brand-ink/45"}>
-                  ค้าง {s.pendingCount}/{s.totalCount} {s.isPastCutoff && "⚠️"}
+                  ค้าง {s.pendingCount}/{s.totalCount}
                 </div>
               </button>
             ))}
@@ -93,6 +94,7 @@ export default function ConfirmReceiptPage() {
 }
 
 interface Draft { qty: string; qtyG: string }
+type Selection = "received" | "notReceived";
 
 function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;
@@ -104,6 +106,8 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({});
   const [noteOpen, setNoteOpen] = React.useState<Record<string, boolean>>({});
   const [noteDrafts, setNoteDrafts] = React.useState<Record<string, string>>({});
+  const [selection, setSelection] = React.useState<Record<string, Selection>>({});
+  const [batchSubmitting, setBatchSubmitting] = React.useState(false);
 
   const itemMeta = React.useMemo(() => new Map((meta?.items ?? []).map((it) => [it.id, it])), [meta]);
   const showGrams = (itemId: string) => {
@@ -120,12 +124,14 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       .catch(() => setLoading(false));
   }, [branch, date]);
   React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => { setSelection({}); setDrafts({}); }, [date]);
 
-  async function submit(itemId: string, qty: number, qtyG: number, isExtra: boolean, note = "") {
+  // ใช้กับ: เพิ่มรายการนอกใบ (ทันที) + แก้ไขรายการที่ยืนยันไปแล้วก่อนหน้า (ทันที)
+  async function submitOne(itemId: string, qty: number, qtyG: number, isExtra: boolean, note = "", notReceived = false) {
     await fetch("/api/confirm-receipt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra, note }),
+      body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra, note, notReceived }),
     });
     setDrafts((d) => { const { [itemId]: _drop, ...rest } = d; return rest; });
     load();
@@ -159,10 +165,6 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     onChanged();
   }
 
-  function handleCheck(item: RestockReceiptStatus) {
-    submit(item.itemId, item.orderedQty, item.orderedQtyG, false, noteDrafts[item.itemId] ?? "");
-  }
-
   function handleEditCommit(item: RestockReceiptStatus) {
     const draft = drafts[item.itemId];
     if (!draft) return;
@@ -170,18 +172,67 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     const g = Number(draft.qtyG || "0");
     if (!Number.isFinite(n) || n < 0 || !Number.isFinite(g) || g < 0) return;
     if (item.receivedQty !== null && n === item.receivedQty && g === (item.receivedQtyG ?? 0)) return;
-    submit(item.itemId, n, g, item.isExtra, noteDrafts[item.itemId] ?? item.note ?? "");
+    submitOne(item.itemId, n, g, item.isExtra, noteDrafts[item.itemId] ?? item.note ?? "", false);
   }
 
-  // แก้เฉพาะหมายเหตุ (ไม่แตะจำนวน) — ใช้ได้เฉพาะรายการที่ยืนยันรับแล้วเท่านั้น (ยังไม่ยืนยัน ไม่มี receipt ให้ผูกหมายเหตุ)
+  // แก้เฉพาะหมายเหตุ (ไม่แตะจำนวน) — ใช้ได้เฉพาะรายการที่ยืนยันรับแล้วเท่านั้น
   function handleNoteCommit(item: RestockReceiptStatus) {
-    if (item.receivedQty === null) return;
+    if (item.receivedQty === null) return; // ยังไม่ยืนยัน — หมายเหตุจะติดไปพร้อมตอนกด "ยืนยันทั้งหมด" แทน
     const draftNote = noteDrafts[item.itemId];
     if (draftNote === undefined || draftNote === (item.note ?? "")) return;
     const draft = drafts[item.itemId];
     const qty = draft ? Number(draft.qty) : item.receivedQty;
     const qtyG = draft ? Number(draft.qtyG || "0") : (item.receivedQtyG ?? 0);
-    submit(item.itemId, qty, qtyG, item.isExtra, draftNote);
+    submitOne(item.itemId, qty, qtyG, item.isExtra, draftNote, item.notReceived);
+  }
+
+  function toggleSelection(itemId: string, mode: Selection) {
+    setSelection((s) => {
+      const next = { ...s };
+      if (next[itemId] === mode) delete next[itemId];
+      else next[itemId] = mode;
+      return next;
+    });
+  }
+
+  const pendingItems = items.filter((i) => i.receivedQty === null);
+
+  function selectAll() {
+    setSelection((s) => {
+      const next = { ...s };
+      for (const item of pendingItems) next[item.itemId] = "received";
+      return next;
+    });
+  }
+
+  async function confirmAllBatch() {
+    const entries: RestockReceiptBatchEntry[] = pendingItems
+      .filter((item) => !!selection[item.itemId])
+      .map((item) => {
+        const sel = selection[item.itemId];
+        if (sel === "notReceived") {
+          return { itemId: item.itemId, receivedQty: 0, receivedQtyG: 0, isExtra: item.isExtra, notReceived: true, note: noteDrafts[item.itemId] ?? "" };
+        }
+        const draft = drafts[item.itemId];
+        const qty = draft ? Number(draft.qty) : item.orderedQty;
+        const qtyG = draft ? Number(draft.qtyG || "0") : item.orderedQtyG;
+        return { itemId: item.itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra: item.isExtra, notReceived: false, note: noteDrafts[item.itemId] ?? "" };
+      });
+    if (entries.length === 0) { window.alert("เลือกอย่างน้อย 1 รายการก่อนกดยืนยัน"); return; }
+    if (!window.confirm(`ยืนยันรับของทั้งหมด ${entries.length} รายการ?`)) return;
+    setBatchSubmitting(true);
+    try {
+      await fetch("/api/confirm-receipt/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, entries }),
+      });
+      setSelection({}); setDrafts({}); setNoteDrafts({});
+      load();
+      onChanged();
+    } finally {
+      setBatchSubmitting(false);
+    }
   }
 
   // รายการที่เพิ่มนอกใบแล้ว + รายการในใบ ไม่ให้เลือกซ้ำในช่อง "เพิ่มรายการอื่น"
@@ -192,61 +243,103 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   return (
     <GlassCard>
+      {pendingItems.length > 0 && (
+        <button
+          type="button"
+          onClick={selectAll}
+          className="mb-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink"
+        >
+          เลือกทั้งหมด
+        </button>
+      )}
       <div className="mb-1 flex justify-end pr-1">
         <span className="text-[10px] font-medium uppercase tracking-wide text-brand-ink/40">จำนวนที่ได้รับจริง</span>
       </div>
       <div className="grid gap-1.5">
         {items.map((item) => {
           const confirmed = item.receivedQty !== null;
-          const mismatch = confirmed && !item.isExtra
+          const sel = selection[item.itemId];
+          const editable = confirmed ? !item.notReceived : sel === "received";
+          const mismatch = confirmed && !item.isExtra && !item.notReceived
             && (item.receivedQty !== item.orderedQty || (item.receivedQtyG ?? 0) !== item.orderedQtyG);
           const draft = drafts[item.itemId];
           const qtyVal = draft?.qty ?? (confirmed ? String(item.receivedQty) : String(item.orderedQty));
           const qtyGVal = draft?.qtyG ?? (confirmed ? String(item.receivedQtyG ?? 0) : String(item.orderedQtyG));
           const noteVal = noteDrafts[item.itemId] ?? item.note ?? "";
           const isNoteOpen = !!noteOpen[item.itemId];
+
+          const qtyOnBlur = confirmed ? () => handleEditCommit(item) : undefined;
+          const noteOnBlur = confirmed ? () => handleNoteCommit(item) : undefined;
+
           return (
             <div key={item.itemId} className="rounded-lg bg-black/[.02] px-2.5 py-2.5">
               <div className="flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={confirmed}
-                  onChange={() => (confirmed ? handleUncheck(item) : handleCheck(item))}
-                  className="h-[18px] w-[18px] shrink-0 accent-brand-red"
-                />
+                {confirmed ? (
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={() => handleUncheck(item)}
+                    className="h-[18px] w-[18px] shrink-0 accent-brand-red"
+                  />
+                ) : (
+                  <div className="flex shrink-0 flex-col items-center gap-1">
+                    <label className="flex items-center gap-1">
+                      <input
+                        type="checkbox"
+                        checked={sel === "received"}
+                        onChange={() => toggleSelection(item.itemId, "received")}
+                        className="h-[18px] w-[18px] accent-brand-red"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1" title="ไม่ได้รับ">
+                      <input
+                        type="checkbox"
+                        checked={sel === "notReceived"}
+                        onChange={() => toggleSelection(item.itemId, "notReceived")}
+                        className="h-[15px] w-[15px] accent-red-600"
+                      />
+                    </label>
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13px] font-medium">
                     {item.name} {item.isExtra && <Badge tone="orange">นอกใบ</Badge>}
+                    {confirmed && item.notReceived && <Badge tone="warn">ไม่ได้รับ</Badge>}
                   </div>
                   <div className="text-[11px] text-brand-ink/45">
                     {item.isExtra ? "เพิ่มนอกใบเดิม" : `จำนวนตามเอกสาร ${item.orderedQty} ${item.unit}${item.orderedQtyG ? ` +${item.orderedQtyG}g` : ""}`}
                     {mismatch && (
                       <span className="text-warn"> · ได้รับจริง {item.receivedQty}{(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}</span>
                     )}
+                    {!confirmed && sel === "notReceived" && <span className="text-red-600"> · จะไม่บันทึกรับเข้า</span>}
                   </div>
                 </div>
-                <input
-                  inputMode="numeric"
-                  value={qtyVal}
-                  disabled={!confirmed}
-                  onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
-                  onBlur={() => handleEditCommit(item)}
-                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                  className={`field w-14 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
-                />
-                {(showGrams(item.itemId) || item.isExtra) && (
-                  <div className="flex shrink-0 items-center gap-1">
-                    <span className="text-[11px] text-brand-ink/40">+g</span>
+                {!(confirmed && item.notReceived) && (
+                  <>
                     <input
                       inputMode="numeric"
-                      value={qtyGVal}
-                      disabled={!confirmed}
-                      onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
-                      onBlur={() => handleEditCommit(item)}
+                      value={qtyVal}
+                      disabled={!editable}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
+                      onBlur={qtyOnBlur}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`field w-12 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
+                      className={`field w-14 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
-                  </div>
+                    {(showGrams(item.itemId) || item.isExtra) && (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className="text-[11px] text-brand-ink/40">+g</span>
+                        <input
+                          inputMode="numeric"
+                          value={qtyGVal}
+                          disabled={!editable}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
+                          onBlur={qtyOnBlur}
+                          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                          className={`field w-12 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
                 <button
                   type="button"
@@ -273,9 +366,9 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                 <input
                   value={noteVal}
                   onChange={(e) => setNoteDrafts((d) => ({ ...d, [item.itemId]: e.target.value }))}
-                  onBlur={() => handleNoteCommit(item)}
+                  onBlur={noteOnBlur}
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                  placeholder={confirmed ? "หมายเหตุ (ไม่บังคับ)" : "หมายเหตุ (ไม่บังคับ — บันทึกพร้อมติ๊กยืนยันรับ)"}
+                  placeholder={confirmed ? "หมายเหตุ (ไม่บังคับ)" : "หมายเหตุ (ไม่บังคับ — บันทึกพร้อมกดยืนยันทั้งหมด)"}
                   className="field mt-1.5 w-full text-[12px]"
                 />
               )}
@@ -284,7 +377,18 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
         })}
       </div>
 
-      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty, qtyG) => submit(itemId, qty, qtyG, true)} />
+      {pendingItems.length > 0 && (
+        <button
+          type="button"
+          onClick={confirmAllBatch}
+          disabled={batchSubmitting}
+          className="mt-3 w-full rounded-xl bg-brand-red px-4 py-3 text-[15px] font-semibold text-white shadow-glass disabled:opacity-50"
+        >
+          {batchSubmitting ? "กำลังบันทึก…" : "ยืนยันทั้งหมด"}
+        </button>
+      )}
+
+      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty, qtyG) => submitOne(itemId, qty, qtyG, true)} />
     </GlassCard>
   );
 }

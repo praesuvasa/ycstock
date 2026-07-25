@@ -11,9 +11,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch")));
     const count = await db.getPendingReceiptCount(branch);
-    const sheets = await db.listOutstandingRestockSheets(branch);
-    const overdue = sheets.some((sh) => sh.isPastCutoff);
-    return NextResponse.json({ count, overdue, branch });
+    return NextResponse.json({ count, hasPending: count > 0, branch });
   } catch (e) {
     const a = authErrorResponse(e);
     return NextResponse.json(a ? a.body : { error: (e as any)?.message ?? "pending-count failed" }, { status: a ? a.status : 500 });

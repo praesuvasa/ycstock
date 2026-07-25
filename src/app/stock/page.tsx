@@ -136,12 +136,12 @@ export default function StockPage() {
   // เปิด/ปิด panel "ส่งคืน/เสีย" ต่อไอเทม (default ปิด เว้นแต่มีค่า returned ติดมา)
   const [returnOpen, setReturnOpen] = React.useState<Record<string, boolean>>({});
 
-  // v1.9: เตือนถ้าเลยเวลาตัดรอบยืนยันรับของแล้วยังมีรายการค้าง — พนักงานเข้าหน้านี้ทุกวันอยู่แล้ว ต้องเห็นแน่นอน
-  const [receiptOverdue, setReceiptOverdue] = React.useState(false);
+  // v1.9: เตือนถ้ายังมีรายการยืนยันรับของค้างอยู่ — พนักงานเข้าหน้านี้ทุกวันอยู่แล้ว ต้องเห็นแน่นอน
+  const [receiptPending, setReceiptPending] = React.useState(false);
   React.useEffect(() => {
     fetch(`/api/confirm-receipt/pending-count?branch=${branch}`)
-      .then((r) => (r.ok ? r.json() : { overdue: false }))
-      .then((d) => setReceiptOverdue(!!d.overdue))
+      .then((r) => (r.ok ? r.json() : { hasPending: false }))
+      .then((d) => setReceiptPending(!!d.hasPending))
       .catch(() => {});
   }, [branch]);
 
@@ -416,13 +416,13 @@ export default function StockPage() {
         </div>
       </GlassCard>
 
-      {receiptOverdue && (
+      {receiptPending && (
         <Link
           href={`/confirm-receipt?branch=${branch}`}
           className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2.5 text-sm text-brand-ink/80"
         >
-          <span>⚠️ กรุณายืนยันรับก่อนนับสต็อก (หากสินค้ายังไม่จัดส่งอย่ายืนยันรับ)</span>
-          <span className="shrink-0 font-semibold text-warn underline underline-offset-2">ไปยืนยันรับ</span>
+          <span>⚠️ กรุณายืนยันรับของก่อนนับสต็อก</span>
+          <span className="shrink-0 font-semibold text-warn underline underline-offset-2">ไปยืนยันรับของ</span>
         </Link>
       )}
 

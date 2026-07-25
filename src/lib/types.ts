@@ -262,9 +262,20 @@ export interface RestockReceiptStatus {
   receivedQty: number | null;  // null = ยังไม่ติ๊กยืนยัน
   receivedQtyG: number | null;
   isExtra: boolean;            // true = เพิ่มนอกใบเดิม ไม่ได้อยู่ในตัวเลือกที่บันทึกไว้
+  notReceived: boolean;        // true = พนักงานติ๊กว่าไม่ได้รับสินค้านี้ — ตรวจสอบแล้ว ไม่ auto-fill สต็อก
   note?: string;               // หมายเหตุต่อรายการ (ไม่บังคับ) — บันทึกพร้อมยืนยันรับ
   confirmedByName?: string;
   confirmedAt?: string;        // ISO
+}
+
+// รายการยืนยันรับ 1 แถว ตอนกด "ยืนยันทั้งหมด" (batch)
+export interface RestockReceiptBatchEntry {
+  itemId: string;
+  receivedQty: number;
+  receivedQtyG: number;
+  isExtra: boolean;
+  notReceived: boolean;
+  note?: string;
 }
 
 // สรุปย่อต่อใบ (วันที่) — ใช้หน้าเลือกใบที่จะยืนยันรับ (ไม่ผูกวันนี้อย่างเดียว เผื่อของมาส่งช้า)
@@ -272,7 +283,6 @@ export interface RestockSheetSummary {
   date: string;
   pendingCount: number;
   totalCount: number;
-  isPastCutoff: boolean;
 }
 
 // คิวตรวจสอบแอดมิน — รับไม่ตรงยอดสั่ง / เพิ่มรายการนอกใบ / แก้ทับค่า auto-fill ทีหลังในหน้าสต็อก
