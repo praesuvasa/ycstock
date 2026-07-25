@@ -595,6 +595,14 @@ export const memoryStore = {
     const it = ITEMS.find((x) => x.id === itemId);
     const itemName = it?.name ?? itemId;
     const fmtQty = (pack: number, g: number) => `${pack}${g ? ` +${g}g` : ""}`;
+    // พนักงานแก้ไขจำนวน/สถานะรับเข้าของรายการที่เคยยืนยันไปแล้ว → แจ้งเตือนแอดมินให้ตรวจสอบทุกครั้ง
+    if (existingReceipt && (
+      existingReceipt.receivedQty !== receivedQty || existingReceipt.receivedQtyG !== receivedQtyG || existingReceipt.notReceived !== notReceived
+    )) {
+      const fromLabel = existingReceipt.notReceived ? "ไม่ได้รับ" : fmtQty(existingReceipt.receivedQty, existingReceipt.receivedQtyG);
+      const toLabel = notReceived ? "ไม่ได้รับ" : fmtQty(receivedQty, receivedQtyG);
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_edited", `${userName} แก้ไขยอดรับเข้าจาก ${fromLabel} เป็น ${toLabel}`);
+    }
     if (isExtra) {
       pushAdminFlag(branch, date, itemId, itemName, "receipt_extra", `เพิ่มนอกใบเดิม จำนวน ${fmtQty(receivedQty, receivedQtyG)}`);
     } else if (notReceived) {

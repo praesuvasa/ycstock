@@ -598,7 +598,7 @@ export const supabaseStore = {
   ): Promise<void> {
     const now = new Date().toISOString();
     const { data: existingReceipt } = await sb().from("restock_receipts")
-      .select("confirmed_at,not_received")
+      .select("confirmed_at,not_received,received_qty,received_qty_g")
       .eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
     const wasCounted = !!existingReceipt && !existingReceipt.not_received;
     // แก้ไขจำนวนของรายการที่เคยนับเข้าสต็อกแล้ว → ใช้วันที่ยืนยันเดิม ไม่เลื่อน auto-fill มาวันนี้
@@ -623,6 +623,17 @@ export const supabaseStore = {
     const { data: itemRow } = await sb().from("items").select("name").eq("id", itemId).maybeSingle();
     const itemName = itemRow?.name ?? itemId;
     const fmtQty = (pack: number, g: number) => `${pack}${g ? ` +${g}g` : ""}`;
+    // พนักงานแก้ไขจำนวน/สถานะรับเข้าของรายการที่เคยยืนยันไปแล้ว → แจ้งเตือนแอดมินให้ตรวจสอบทุกครั้ง
+    if (existingReceipt && (
+      Number(existingReceipt.received_qty) !== receivedQty || Number(existingReceipt.received_qty_g) !== receivedQtyG || existingReceipt.not_received !== notReceived
+    )) {
+      const fromLabel = existingReceipt.not_received ? "ไม่ได้รับ" : fmtQty(Number(existingReceipt.received_qty), Number(existingReceipt.received_qty_g));
+      const toLabel = notReceived ? "ไม่ได้รับ" : fmtQty(receivedQty, receivedQtyG);
+      await sb().from("stock_admin_flags").insert({
+        branch_id: branch, date, item_id: itemId, item_name: itemName,
+        reason: "receipt_edited", detail: `${userName} แก้ไขยอดรับเข้าจาก ${fromLabel} เป็น ${toLabel}`,
+      });
+    }
     if (isExtra) {
       await sb().from("stock_admin_flags").insert({
         branch_id: branch, date, item_id: itemId, item_name: itemName,

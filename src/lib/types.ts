@@ -286,7 +286,7 @@ export interface RestockSheetSummary {
 }
 
 // คิวตรวจสอบแอดมิน — รับไม่ตรงยอดสั่ง / เพิ่มรายการนอกใบ / แก้ทับค่า auto-fill ทีหลังในหน้าสต็อก
-export type AdminFlagReason = "receipt_mismatch" | "receipt_not_received" | "receipt_extra" | "stock_override";
+export type AdminFlagReason = "receipt_mismatch" | "receipt_not_received" | "receipt_extra" | "stock_override" | "receipt_edited";
 
 export interface AdminFlag {
   id: number;
