@@ -171,11 +171,11 @@ export const db = {
     useSupabase ? supabaseStore.getRestockReceiptStatus(branch, date) : Promise.resolve(memoryStore.getRestockReceiptStatus(branch, date)),
   confirmRestockReceipt: (
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string
+    isExtra: boolean, userId: string, userName: string, note?: string
   ): Promise<void> =>
     useSupabase
-      ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)
-      : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)).then(() => undefined),
+      ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note)
+      : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName, note)).then(() => undefined),
   unconfirmRestockReceipt: (branch: Branch, date: string, itemId: string): Promise<void> =>
     useSupabase
       ? supabaseStore.unconfirmRestockReceipt(branch, date, itemId)

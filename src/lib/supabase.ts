@@ -508,7 +508,7 @@ export const supabaseStore = {
   async getRestockReceiptStatus(branch: Branch, date: string): Promise<RestockReceiptStatus[]> {
     const [selRes, receiptRes, meta] = await Promise.all([
       sb().from("restock_selections").select("item_id,qty,qty_g").eq("branch_id", branch).eq("date", date).eq("selected", true),
-      sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
+      sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,note,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
       this.getMeta(),
     ]);
     if (selRes.error) throw selRes.error;
@@ -523,7 +523,7 @@ export const supabaseStore = {
         orderedQty: Number(r.qty), orderedQtyG: Number(r.qty_g),
         receivedQty: receipt ? Number((receipt as any).received_qty) : null,
         receivedQtyG: receipt ? Number((receipt as any).received_qty_g) : null,
-        isExtra: false,
+        isExtra: false, note: (receipt as any)?.note ?? undefined,
         confirmedByName: (receipt as any)?.confirmed_by_name ?? undefined,
         confirmedAt: (receipt as any)?.confirmed_at ?? undefined,
       };
@@ -535,7 +535,8 @@ export const supabaseStore = {
         itemId: receipt.item_id, name: it?.name ?? receipt.item_id, unit: it?.unit ?? "",
         orderedQty: 0, orderedQtyG: 0,
         receivedQty: Number(receipt.received_qty), receivedQtyG: Number(receipt.received_qty_g),
-        isExtra: true, confirmedByName: receipt.confirmed_by_name ?? undefined, confirmedAt: receipt.confirmed_at ?? undefined,
+        isExtra: true, note: receipt.note ?? undefined,
+        confirmedByName: receipt.confirmed_by_name ?? undefined, confirmedAt: receipt.confirmed_at ?? undefined,
       });
     }
     return out;
@@ -543,7 +544,7 @@ export const supabaseStore = {
 
   async confirmRestockReceipt(
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string
+    isExtra: boolean, userId: string, userName: string, note = ""
   ): Promise<void> {
     const now = new Date().toISOString();
     let orderedQty = 0;
@@ -554,7 +555,7 @@ export const supabaseStore = {
     }
     const { error } = await sb().from("restock_receipts").upsert({
       date, branch_id: branch, item_id: itemId, ordered_qty: orderedQty,
-      received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra,
+      received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra, note,
       confirmed_by_user_id: userId, confirmed_by_name: userName, confirmed_at: now,
     }, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;

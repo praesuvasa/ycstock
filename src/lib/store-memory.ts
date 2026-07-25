@@ -46,7 +46,7 @@ const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
   date: string; branch: Branch; itemId: string;
-  orderedQty: number; receivedQty: number; receivedQtyG: number; isExtra: boolean;
+  orderedQty: number; receivedQty: number; receivedQtyG: number; isExtra: boolean; note: string;
   confirmedByUserId: string; confirmedByName: string; confirmedAt: string;
 }
 const restockReceipts = new Map<string, RestockReceiptRec>(); // key = sk(date,branch,itemId)
@@ -529,7 +529,7 @@ export const memoryStore = {
         itemId: r.itemId, name: it?.name ?? r.itemId, unit: it?.unit ?? "",
         orderedQty: r.qty, orderedQtyG: r.qtyG,
         receivedQty: receipt?.receivedQty ?? null, receivedQtyG: receipt?.receivedQtyG ?? null,
-        isExtra: false, confirmedByName: receipt?.confirmedByName, confirmedAt: receipt?.confirmedAt,
+        isExtra: false, note: receipt?.note, confirmedByName: receipt?.confirmedByName, confirmedAt: receipt?.confirmedAt,
       };
     });
     for (const receipt of restockReceipts.values()) {
@@ -538,7 +538,7 @@ export const memoryStore = {
       out.push({
         itemId: receipt.itemId, name: it?.name ?? receipt.itemId, unit: it?.unit ?? "",
         orderedQty: 0, orderedQtyG: 0, receivedQty: receipt.receivedQty, receivedQtyG: receipt.receivedQtyG,
-        isExtra: true, confirmedByName: receipt.confirmedByName, confirmedAt: receipt.confirmedAt,
+        isExtra: true, note: receipt.note, confirmedByName: receipt.confirmedByName, confirmedAt: receipt.confirmedAt,
       });
     }
     return out;
@@ -546,14 +546,14 @@ export const memoryStore = {
 
   confirmRestockReceipt(
     branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
-    isExtra: boolean, userId: string, userName: string
+    isExtra: boolean, userId: string, userName: string, note = ""
   ): { ok: true } {
     seed();
     const now = new Date().toISOString();
     const sel = restockSelections.get(sk(date, branch, itemId));
     const orderedQty = isExtra ? 0 : (sel?.qty ?? 0);
     restockReceipts.set(sk(date, branch, itemId), {
-      date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra,
+      date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra, note,
       confirmedByUserId: userId, confirmedByName: userName, confirmedAt: now,
     });
     const it = ITEMS.find((x) => x.id === itemId);

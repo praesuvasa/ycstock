@@ -262,6 +262,7 @@ export interface RestockReceiptStatus {
   receivedQty: number | null;  // null = ยังไม่ติ๊กยืนยัน
   receivedQtyG: number | null;
   isExtra: boolean;            // true = เพิ่มนอกใบเดิม ไม่ได้อยู่ในตัวเลือกที่บันทึกไว้
+  note?: string;               // หมายเหตุต่อรายการ (ไม่บังคับ) — บันทึกพร้อมยืนยันรับ
   confirmedByName?: string;
   confirmedAt?: string;        // ISO
 }
