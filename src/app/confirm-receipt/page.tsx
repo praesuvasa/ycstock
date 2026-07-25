@@ -195,6 +195,11 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     });
   }
 
+  // ติ๊กช่องเขียว "ได้รับ" ออก → เด้งไปติ๊ก "ไม่ได้รับ" (แดง) ให้อัตโนมัติ แทนที่จะกลับไปว่างเปล่า
+  function toggleReceived(itemId: string) {
+    setSelection((s) => ({ ...s, [itemId]: s[itemId] === "received" ? "notReceived" : "received" }));
+  }
+
   const pendingItems = items.filter((i) => i.receivedQty === null);
   const allSelected = pendingItems.length > 0 && pendingItems.every((item) => selection[item.itemId] === "received");
 
@@ -224,7 +229,9 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
         return { itemId: item.itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra: item.isExtra, notReceived: false, note: noteDrafts[item.itemId] ?? "" };
       });
     if (entries.length === 0) { window.alert("เลือกอย่างน้อย 1 รายการก่อนกดยืนยัน"); return; }
-    if (!window.confirm(`ยืนยันรับของทั้งหมด ${entries.length} รายการ?`)) return;
+    const receivedCount = entries.filter((e) => !e.notReceived).length;
+    const notReceivedCount = entries.filter((e) => e.notReceived).length;
+    if (!window.confirm(`ยืนยันรับ ${receivedCount} รายการ ไม่ได้รับ ${notReceivedCount} รายการ?`)) return;
     setBatchSubmitting(true);
     try {
       await fetch("/api/confirm-receipt/batch", {
@@ -282,7 +289,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                 <input
                   type="checkbox"
                   checked={confirmed ? true : sel === "received"}
-                  onChange={() => (confirmed ? handleUncheck(item) : toggleSelection(item.itemId, "received"))}
+                  onChange={() => (confirmed ? handleUncheck(item) : toggleReceived(item.itemId))}
                   className="h-4 w-4 shrink-0 accent-ok"
                 />
                 <div className="min-w-0 flex-1">
@@ -307,7 +314,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                       onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
                       onBlur={qtyOnBlur}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`field w-11 shrink-0 px-1 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                      className={`field w-16 shrink-0 px-1.5 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
                     {(showGrams(item.itemId) || item.isExtra) && (
                       <div className="flex shrink-0 items-center gap-0.5">
@@ -319,7 +326,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                           onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
                           onBlur={qtyOnBlur}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          className={`field w-9 shrink-0 px-1 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                          className={`field w-14 shrink-0 px-1.5 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                         />
                       </div>
                     )}
