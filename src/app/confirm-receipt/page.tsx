@@ -312,7 +312,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                       onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
                       onBlur={qtyOnBlur}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`field w-9 shrink-0 px-1 py-1 text-center ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                      className={`field w-9 shrink-0 px-1 py-1 text-center text-[12px] ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
                     {(showGrams(item.itemId) || item.isExtra) && (
                       <div className="flex shrink-0 items-center gap-0.5">
@@ -324,7 +324,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                           onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
                           onBlur={qtyOnBlur}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          className={`field w-10 shrink-0 px-1 py-1 text-center ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                          className={`field w-10 shrink-0 px-1 py-1 text-center text-[12px] ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                         />
                       </div>
                     )}
