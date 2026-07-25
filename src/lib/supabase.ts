@@ -1,8 +1,8 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
-import { variance, restockNeed, isSpecialActive } from "./calc";
+import { variance, restockNeed, isSpecialActive, isPastCutoff } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
@@ -76,15 +76,43 @@ export const supabaseStore = {
   },
 
   async saveStock(branch: Branch, date: string, rows: StockRow[]) {
-    const payload = rows.map((r) => ({
-      date, branch_id: branch, item_id: r.itemId,
-      carry_pack: r.carryPack, carry_g: r.carryG, in_pack: r.inPack, in_g: r.inG,
-      used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
-      returned_g: r.returnedG ?? 0,
-      note: r.note, variance: variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack),
-    }));
+    // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
+    const { data: existingRows } = await sb().from("stock_daily")
+      .select("item_id,in_auto_pack,in_auto_g").eq("branch_id", branch).eq("date", date);
+    const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
+    const flags: any[] = [];
+    let itemNameMap: Map<string, string> | null = null;
+    const payload = [];
+    for (const r of rows) {
+      const auto = autoMap.get(r.itemId);
+      let inAutoPack: number | null = auto?.pack != null ? Number(auto.pack) : null;
+      let inAutoG: number | null = auto?.g != null ? Number(auto.g) : null;
+      if (inAutoPack != null && (r.inPack !== inAutoPack || r.inG !== (inAutoG ?? 0))) {
+        if (!itemNameMap) {
+          const { data: items } = await sb().from("items").select("id,name");
+          itemNameMap = new Map((items ?? []).map((it: any) => [it.id, it.name]));
+        }
+        flags.push({
+          branch_id: branch, date, item_id: r.itemId, item_name: itemNameMap.get(r.itemId) ?? r.itemId,
+          reason: "stock_override", detail: `ระบบเติมให้ ${inAutoPack} → พนักงานแก้เป็น ${r.inPack}`,
+        });
+        inAutoPack = null; inAutoG = null;
+      }
+      payload.push({
+        date, branch_id: branch, item_id: r.itemId,
+        carry_pack: r.carryPack, carry_g: r.carryG, in_pack: r.inPack, in_g: r.inG,
+        used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
+        returned_g: r.returnedG ?? 0,
+        note: r.note, variance: variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack),
+        in_auto_pack: inAutoPack, in_auto_g: inAutoG,
+      });
+    }
     const { error } = await sb().from("stock_daily").upsert(payload, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
+    if (flags.length) {
+      const { error: flagErr } = await sb().from("stock_admin_flags").insert(flags);
+      if (flagErr) throw flagErr;
+    }
     return { ok: true, updated: 0, inserted: payload.length };
   },
 
@@ -445,6 +473,151 @@ export const supabaseStore = {
     const { error } = await sb().from("restock_notes").upsert({
       branch_id: branch, date, note, updated_by: userName, updated_by_user_id: userId, updated_at: new Date().toISOString(),
     }, { onConflict: "branch_id,date" });
+    if (error) throw error;
+  },
+
+  // ── ยืนยันรับของ (v1.9) — ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" ของสาขานั้น ──
+  async listOutstandingRestockSheets(branch: Branch): Promise<RestockSheetSummary[]> {
+    const { data: sel, error } = await sb().from("restock_selections")
+      .select("date,item_id").eq("branch_id", branch).eq("selected", true);
+    if (error) throw error;
+    const byDate = new Map<string, Set<string>>();
+    for (const r of sel ?? []) {
+      if (!byDate.has(r.date)) byDate.set(r.date, new Set());
+      byDate.get(r.date)!.add(r.item_id);
+    }
+    if (byDate.size === 0) return [];
+    const { data: receipts, error: rErr } = await sb().from("restock_receipts")
+      .select("date,item_id").eq("branch_id", branch).in("date", Array.from(byDate.keys()));
+    if (rErr) throw rErr;
+    const confirmedByDate = new Map<string, Set<string>>();
+    for (const r of receipts ?? []) {
+      if (!confirmedByDate.has(r.date)) confirmedByDate.set(r.date, new Set());
+      confirmedByDate.get(r.date)!.add(r.item_id);
+    }
+    const out: RestockSheetSummary[] = [];
+    for (const [date, items] of byDate) {
+      const confirmed = confirmedByDate.get(date) ?? new Set();
+      const pending = Array.from(items).filter((id) => !confirmed.has(id)).length;
+      if (pending === 0) continue;
+      out.push({ date, pendingCount: pending, totalCount: items.size, isPastCutoff: isPastCutoff(branch, date) });
+    }
+    return out.sort((a, b) => (a.date < b.date ? -1 : 1));
+  },
+
+  async getRestockReceiptStatus(branch: Branch, date: string): Promise<RestockReceiptStatus[]> {
+    const [selRes, receiptRes, meta] = await Promise.all([
+      sb().from("restock_selections").select("item_id,qty,qty_g").eq("branch_id", branch).eq("date", date).eq("selected", true),
+      sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
+      this.getMeta(),
+    ]);
+    if (selRes.error) throw selRes.error;
+    if (receiptRes.error) throw receiptRes.error;
+    const itemMap = new Map(meta.items.map((it) => [it.id, it]));
+    const receiptMap = new Map((receiptRes.data ?? []).map((r: any) => [r.item_id, r]));
+    const out: RestockReceiptStatus[] = (selRes.data ?? []).map((r: any) => {
+      const it = itemMap.get(r.item_id);
+      const receipt = receiptMap.get(r.item_id);
+      return {
+        itemId: r.item_id, name: it?.name ?? r.item_id, unit: it?.unit ?? "",
+        orderedQty: Number(r.qty), orderedQtyG: Number(r.qty_g),
+        receivedQty: receipt ? Number((receipt as any).received_qty) : null,
+        receivedQtyG: receipt ? Number((receipt as any).received_qty_g) : null,
+        isExtra: false,
+        confirmedByName: (receipt as any)?.confirmed_by_name ?? undefined,
+        confirmedAt: (receipt as any)?.confirmed_at ?? undefined,
+      };
+    });
+    for (const receipt of (receiptRes.data ?? []) as any[]) {
+      if (!receipt.is_extra) continue;
+      const it = itemMap.get(receipt.item_id);
+      out.push({
+        itemId: receipt.item_id, name: it?.name ?? receipt.item_id, unit: it?.unit ?? "",
+        orderedQty: 0, orderedQtyG: 0,
+        receivedQty: Number(receipt.received_qty), receivedQtyG: Number(receipt.received_qty_g),
+        isExtra: true, confirmedByName: receipt.confirmed_by_name ?? undefined, confirmedAt: receipt.confirmed_at ?? undefined,
+      });
+    }
+    return out;
+  },
+
+  async confirmRestockReceipt(
+    branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
+    isExtra: boolean, userId: string, userName: string
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    let orderedQty = 0;
+    if (!isExtra) {
+      const { data: sel } = await sb().from("restock_selections")
+        .select("qty").eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
+      orderedQty = sel ? Number(sel.qty) : 0;
+    }
+    const { error } = await sb().from("restock_receipts").upsert({
+      date, branch_id: branch, item_id: itemId, ordered_qty: orderedQty,
+      received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra,
+      confirmed_by_user_id: userId, confirmed_by_name: userName, confirmed_at: now,
+    }, { onConflict: "date,branch_id,item_id" });
+    if (error) throw error;
+
+    const { data: itemRow } = await sb().from("items").select("name").eq("id", itemId).maybeSingle();
+    const itemName = itemRow?.name ?? itemId;
+    if (isExtra) {
+      await sb().from("stock_admin_flags").insert({
+        branch_id: branch, date, item_id: itemId, item_name: itemName,
+        reason: "receipt_extra", detail: `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`,
+      });
+    } else if (receivedQty !== orderedQty) {
+      await sb().from("stock_admin_flags").insert({
+        branch_id: branch, date, item_id: itemId, item_name: itemName,
+        reason: "receipt_mismatch", detail: `สั่งไว้ ${orderedQty} ได้รับจริง ${receivedQty}`,
+      });
+    }
+
+    // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
+    const todayStr = now.slice(0, 10);
+    const { data: existing } = await sb().from("stock_daily")
+      .select("item_id").eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
+    if (existing) {
+      const { error: updErr } = await sb().from("stock_daily").update({
+        in_pack: receivedQty, in_g: receivedQtyG, in_auto_pack: receivedQty, in_auto_g: receivedQtyG,
+      }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
+      if (updErr) throw updErr;
+    } else {
+      const { data: prev } = await sb().from("stock_daily")
+        .select("remain_pack,remain_g").eq("branch_id", branch).eq("item_id", itemId).lt("date", todayStr)
+        .order("date", { ascending: false }).limit(1).maybeSingle();
+      const carryPack = prev?.remain_pack ?? 0;
+      const carryG = prev?.remain_g ?? 0;
+      const { error: insErr } = await sb().from("stock_daily").insert({
+        date: todayStr, branch_id: branch, item_id: itemId,
+        carry_pack: carryPack, carry_g: carryG, in_pack: receivedQty, in_g: receivedQtyG, used: 0,
+        remain_pack: carryPack + receivedQty, remain_g: carryG + receivedQtyG, returned: 0, returned_g: 0,
+        note: "", variance: 0, in_auto_pack: receivedQty, in_auto_g: receivedQtyG,
+      });
+      if (insErr) throw insErr;
+    }
+  },
+
+  async getPendingReceiptCount(branch: Branch): Promise<number> {
+    const sheets = await this.listOutstandingRestockSheets(branch);
+    return sheets.reduce((sum, s) => sum + s.pendingCount, 0);
+  },
+
+  async listAdminFlags(includeResolved = false): Promise<AdminFlag[]> {
+    let q = sb().from("stock_admin_flags").select("*").order("created_at", { ascending: false });
+    if (!includeResolved) q = q.is("resolved_at", null);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []).map((f: any) => ({
+      id: f.id, branch: f.branch_id, date: f.date, itemId: f.item_id, itemName: f.item_name,
+      reason: f.reason, detail: f.detail, createdAt: f.created_at,
+      resolvedAt: f.resolved_at ?? undefined, resolvedBy: f.resolved_by ?? undefined,
+    }));
+  },
+
+  async resolveAdminFlag(id: number, resolvedBy: string): Promise<void> {
+    const { error } = await sb().from("stock_admin_flags")
+      .update({ resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).eq("id", id);
     if (error) throw error;
   },
 

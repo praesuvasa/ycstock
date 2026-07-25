@@ -52,6 +52,23 @@ export function specialDayLabel(branch: Branch): string | null {
   return days && days.length > 0 ? days.map((d) => WEEKDAY_LABEL_TH[d]).join("และ") : null;
 }
 
+// เวลาตัดรอบยืนยันรับของต่อสาขา (นาทีนับจากเที่ยงคืน เวลาไทย) — SND เสาร์ตัดเร็วกว่าวันอื่น
+function cutoffMinutesForBranch(branch: Branch, weekday: Weekday): number {
+  if (branch === "NVP") return 19 * 60 + 30;
+  if (branch === "SND") return weekday === "sat" ? 14 * 60 : 16 * 60 + 30;
+  return 16 * 60; // KCN
+}
+
+/** เลยเวลาตัดรอบยืนยันรับของสาขานี้ สำหรับใบวันที่นี้ หรือยัง (เทียบเวลาไทย UTC+7) */
+export function isPastCutoff(branch: Branch, dateISO: string): boolean {
+  const weekday = weekdayFromDate(dateISO);
+  const localMinutes = cutoffMinutesForBranch(branch, weekday);
+  const utcMinutes = localMinutes - 7 * 60; // ไทย = UTC+7
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const cutoffMs = Date.UTC(y, m - 1, d, 0, utcMinutes);
+  return Date.now() >= cutoffMs;
+}
+
 /** วันนี้ถึงรอบเช็คไอเทมนี้ไหม — daily = ทุกวัน · monThu = เฉพาะจันทร์/พฤหัส */
 export function isCheckDue(freq: CheckFrequency, weekday: Weekday): boolean {
   if (freq === "daily") return true;

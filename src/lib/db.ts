@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -163,6 +163,25 @@ export const db = {
     useSupabase
       ? supabaseStore.updateProductionOrderItem(id, patch, userId, userName)
       : Promise.resolve(memoryStore.updateProductionOrderItem(id, patch, userId, userName)),
+
+  // ── ยืนยันรับของ (v1.9) ──
+  listOutstandingRestockSheets: (branch: Branch): Promise<RestockSheetSummary[]> =>
+    useSupabase ? supabaseStore.listOutstandingRestockSheets(branch) : Promise.resolve(memoryStore.listOutstandingRestockSheets(branch)),
+  getRestockReceiptStatus: (branch: Branch, date: string): Promise<RestockReceiptStatus[]> =>
+    useSupabase ? supabaseStore.getRestockReceiptStatus(branch, date) : Promise.resolve(memoryStore.getRestockReceiptStatus(branch, date)),
+  confirmRestockReceipt: (
+    branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
+    isExtra: boolean, userId: string, userName: string
+  ): Promise<void> =>
+    useSupabase
+      ? supabaseStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)
+      : Promise.resolve(memoryStore.confirmRestockReceipt(branch, date, itemId, receivedQty, receivedQtyG, isExtra, userId, userName)).then(() => undefined),
+  getPendingReceiptCount: (branch: Branch): Promise<number> =>
+    useSupabase ? supabaseStore.getPendingReceiptCount(branch) : Promise.resolve(memoryStore.getPendingReceiptCount(branch)),
+  listAdminFlags: (includeResolved?: boolean): Promise<AdminFlag[]> =>
+    useSupabase ? supabaseStore.listAdminFlags(includeResolved) : Promise.resolve(memoryStore.listAdminFlags(includeResolved)),
+  resolveAdminFlag: (id: number, resolvedBy: string): Promise<void> =>
+    useSupabase ? supabaseStore.resolveAdminFlag(id, resolvedBy) : Promise.resolve(memoryStore.resolveAdminFlag(id, resolvedBy)),
 };
 
 // helper สำหรับ BFF validate branch

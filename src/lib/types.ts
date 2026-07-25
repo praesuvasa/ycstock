@@ -251,6 +251,45 @@ export interface ProductionOrderItemInput {
   extraNote?: string;
 }
 
+// ── ยืนยันรับของ (v1.9) — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้
+// รับจริงที่ยืนยัน → auto-fill เข้าช่อง "รับเข้า" หน้าสต็อกของวันที่ติ๊กจริง (ไม่ใช่วันที่ในใบ) ──
+export interface RestockReceiptStatus {
+  itemId: string;
+  name: string;
+  unit: string;
+  orderedQty: number;
+  orderedQtyG: number;
+  receivedQty: number | null;  // null = ยังไม่ติ๊กยืนยัน
+  receivedQtyG: number | null;
+  isExtra: boolean;            // true = เพิ่มนอกใบเดิม ไม่ได้อยู่ในตัวเลือกที่บันทึกไว้
+  confirmedByName?: string;
+  confirmedAt?: string;        // ISO
+}
+
+// สรุปย่อต่อใบ (วันที่) — ใช้หน้าเลือกใบที่จะยืนยันรับ (ไม่ผูกวันนี้อย่างเดียว เผื่อของมาส่งช้า)
+export interface RestockSheetSummary {
+  date: string;
+  pendingCount: number;
+  totalCount: number;
+  isPastCutoff: boolean;
+}
+
+// คิวตรวจสอบแอดมิน — รับไม่ตรงยอดสั่ง / เพิ่มรายการนอกใบ / แก้ทับค่า auto-fill ทีหลังในหน้าสต็อก
+export type AdminFlagReason = "receipt_mismatch" | "receipt_extra" | "stock_override";
+
+export interface AdminFlag {
+  id: number;
+  branch: Branch;
+  date: string;
+  itemId: string | null;
+  itemName: string;
+  reason: AdminFlagReason;
+  detail: string;
+  createdAt: string;   // ISO
+  resolvedAt?: string; // ISO — undefined = ยังไม่ตรวจ
+  resolvedBy?: string;
+}
+
 export interface AuditEntry {
   id: string;
   ts: string;        // ISO

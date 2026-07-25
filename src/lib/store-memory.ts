@@ -1,9 +1,9 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
-import { variance, restockNeed, isSpecialActive } from "./calc";
+import { variance, restockNeed, isSpecialActive, isPastCutoff } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // ── users + audit (memory) ──
@@ -26,7 +26,12 @@ const salesEvidenceRows: SalesEvidenceRec[] = [];
 let remittanceSeq = 1;
 const cashRemittanceRows: CashRemittanceRec[] = [];
 
-interface StockRec extends StockRow { date: string; branch: Branch; }
+interface StockRec extends StockRow {
+  date: string; branch: Branch;
+  // ค่าที่ auto-fill ให้ล่าสุดจากการยืนยันรับของ (v1.9) — ใช้ตรวจจับว่าพนักงานแก้ทับทีหลังไหม
+  inAutoPack?: number;
+  inAutoG?: number;
+}
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
 interface CupRec extends CupRow { date: string; branch: Branch; }
 
@@ -37,6 +42,24 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
 const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
+
+// ── ยืนยันรับของ (v1.9) ──
+interface RestockReceiptRec {
+  date: string; branch: Branch; itemId: string;
+  orderedQty: number; receivedQty: number; receivedQtyG: number; isExtra: boolean;
+  confirmedByUserId: string; confirmedByName: string; confirmedAt: string;
+}
+const restockReceipts = new Map<string, RestockReceiptRec>(); // key = sk(date,branch,itemId)
+
+interface AdminFlagRec {
+  id: number; branch: Branch; date: string; itemId: string | null; itemName: string;
+  reason: AdminFlagReason; detail: string; createdAt: string; resolvedAt?: string; resolvedBy?: string;
+}
+const adminFlags: AdminFlagRec[] = [];
+let adminFlagSeq = 1;
+function pushAdminFlag(branch: Branch, date: string, itemId: string | null, itemName: string, reason: AdminFlagReason, detail: string) {
+  adminFlags.push({ id: adminFlagSeq++, branch, date, itemId, itemName, reason, detail, createdAt: new Date().toISOString() });
+}
 
 // ── ใบสั่งผลิต (v1.5) ──
 interface ProductionOrderRec {
@@ -166,8 +189,18 @@ export const memoryStore = {
     for (const r of rows) {
       const key = sk(date, branch, r.itemId);
       const v = variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack);
-      if (stock.has(key)) updated++; else inserted++;
-      stock.set(key, { ...r, date, branch, variance: v });
+      const existing = stock.get(key);
+      if (existing) updated++; else inserted++;
+      let inAutoPack = existing?.inAutoPack;
+      let inAutoG = existing?.inAutoG;
+      // พนักงานแก้ทับค่าที่ระบบ auto-fill ให้ (จากการยืนยันรับของ) — เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม กันแจ้งซ้ำทุกครั้งที่กด save
+      if (inAutoPack != null && (r.inPack !== inAutoPack || r.inG !== (inAutoG ?? 0))) {
+        const it = ITEMS.find((x) => x.id === r.itemId);
+        pushAdminFlag(branch, date, r.itemId, it?.name ?? r.itemId, "stock_override",
+          `ระบบเติมให้ ${inAutoPack} → พนักงานแก้เป็น ${r.inPack}`);
+        inAutoPack = undefined; inAutoG = undefined;
+      }
+      stock.set(key, { ...r, date, branch, variance: v, inAutoPack, inAutoG });
     }
     return { ok: true, updated, inserted };
   },
@@ -468,6 +501,101 @@ export const memoryStore = {
   },
   saveRestockNote(branch: Branch, date: string, note: string): void {
     restockNotes.set(`${branch}|${date}`, note);
+  },
+
+  // ── ยืนยันรับของ (v1.9) — ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" ของสาขานั้น ──
+  listOutstandingRestockSheets(branch: Branch): RestockSheetSummary[] {
+    const dates = new Set<string>();
+    for (const rec of restockSelections.values()) {
+      if (rec.branch === branch && rec.selected) dates.add(rec.date);
+    }
+    const out: RestockSheetSummary[] = [];
+    for (const date of dates) {
+      const selectedItems = Array.from(restockSelections.values()).filter((r) => r.branch === branch && r.date === date && r.selected);
+      const total = selectedItems.length;
+      const pending = selectedItems.filter((r) => !restockReceipts.has(sk(date, branch, r.itemId))).length;
+      if (pending === 0) continue;
+      out.push({ date, pendingCount: pending, totalCount: total, isPastCutoff: isPastCutoff(branch, date) });
+    }
+    return out.sort((a, b) => (a.date < b.date ? -1 : 1));
+  },
+
+  getRestockReceiptStatus(branch: Branch, date: string): RestockReceiptStatus[] {
+    const selected = Array.from(restockSelections.values()).filter((r) => r.branch === branch && r.date === date && r.selected);
+    const out: RestockReceiptStatus[] = selected.map((r) => {
+      const it = ITEMS.find((x) => x.id === r.itemId);
+      const receipt = restockReceipts.get(sk(date, branch, r.itemId));
+      return {
+        itemId: r.itemId, name: it?.name ?? r.itemId, unit: it?.unit ?? "",
+        orderedQty: r.qty, orderedQtyG: r.qtyG,
+        receivedQty: receipt?.receivedQty ?? null, receivedQtyG: receipt?.receivedQtyG ?? null,
+        isExtra: false, confirmedByName: receipt?.confirmedByName, confirmedAt: receipt?.confirmedAt,
+      };
+    });
+    for (const receipt of restockReceipts.values()) {
+      if (receipt.branch !== branch || receipt.date !== date || !receipt.isExtra) continue;
+      const it = ITEMS.find((x) => x.id === receipt.itemId);
+      out.push({
+        itemId: receipt.itemId, name: it?.name ?? receipt.itemId, unit: it?.unit ?? "",
+        orderedQty: 0, orderedQtyG: 0, receivedQty: receipt.receivedQty, receivedQtyG: receipt.receivedQtyG,
+        isExtra: true, confirmedByName: receipt.confirmedByName, confirmedAt: receipt.confirmedAt,
+      });
+    }
+    return out;
+  },
+
+  confirmRestockReceipt(
+    branch: Branch, date: string, itemId: string, receivedQty: number, receivedQtyG: number,
+    isExtra: boolean, userId: string, userName: string
+  ): { ok: true } {
+    seed();
+    const now = new Date().toISOString();
+    const sel = restockSelections.get(sk(date, branch, itemId));
+    const orderedQty = isExtra ? 0 : (sel?.qty ?? 0);
+    restockReceipts.set(sk(date, branch, itemId), {
+      date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra,
+      confirmedByUserId: userId, confirmedByName: userName, confirmedAt: now,
+    });
+    const it = ITEMS.find((x) => x.id === itemId);
+    const itemName = it?.name ?? itemId;
+    if (isExtra) {
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_extra", `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`);
+    } else if (receivedQty !== orderedQty) {
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `สั่งไว้ ${orderedQty} ได้รับจริง ${receivedQty}`);
+    }
+    // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
+    const todayStr = now.slice(0, 10);
+    const key = sk(todayStr, branch, itemId);
+    const existing = stock.get(key);
+    if (existing) {
+      stock.set(key, { ...existing, inPack: receivedQty, inG: receivedQtyG, inAutoPack: receivedQty, inAutoG: receivedQtyG });
+    } else {
+      const prev = latestBefore(branch, itemId, todayStr);
+      const carryPack = prev?.remainPack ?? 0;
+      const carryG = prev?.remainG ?? 0;
+      stock.set(key, {
+        date: todayStr, branch, itemId, carryPack, carryG, inPack: receivedQty, inG: receivedQtyG, used: 0,
+        remainPack: carryPack + receivedQty, remainG: carryG + receivedQtyG, returned: 0, note: "", variance: 0,
+        inAutoPack: receivedQty, inAutoG: receivedQtyG,
+      });
+    }
+    return { ok: true };
+  },
+
+  getPendingReceiptCount(branch: Branch): number {
+    return this.listOutstandingRestockSheets(branch).reduce((sum, s) => sum + s.pendingCount, 0);
+  },
+
+  listAdminFlags(includeResolved = false): AdminFlag[] {
+    return adminFlags
+      .filter((f) => includeResolved || !f.resolvedAt)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+      .map((f) => ({ ...f }));
+  },
+
+  resolveAdminFlag(id: number, resolvedBy: string): void {
+    const f = adminFlags.find((x) => x.id === id);
+    if (f) { f.resolvedAt = new Date().toISOString(); f.resolvedBy = resolvedBy; }
   },
 
   // ── ใบสั่งผลิต (v1.5) — ตรรกะเดียวกับฝั่ง supabase แต่ทำงานบน Map ล้วนๆ ──

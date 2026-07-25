@@ -11,6 +11,7 @@ type Tab = { href: string; label: string; icon: string };
 const USER_TABS: Tab[] = [
   { href: "/stock", label: "สต็อก", icon: "📝" },
   { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
+  { href: "/confirm-receipt", label: "รับของ", icon: "📥" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
   { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "🙋" },
@@ -19,6 +20,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/", label: "หน้าหลัก", icon: "🏠" },
   { href: "/stock", label: "สต็อก", icon: "📝" },
   { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
+  { href: "/confirm-receipt", label: "รับของ", icon: "📥" },
   { href: "/restock", label: "ต้องเติม", icon: "📦" },
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
   { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
@@ -26,6 +28,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
 ];
 const ADMIN_MENU: Tab[] = [
+  { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "🚩" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "⚙️" },
   { href: "/users", label: "ผู้ใช้", icon: "👥" },
   { href: "/notices", label: "ประกาศ", icon: "📢" },
@@ -52,6 +55,18 @@ export function useUnseenRequisitions(): number {
   return React.useContext(UnseenReqCtx);
 }
 
+// จำนวนรายการยืนยันรับของที่ยังค้าง (v1.9) — โชว์ badge ที่เมนู "รับของ" (เฉพาะ role user — ผูกสาขาเดียว)
+const PendingReceiptCtx = React.createContext<number>(0);
+export function usePendingReceipt(): number {
+  return React.useContext(PendingReceiptCtx);
+}
+
+// จำนวนรายการรอตรวจสอบของแอดมิน (v1.9) — โชว์ badge ที่เมนู "รายการรอตรวจสอบ" (admin only)
+const AdminFlagsCtx = React.createContext<number>(0);
+export function useAdminFlagsCount(): number {
+  return React.useContext(AdminFlagsCtx);
+}
+
 const ROLE_LABEL_TH: Record<Role, string> = { admin: "แอดมิน", user: "พนักงาน", restock: "จนท. Restock" };
 const scopeLabel = (me: Me | null): string =>
   !me ? "ระบบจัดการสต็อก"
@@ -71,6 +86,8 @@ function useLogout() {
 export function NavShell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = React.useState<Me | null>(null);
   const [unseenReq, setUnseenReq] = React.useState(0);
+  const [pendingReceipt, setPendingReceipt] = React.useState(0);
+  const [adminFlags, setAdminFlags] = React.useState(0);
   const path = usePathname();
   React.useEffect(() => {
     fetch("/api/me")
@@ -88,19 +105,41 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, [path, me?.role]);
 
+  // จำนวนรายการยืนยันรับของที่ยังค้าง — เฉพาะ role user (ผูกสาขาเดียวอยู่แล้ว)
+  React.useEffect(() => {
+    if (me?.role !== "user" || me.branchScope === "all") return;
+    fetch(`/api/confirm-receipt/pending-count?branch=${me.branchScope}`)
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setPendingReceipt(d.count ?? 0))
+      .catch(() => {});
+  }, [path, me?.role, me?.branchScope]);
+
+  // จำนวนรายการรอตรวจสอบของแอดมิน
+  React.useEffect(() => {
+    if (me?.role !== "admin") return;
+    fetch("/api/admin-flags/count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setAdminFlags(d.count ?? 0))
+      .catch(() => {});
+  }, [path, me?.role]);
+
   if (path === "/login") return <>{children}</>;
 
   return (
     <MeCtx.Provider value={me}>
       <UnseenReqCtx.Provider value={unseenReq}>
-        <Sidebar />
-        <TopBar />
-        <main className="lg:pl-64 print:pl-0">
-          <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
-            {children}
-          </div>
-        </main>
-        <BottomNav />
+        <PendingReceiptCtx.Provider value={pendingReceipt}>
+          <AdminFlagsCtx.Provider value={adminFlags}>
+            <Sidebar />
+            <TopBar />
+            <main className="lg:pl-64 print:pl-0">
+              <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
+                {children}
+              </div>
+            </main>
+            <BottomNav />
+          </AdminFlagsCtx.Provider>
+        </PendingReceiptCtx.Provider>
       </UnseenReqCtx.Provider>
     </MeCtx.Provider>
   );
@@ -151,10 +190,14 @@ function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; o
 function Sidebar() {
   const me = React.useContext(MeCtx);
   const unseenReq = React.useContext(UnseenReqCtx);
+  const pendingReceipt = React.useContext(PendingReceiptCtx);
+  const adminFlags = React.useContext(AdminFlagsCtx);
   const path = usePathname();
   const logout = useLogout();
   const tabs = tabsForRole(me?.role);
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const tabBadge = (href: string) =>
+    href === "/requisitions" ? unseenReq : href === "/confirm-receipt" ? pendingReceipt : undefined;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/60 bg-white/55 px-4 py-5 backdrop-blur-xl lg:flex print:hidden">
@@ -163,7 +206,7 @@ function Sidebar() {
       <nav className="mt-7 flex flex-col gap-1">
         <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
         {tabs.map((t) => (
-          <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/requisitions" ? unseenReq : undefined} />
+          <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={tabBadge(t.href)} />
         ))}
       </nav>
 
@@ -171,7 +214,7 @@ function Sidebar() {
         <nav className="mt-5 flex flex-col gap-1">
           <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
           {ADMIN_MENU.map((t) => (
-            <NavItem key={t.href} tab={t} active={isOn(t.href)} />
+            <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
           ))}
         </nav>
       )}
@@ -240,6 +283,7 @@ function TopBar() {
 function BottomNav() {
   const me = React.useContext(MeCtx);
   const unseenReq = React.useContext(UnseenReqCtx);
+  const pendingReceipt = React.useContext(PendingReceiptCtx);
   const path = usePathname();
   const tabs = tabsForRole(me?.role);
   return (
@@ -247,7 +291,7 @@ function BottomNav() {
       <div className="mx-auto flex max-w-3xl">
         {tabs.map((t) => {
           const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
-          const badge = t.href === "/requisitions" ? unseenReq : 0;
+          const badge = t.href === "/requisitions" ? unseenReq : t.href === "/confirm-receipt" ? pendingReceipt : 0;
           return (
             <Link
               key={t.href}

@@ -6,6 +6,7 @@
 // v2 (compact + confirm-gate): ช่อง "คงเหลือ" ทุกไอเทมเริ่มว่าง ต้องกด "✓ เท่ายกมา" หรือพิมพ์ค่าเองก่อน
 // ถึงจะนับว่า "ยืนยันแล้ว" — ปุ่มบันทึกจะ disabled จริงจนกว่าจะยืนยันครบทุกรายการ (คนละเงื่อนไขกับ errorCount/variance เดิม)
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
 import { remainPieces, variance, isCheckDue, weekdayFromDate } from "@/lib/calc";
@@ -134,6 +135,15 @@ export default function StockPage() {
   const [confirmed, setConfirmed] = React.useState<Record<string, boolean>>({});
   // เปิด/ปิด panel "ส่งคืน/เสีย" ต่อไอเทม (default ปิด เว้นแต่มีค่า returned ติดมา)
   const [returnOpen, setReturnOpen] = React.useState<Record<string, boolean>>({});
+
+  // v1.9: เตือนถ้าเลยเวลาตัดรอบยืนยันรับของแล้วยังมีรายการค้าง — พนักงานเข้าหน้านี้ทุกวันอยู่แล้ว ต้องเห็นแน่นอน
+  const [receiptOverdue, setReceiptOverdue] = React.useState(false);
+  React.useEffect(() => {
+    fetch(`/api/confirm-receipt/pending-count?branch=${branch}`)
+      .then((r) => (r.ok ? r.json() : { overdue: false }))
+      .then((d) => setReceiptOverdue(!!d.overdue))
+      .catch(() => {});
+  }, [branch]);
 
   React.useEffect(() => {
     let alive = true;
@@ -405,6 +415,16 @@ export default function StockPage() {
           </label>
         </div>
       </GlassCard>
+
+      {receiptOverdue && (
+        <Link
+          href={`/confirm-receipt?branch=${branch}`}
+          className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2.5 text-sm text-brand-ink/80"
+        >
+          <span>⚠️ มีรายการที่ยังไม่ยืนยันรับ</span>
+          <span className="shrink-0 font-semibold text-warn underline underline-offset-2">ไปยืนยันรับ</span>
+        </Link>
+      )}
 
       <div className="mb-3 grid grid-cols-3 gap-2">
         <Stat label="ยืนยันแล้ว" value={`${filledCount}/${total}`} tone={total > 0 && filledCount === total ? "ok" : "default"} />

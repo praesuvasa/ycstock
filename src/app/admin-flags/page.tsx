@@ -1,0 +1,89 @@
+"use client";
+// v1.9 · รายการรอตรวจสอบ — รับไม่ตรงยอดสั่ง / เพิ่มนอกใบ / พนักงานแก้ทับค่า auto-fill ในหน้าสต็อก (admin only)
+import React from "react";
+import type { AdminFlag, AdminFlagReason } from "@/lib/types";
+import { GlassCard, PageTitle, Badge } from "@/components/ui";
+import { thaiDate } from "@/lib/fmt";
+
+const REASON_LABEL: Record<AdminFlagReason, string> = {
+  receipt_mismatch: "รับไม่ตรงยอดสั่ง",
+  receipt_extra: "เพิ่มนอกใบ",
+  stock_override: "แก้ทับยอด auto-fill",
+};
+const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
+  receipt_mismatch: "warn",
+  receipt_extra: "orange",
+  stock_override: "warn",
+};
+
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+export default function AdminFlagsPage() {
+  const [flags, setFlags] = React.useState<AdminFlag[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [resolvingId, setResolvingId] = React.useState<number | null>(null);
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch("/api/admin-flags")
+      .then((r) => r.json())
+      .then((d: { flags?: AdminFlag[] }) => setFlags(d.flags ?? []))
+      .finally(() => setLoading(false))
+      .catch(() => setLoading(false));
+  }, []);
+  React.useEffect(() => { load(); }, [load]);
+
+  async function resolve(id: number) {
+    setResolvingId(id);
+    try {
+      await fetch("/api/admin-flags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setFlags((rows) => rows.filter((f) => f.id !== id));
+    } finally {
+      setResolvingId(null);
+    }
+  }
+
+  return (
+    <div>
+      <PageTitle title="รายการรอตรวจสอบ" right={<span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>} />
+      <GlassCard>
+        {loading ? (
+          <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+        ) : flags.length === 0 ? (
+          <p className="py-8 text-center text-sm text-brand-ink/50">ไม่มีรายการต้องตรวจ ✓</p>
+        ) : (
+          <div className="grid gap-1.5">
+            {flags.map((f) => (
+              <div key={f.id} className="flex items-center gap-2.5 rounded-lg bg-black/[.02] px-2.5 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[13px] font-medium">{f.itemName}</span>
+                    <Badge tone={REASON_TONE[f.reason]}>{REASON_LABEL[f.reason]}</Badge>
+                    <Badge tone="blue">{f.branch}</Badge>
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-brand-ink/50">
+                    {f.detail} · {thaiDate(f.date)} · {fmtWhen(f.createdAt)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => resolve(f.id)}
+                  disabled={resolvingId === f.id}
+                  className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
+                >
+                  ตรวจแล้ว
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+}
