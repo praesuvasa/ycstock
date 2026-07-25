@@ -300,6 +300,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                     {mismatch && (
                       <span className="text-warn"> · ได้รับจริง {item.receivedQty}{(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}</span>
                     )}
+                    {confirmed && !mismatch && !item.notReceived && <span className="text-ok"> · ตรวจรับแล้ว</span>}
                     {!confirmed && sel === "notReceived" && <span className="text-red-600"> · จะไม่บันทึกรับเข้า</span>}
                   </div>
                 </div>

@@ -597,6 +597,14 @@ export const supabaseStore = {
     isExtra: boolean, userId: string, userName: string, note = "", notReceived = false
   ): Promise<void> {
     const now = new Date().toISOString();
+    const { data: existingReceipt } = await sb().from("restock_receipts")
+      .select("confirmed_at,not_received")
+      .eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
+    const wasCounted = !!existingReceipt && !existingReceipt.not_received;
+    // แก้ไขจำนวนของรายการที่เคยนับเข้าสต็อกแล้ว → ใช้วันที่ยืนยันเดิม ไม่เลื่อน auto-fill มาวันนี้
+    // (กันเผลอแก้ใบเก่าแล้วยอดไปโผล่วันนี้แทน) ใช้ "วันนี้" เฉพาะตอนนับเข้าสต็อกครั้งแรกจริง ๆ
+    const confirmedAt: string = wasCounted ? existingReceipt!.confirmed_at : now;
+
     let orderedQty = 0;
     let orderedQtyG = 0;
     if (!isExtra) {
@@ -608,7 +616,7 @@ export const supabaseStore = {
     const { error } = await sb().from("restock_receipts").upsert({
       date, branch_id: branch, item_id: itemId, ordered_qty: orderedQty,
       received_qty: receivedQty, received_qty_g: receivedQtyG, is_extra: isExtra, not_received: notReceived, note,
-      confirmed_by_user_id: userId, confirmed_by_name: userName, confirmed_at: now,
+      confirmed_by_user_id: userId, confirmed_by_name: userName, confirmed_at: confirmedAt,
     }, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
 
@@ -632,11 +640,9 @@ export const supabaseStore = {
       });
     }
 
-    if (notReceived) return; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
-    // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
-    // คำนวณใหม่จากศูนย์ (รวมทุกใบวันนี้) กันเคสมีหลายใบของ item เดียวกันมายืนยันวันเดียวกัน
-    const todayStr = now.slice(0, 10);
-    await recomputeAutoFillForToday(branch, itemId, todayStr);
+    if (!wasCounted && notReceived) return; // ไม่เคยนับเข้าสต็อกและตอนนี้ก็ยังไม่ได้รับ ไม่ต้องแตะ
+    // รวมยอด auto-fill ของ "วันที่นับเข้าสต็อกจริง" ใหม่เสมอ — ครอบคลุมทั้งนับใหม่ / แก้จำนวน / เปลี่ยนเป็น-จาก "ไม่ได้รับ"
+    await recomputeAutoFillForToday(branch, itemId, confirmedAt.slice(0, 10));
   },
 
   // ยืนยันรับทีเดียวหลายรายการ (กด "ยืนยันทั้งหมด") — วน confirmRestockReceipt ต่อรายการ

@@ -579,12 +579,18 @@ export const memoryStore = {
   ): { ok: true } {
     seed();
     const now = new Date().toISOString();
+    const key = sk(date, branch, itemId);
+    const existingReceipt = restockReceipts.get(key);
+    const wasCounted = !!existingReceipt && !existingReceipt.notReceived;
+    // แก้ไขจำนวนของรายการที่เคยนับเข้าสต็อกแล้ว → ใช้วันที่ยืนยันเดิม ไม่เลื่อน auto-fill มาวันนี้
+    // (กันเผลอแก้ใบเก่าแล้วยอดไปโผล่วันนี้แทน) ใช้ "วันนี้" เฉพาะตอนนับเข้าสต็อกครั้งแรกจริง ๆ
+    const confirmedAt = wasCounted ? existingReceipt!.confirmedAt : now;
     const sel = restockSelections.get(sk(date, branch, itemId));
     const orderedQty = isExtra ? 0 : (sel?.qty ?? 0);
     const orderedQtyG = isExtra ? 0 : (sel?.qtyG ?? 0);
-    restockReceipts.set(sk(date, branch, itemId), {
+    restockReceipts.set(key, {
       date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra, notReceived, note,
-      confirmedByUserId: userId, confirmedByName: userName, confirmedAt: now,
+      confirmedByUserId: userId, confirmedByName: userName, confirmedAt,
     });
     const it = ITEMS.find((x) => x.id === itemId);
     const itemName = it?.name ?? itemId;
@@ -596,11 +602,9 @@ export const memoryStore = {
     } else if (receivedQty !== orderedQty || receivedQtyG !== orderedQtyG) {
       pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `สั่งไว้ ${fmtQty(orderedQty, orderedQtyG)} ได้รับจริง ${fmtQty(receivedQty, receivedQtyG)}`);
     }
-    if (notReceived) return { ok: true }; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
-    // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
-    // — รวมยอดจากทุกใบที่ยืนยันวันนี้ กันทับกันถ้ามีมากกว่า 1 ใบของ item เดียวกัน
-    const todayStr = now.slice(0, 10);
-    recomputeAutoFillForToday(branch, itemId, todayStr);
+    if (!wasCounted && notReceived) return { ok: true }; // ไม่เคยนับเข้าสต็อกและตอนนี้ก็ยังไม่ได้รับ ไม่ต้องแตะ
+    // รวมยอด auto-fill ของ "วันที่นับเข้าสต็อกจริง" ใหม่เสมอ — ครอบคลุมทั้งนับใหม่ / แก้จำนวน / เปลี่ยนเป็น-จาก "ไม่ได้รับ"
+    recomputeAutoFillForToday(branch, itemId, confirmedAt.slice(0, 10));
     return { ok: true };
   },
 
