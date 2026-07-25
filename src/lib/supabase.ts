@@ -15,6 +15,27 @@ function sb(): SupabaseClient {
 
 const sizes: CupSize[] = ["P", "S", "BOWL", "14OZ"];
 
+// ดึง "แถวสต็อกล่าสุดก่อน/ถึงวันที่กำหนด" ต่อ item เป็น Map
+//
+// ⚠️ ต้องเรียง date DESC + เอาตัวแรกที่เจอ (first wins) เท่านั้น ห้ามเรียง ASC แล้ว last-wins
+// เพราะ PostgREST จำกัดผลลัพธ์ไว้ ~1000 แถวโดย default (ไม่ error ไม่เตือน ตัดทิ้งเงียบ ๆ)
+// ถ้าเรียง ASC แล้วโดนตัด = ตัดแถว "ใหม่สุด" ทิ้ง ซึ่งคือแถวที่ต้องใช้จริง → ยกมาเพี้ยนไปเป็นค่าของวันเก่า
+// (เคสจริง: NVP มี 1,056 แถว ทำให้ยกมา 25/07 ไปหยิบค่าของ 23/07 มาแทน 24/07 ทั้ง 55 รายการ)
+// เรียง DESC แล้วถ้าโดนตัดจะตัดแถว "เก่าสุด" ทิ้งแทน ซึ่งไม่กระทบผลลัพธ์
+async function latestStockMapBefore(
+  branch: Branch, date: string, opts?: { inclusive?: boolean; select?: string }
+): Promise<Map<string, any>> {
+  const select = opts?.select ?? "item_id,remain_pack,remain_g,date";
+  let q = sb().from("stock_daily").select(select).eq("branch_id", branch);
+  q = opts?.inclusive ? q.lte("date", date) : q.lt("date", date);
+  const { data } = await q.order("date", { ascending: false }).limit(50000);
+  const map = new Map<string, any>();
+  for (const r of (data ?? []) as any[]) {
+    if (!map.has(r.item_id)) map.set(r.item_id, r); // first wins (เรียง DESC = ใหม่สุดมาก่อน)
+  }
+  return map;
+}
+
 // คำนวณ auto-fill ของ "รับเข้า" ใหม่จากศูนย์ทุกครั้ง โดยรวมยอดจากทุก receipt (ทุกใบ) ที่ยืนยันในวันจริงเดียวกัน (todayStr)
 // กันเคสมีหลายใบของ item เดียวกันมายืนยันวันเดียวกัน (ต้องบวกรวม ไม่ใช่ทับ)
 async function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: string): Promise<void> {
@@ -111,10 +132,7 @@ export const supabaseStore = {
       .select("*").eq("branch_id", branch).eq("date", date);
     const savedMap = new Map((saved ?? []).map((r: any) => [r.item_id, r]));
     // previous day remains (latest before date) per item
-    const { data: prev } = await sb().from("stock_daily")
-      .select("item_id,remain_pack,remain_g,date").eq("branch_id", branch).lt("date", date).order("date");
-    const prevMap = new Map<string, any>();
-    for (const r of prev ?? []) prevMap.set(r.item_id, r); // last wins (ordered asc)
+    const prevMap = await latestStockMapBefore(branch, date);
     return items.map((it) => {
       // ยกมา = คงเหลือของวันก่อนหน้าล่าสุดเสมอ คำนวณสดทุกครั้ง (ไม่ใช่ carry_pack ที่ freeze ไว้ตอนบันทึกแถวนี้ครั้งแรก)
       // กันเคสแก้ไขคงเหลือของวันก่อนหน้าย้อนหลัง แล้วยกมาของวันถัดไปไม่อัปเดตตาม
@@ -134,10 +152,7 @@ export const supabaseStore = {
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
     // ยกมาคำนวณสดจาก DB ตอนบันทึกเสมอ — ห้ามเชื่อ carryPack ที่ client ส่งมา เพราะอาจเป็นค่าเก่าที่ค้างอยู่ในหน้าเว็บ
     // ตั้งแต่ก่อนมีการแก้ไขคงเหลือของวันก่อนหน้าไปแล้ว (กันเซฟทับค่าที่แก้ไปแล้วกลับเป็นค่าผิดเดิม)
-    const { data: prevRows } = await sb().from("stock_daily")
-      .select("item_id,remain_pack,remain_g,date").eq("branch_id", branch).lt("date", date).order("date");
-    const prevMap = new Map<string, any>();
-    for (const r of prevRows ?? []) prevMap.set(r.item_id, r);
+    const prevMap = await latestStockMapBefore(branch, date);
     const flags: any[] = [];
     let itemNameMap: Map<string, string> | null = null;
     const payload = [];
@@ -289,10 +304,11 @@ export const supabaseStore = {
     const salesToday: { branch: Branch; total: number }[] = [];
     const varianceAlerts: { branch: Branch; count: number }[] = [];
     for (const b of BRANCHES) {
-      const { data: latest } = await sb().from("stock_daily")
-        .select("item_id,remain_pack,variance,date").eq("branch_id", b).lte("date", date).order("date");
+      const latestMap = await latestStockMapBefore(b, date, {
+        inclusive: true, select: "item_id,remain_pack,variance,date",
+      });
       const remainMap = new Map<string, number>();
-      for (const r of latest ?? []) remainMap.set(r.item_id, r.remain_pack);
+      for (const [itemId, r] of latestMap) remainMap.set(itemId, r.remain_pack);
       for (const it of items) {
         const p = par[it.id]?.[b] ?? null;
         if (p == null) continue;
