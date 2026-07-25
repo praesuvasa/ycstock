@@ -43,6 +43,11 @@ export default function ConfirmReceiptPage() {
   return (
     <div>
       <PageTitle title="ยืนยันรับของ" />
+
+      <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
+        ติ๊กเฉพาะรายการที่ได้รับของจริงแล้วเท่านั้น — หากสินค้ายังไม่จัดส่งถึง อย่ายืนยันรับ
+      </div>
+
       <GlassCard className="mb-3">
         <BranchPicker value={branch} onChange={(b) => { setBranch(b); setActiveDate(null); }} locked={scoped} />
       </GlassCard>
@@ -89,6 +94,8 @@ export default function ConfirmReceiptPage() {
 function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;
 }) {
+  const me = useMe();
+  const isAdmin = me?.role === "admin";
   const [items, setItems] = React.useState<RestockReceiptStatus[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [drafts, setDrafts] = React.useState<Record<string, string>>({});
@@ -108,6 +115,21 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: 0, isExtra }),
+    });
+    load();
+    onChanged();
+  }
+
+  // admin เท่านั้น — ยกเลิกรายการที่ยังไม่ยืนยันรับ (เช่น สั่งผิด/ไม่เอาแล้ว) ให้หายจากลิสค้าง
+  async function removeItem(item: RestockReceiptStatus) {
+    if (!window.confirm(`ลบรายการ "${item.name}" ออกจากใบนี้? (รายการนี้จะไม่ค้างให้ยืนยันรับอีก)`)) return;
+    await fetch("/api/restock/selections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        branch, date,
+        entries: [{ itemId: item.itemId, selected: false, qty: item.orderedQty, qtyG: item.orderedQtyG }],
+      }),
     });
     load();
     onChanged();
@@ -166,6 +188,15 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 className={`field w-16 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!confirmed ? "opacity-40" : ""}`}
               />
+              {!confirmed && isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => removeItem(item)}
+                  className="shrink-0 text-[11px] font-medium text-warn underline underline-offset-2"
+                >
+                  ลบ
+                </button>
+              )}
             </div>
           );
         })}

@@ -421,7 +421,7 @@ export default function StockPage() {
           href={`/confirm-receipt?branch=${branch}`}
           className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2.5 text-sm text-brand-ink/80"
         >
-          <span>⚠️ มีรายการที่ยังไม่ยืนยันรับ</span>
+          <span>⚠️ กรุณายืนยันรับก่อนนับสต็อก (หากสินค้ายังไม่จัดส่งอย่ายืนยันรับ)</span>
           <span className="shrink-0 font-semibold text-warn underline underline-offset-2">ไปยืนยันรับ</span>
         </Link>
       )}
