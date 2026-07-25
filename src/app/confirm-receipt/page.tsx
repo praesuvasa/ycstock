@@ -201,7 +201,8 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   }
 
   const pendingItems = items.filter((i) => i.receivedQty === null);
-  const allSelected = pendingItems.length > 0 && pendingItems.every((item) => selection[item.itemId] === "received");
+  // นับว่า "เลือกแล้ว" ไม่ว่าจะติ๊กได้รับหรือไม่ได้รับ — ทั้งคู่ถือว่าพนักงานตัดสินใจแล้ว
+  const allSelected = pendingItems.length > 0 && pendingItems.every((item) => !!selection[item.itemId]);
 
   // กดครั้งแรก = เลือกทั้งหมด (ได้รับ) · กดซ้ำ (ตอนเลือกครบแล้ว) = เอาที่ติ๊กออกทั้งหมด
   function toggleSelectAll() {
