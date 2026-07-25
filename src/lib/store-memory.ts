@@ -149,6 +149,33 @@ function latestUpto(branch: Branch, itemId: string, date: string): StockRec | un
   return best;
 }
 
+// รวมยอด "รับเข้า" ของวันนี้ใหม่จากทุก receipt ที่ยืนยันจริงวันนี้ (ไม่รวม not_received) — SET เป็นค่าที่คำนวณใหม่เสมอ
+// กันบั๊ก: ถ้ามีมากกว่า 1 ใบของ item เดียวกันถูกยืนยันวันเดียวกัน (ใบเก่าค้างมาส่งช้า + ใบใหม่) ต้องบวกรวมกัน ไม่ใช่ทับกัน
+function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: string): void {
+  let sumPack = 0, sumG = 0;
+  for (const r of restockReceipts.values()) {
+    if (r.branch !== branch || r.itemId !== itemId || r.notReceived) continue;
+    if (r.confirmedAt.slice(0, 10) !== todayStr) continue;
+    sumPack += r.receivedQty;
+    sumG += r.receivedQtyG;
+  }
+  const key = sk(todayStr, branch, itemId);
+  const existing = stock.get(key);
+  if (existing) {
+    if (existing.inAutoPack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
+    stock.set(key, { ...existing, inPack: sumPack, inG: sumG, inAutoPack: sumPack, inAutoG: sumG });
+  } else {
+    const prev = latestBefore(branch, itemId, todayStr);
+    const carryPack = prev?.remainPack ?? 0;
+    const carryG = prev?.remainG ?? 0;
+    stock.set(key, {
+      date: todayStr, branch, itemId, carryPack, carryG, inPack: sumPack, inG: sumG, used: 0,
+      remainPack: carryPack + sumPack, remainG: carryG + sumG, returned: 0, note: "", variance: 0,
+      inAutoPack: sumPack, inAutoG: sumG,
+    });
+  }
+}
+
 export const memoryStore = {
   getMeta(): Meta {
     seed();
@@ -571,21 +598,9 @@ export const memoryStore = {
     }
     if (notReceived) return { ok: true }; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
     // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
+    // — รวมยอดจากทุกใบที่ยืนยันวันนี้ กันทับกันถ้ามีมากกว่า 1 ใบของ item เดียวกัน
     const todayStr = now.slice(0, 10);
-    const key = sk(todayStr, branch, itemId);
-    const existing = stock.get(key);
-    if (existing) {
-      stock.set(key, { ...existing, inPack: receivedQty, inG: receivedQtyG, inAutoPack: receivedQty, inAutoG: receivedQtyG });
-    } else {
-      const prev = latestBefore(branch, itemId, todayStr);
-      const carryPack = prev?.remainPack ?? 0;
-      const carryG = prev?.remainG ?? 0;
-      stock.set(key, {
-        date: todayStr, branch, itemId, carryPack, carryG, inPack: receivedQty, inG: receivedQtyG, used: 0,
-        remainPack: carryPack + receivedQty, remainG: carryG + receivedQtyG, returned: 0, note: "", variance: 0,
-        inAutoPack: receivedQty, inAutoG: receivedQtyG,
-      });
-    }
+    recomputeAutoFillForToday(branch, itemId, todayStr);
     return { ok: true };
   },
 
@@ -601,26 +616,14 @@ export const memoryStore = {
     return { ok: true };
   },
 
-  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
-  // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
+  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคำนวณ auto-fill ของวันนั้นใหม่จากรายการที่เหลือ (กันเคสมีหลายใบวันเดียวกัน)
   unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): void {
     const key = sk(date, branch, itemId);
     const receipt = restockReceipts.get(key);
     if (!receipt) return;
     restockReceipts.delete(key);
     if (receipt.notReceived) return; // "ไม่ได้รับ" ไม่เคยแตะสต็อก ไม่ต้องคืนค่าอะไร
-    const todayStr = receipt.confirmedAt.slice(0, 10);
-    const stockKey = sk(todayStr, branch, itemId);
-    const existing = stock.get(stockKey);
-    if (
-      existing && existing.inPack === receipt.receivedQty && existing.inG === receipt.receivedQtyG
-      && existing.used === 0 && existing.returned === 0
-    ) {
-      stock.set(stockKey, {
-        ...existing, inPack: 0, inG: 0, inAutoPack: undefined, inAutoG: undefined,
-        remainPack: existing.carryPack, remainG: existing.carryG, variance: 0,
-      });
-    }
+    recomputeAutoFillForToday(branch, itemId, receipt.confirmedAt.slice(0, 10));
   },
 
   getPendingReceiptCount(branch: Branch): number {

@@ -15,6 +15,54 @@ function sb(): SupabaseClient {
 
 const sizes: CupSize[] = ["P", "S", "BOWL", "14OZ"];
 
+// คำนวณ auto-fill ของ "รับเข้า" ใหม่จากศูนย์ทุกครั้ง โดยรวมยอดจากทุก receipt (ทุกใบ) ที่ยืนยันในวันจริงเดียวกัน (todayStr)
+// กันเคสมีหลายใบของ item เดียวกันมายืนยันวันเดียวกัน (ต้องบวกรวม ไม่ใช่ทับ)
+async function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: string): Promise<void> {
+  const startIso = `${todayStr}T00:00:00.000Z`;
+  const dayAfter = new Date(startIso);
+  dayAfter.setUTCDate(dayAfter.getUTCDate() + 1);
+  const endIso = dayAfter.toISOString();
+
+  const { data: receipts } = await sb().from("restock_receipts")
+    .select("received_qty,received_qty_g,not_received")
+    .eq("branch_id", branch).eq("item_id", itemId)
+    .gte("confirmed_at", startIso).lt("confirmed_at", endIso);
+
+  let sumPack = 0;
+  let sumG = 0;
+  for (const r of receipts ?? []) {
+    if (r.not_received) continue;
+    sumPack += Number(r.received_qty);
+    sumG += Number(r.received_qty_g);
+  }
+
+  const { data: existing } = await sb().from("stock_daily")
+    .select("carry_pack,carry_g,in_auto_pack")
+    .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
+
+  if (existing) {
+    if (existing.in_auto_pack === null || existing.in_auto_pack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
+    const { error: updErr } = await sb().from("stock_daily").update({
+      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG,
+      remain_pack: Number(existing.carry_pack) + sumPack, remain_g: Number(existing.carry_g) + sumG, variance: 0,
+    }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
+    if (updErr) throw updErr;
+  } else {
+    const { data: prev } = await sb().from("stock_daily")
+      .select("remain_pack,remain_g").eq("branch_id", branch).eq("item_id", itemId).lt("date", todayStr)
+      .order("date", { ascending: false }).limit(1).maybeSingle();
+    const carryPack = prev?.remain_pack ?? 0;
+    const carryG = prev?.remain_g ?? 0;
+    const { error: insErr } = await sb().from("stock_daily").insert({
+      date: todayStr, branch_id: branch, item_id: itemId,
+      carry_pack: carryPack, carry_g: carryG, in_pack: sumPack, in_g: sumG, used: 0,
+      remain_pack: carryPack + sumPack, remain_g: carryG + sumG, returned: 0, returned_g: 0,
+      note: "", variance: 0, in_auto_pack: sumPack, in_auto_g: sumG,
+    });
+    if (insErr) throw insErr;
+  }
+}
+
 export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
@@ -586,28 +634,9 @@ export const supabaseStore = {
 
     if (notReceived) return; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
     // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
+    // คำนวณใหม่จากศูนย์ (รวมทุกใบวันนี้) กันเคสมีหลายใบของ item เดียวกันมายืนยันวันเดียวกัน
     const todayStr = now.slice(0, 10);
-    const { data: existing } = await sb().from("stock_daily")
-      .select("item_id").eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
-    if (existing) {
-      const { error: updErr } = await sb().from("stock_daily").update({
-        in_pack: receivedQty, in_g: receivedQtyG, in_auto_pack: receivedQty, in_auto_g: receivedQtyG,
-      }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
-      if (updErr) throw updErr;
-    } else {
-      const { data: prev } = await sb().from("stock_daily")
-        .select("remain_pack,remain_g").eq("branch_id", branch).eq("item_id", itemId).lt("date", todayStr)
-        .order("date", { ascending: false }).limit(1).maybeSingle();
-      const carryPack = prev?.remain_pack ?? 0;
-      const carryG = prev?.remain_g ?? 0;
-      const { error: insErr } = await sb().from("stock_daily").insert({
-        date: todayStr, branch_id: branch, item_id: itemId,
-        carry_pack: carryPack, carry_g: carryG, in_pack: receivedQty, in_g: receivedQtyG, used: 0,
-        remain_pack: carryPack + receivedQty, remain_g: carryG + receivedQtyG, returned: 0, returned_g: 0,
-        note: "", variance: 0, in_auto_pack: receivedQty, in_auto_g: receivedQtyG,
-      });
-      if (insErr) throw insErr;
-    }
+    await recomputeAutoFillForToday(branch, itemId, todayStr);
   },
 
   // ยืนยันรับทีเดียวหลายรายการ (กด "ยืนยันทั้งหมด") — วน confirmRestockReceipt ต่อรายการ
@@ -621,8 +650,7 @@ export const supabaseStore = {
     }
   },
 
-  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคืนค่า auto-fill ในสต็อกกลับเป็น 0
-  // เฉพาะกรณี "ยังไม่ถูกแตะต่อ" (inPack/inG ตรงกับที่ auto-fill ไว้เป๊ะ + used/returned ยังเป็น 0) กันทับข้อมูลที่พนักงานกรอกต่อไปแล้ว
+  // ยกเลิกยืนยันรับ (พลาดติ๊ก) — ลบ receipt แล้วคำนวณ auto-fill ของวันนั้นใหม่จากรายการที่เหลือ (กันเคสมีหลายใบวันเดียวกัน)
   async unconfirmRestockReceipt(branch: Branch, date: string, itemId: string): Promise<void> {
     const { data: receipt } = await sb().from("restock_receipts")
       .select("received_qty,received_qty_g,confirmed_at,not_received")
@@ -634,20 +662,7 @@ export const supabaseStore = {
     if (receipt.not_received) return; // "ไม่ได้รับ" ไม่เคยแตะสต็อก ไม่ต้องคืนค่าอะไร
 
     const todayStr = String(receipt.confirmed_at).slice(0, 10);
-    const { data: existing } = await sb().from("stock_daily")
-      .select("carry_pack,carry_g,in_pack,in_g,used,returned")
-      .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
-    if (
-      existing && Number(existing.in_pack) === Number(receipt.received_qty)
-      && Number(existing.in_g) === Number(receipt.received_qty_g)
-      && Number(existing.used) === 0 && Number(existing.returned) === 0
-    ) {
-      const { error: updErr } = await sb().from("stock_daily").update({
-        in_pack: 0, in_g: 0, in_auto_pack: null, in_auto_g: null,
-        remain_pack: existing.carry_pack, remain_g: existing.carry_g, variance: 0,
-      }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
-      if (updErr) throw updErr;
-    }
+    await recomputeAutoFillForToday(branch, itemId, todayStr);
   },
 
   async getPendingReceiptCount(branch: Branch): Promise<number> {
