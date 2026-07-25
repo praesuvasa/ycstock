@@ -550,10 +550,12 @@ export const supabaseStore = {
   ): Promise<void> {
     const now = new Date().toISOString();
     let orderedQty = 0;
+    let orderedQtyG = 0;
     if (!isExtra) {
       const { data: sel } = await sb().from("restock_selections")
-        .select("qty").eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
+        .select("qty,qty_g").eq("branch_id", branch).eq("date", date).eq("item_id", itemId).maybeSingle();
       orderedQty = sel ? Number(sel.qty) : 0;
+      orderedQtyG = sel ? Number(sel.qty_g) : 0;
     }
     const { error } = await sb().from("restock_receipts").upsert({
       date, branch_id: branch, item_id: itemId, ordered_qty: orderedQty,
@@ -564,20 +566,21 @@ export const supabaseStore = {
 
     const { data: itemRow } = await sb().from("items").select("name").eq("id", itemId).maybeSingle();
     const itemName = itemRow?.name ?? itemId;
+    const fmtQty = (pack: number, g: number) => `${pack}${g ? ` +${g}g` : ""}`;
     if (isExtra) {
       await sb().from("stock_admin_flags").insert({
         branch_id: branch, date, item_id: itemId, item_name: itemName,
-        reason: "receipt_extra", detail: `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`,
+        reason: "receipt_extra", detail: `เพิ่มนอกใบเดิม จำนวน ${fmtQty(receivedQty, receivedQtyG)}`,
       });
     } else if (notReceived) {
       await sb().from("stock_admin_flags").insert({
         branch_id: branch, date, item_id: itemId, item_name: itemName,
-        reason: "receipt_mismatch", detail: `ไม่ได้รับสินค้า (สั่งไว้ ${orderedQty})`,
+        reason: "receipt_not_received", detail: `ไม่ได้รับสินค้า (สั่งไว้ ${fmtQty(orderedQty, orderedQtyG)})`,
       });
-    } else if (receivedQty !== orderedQty) {
+    } else if (receivedQty !== orderedQty || receivedQtyG !== orderedQtyG) {
       await sb().from("stock_admin_flags").insert({
         branch_id: branch, date, item_id: itemId, item_name: itemName,
-        reason: "receipt_mismatch", detail: `สั่งไว้ ${orderedQty} ได้รับจริง ${receivedQty}`,
+        reason: "receipt_mismatch", detail: `สั่งไว้ ${fmtQty(orderedQty, orderedQtyG)} ได้รับจริง ${fmtQty(receivedQty, receivedQtyG)}`,
       });
     }
 

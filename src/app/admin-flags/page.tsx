@@ -7,11 +7,13 @@ import { thaiDate } from "@/lib/fmt";
 
 const REASON_LABEL: Record<AdminFlagReason, string> = {
   receipt_mismatch: "รับไม่ตรงยอดสั่ง",
+  receipt_not_received: "ไม่ได้รับสินค้า",
   receipt_extra: "เพิ่มนอกใบ",
   stock_override: "แก้ทับยอด auto-fill",
 };
 const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
   receipt_mismatch: "warn",
+  receipt_not_received: "warn",
   receipt_extra: "orange",
   stock_override: "warn",
 };

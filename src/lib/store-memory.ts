@@ -554,18 +554,20 @@ export const memoryStore = {
     const now = new Date().toISOString();
     const sel = restockSelections.get(sk(date, branch, itemId));
     const orderedQty = isExtra ? 0 : (sel?.qty ?? 0);
+    const orderedQtyG = isExtra ? 0 : (sel?.qtyG ?? 0);
     restockReceipts.set(sk(date, branch, itemId), {
       date, branch, itemId, orderedQty, receivedQty, receivedQtyG, isExtra, notReceived, note,
       confirmedByUserId: userId, confirmedByName: userName, confirmedAt: now,
     });
     const it = ITEMS.find((x) => x.id === itemId);
     const itemName = it?.name ?? itemId;
+    const fmtQty = (pack: number, g: number) => `${pack}${g ? ` +${g}g` : ""}`;
     if (isExtra) {
-      pushAdminFlag(branch, date, itemId, itemName, "receipt_extra", `เพิ่มนอกใบเดิม จำนวน ${receivedQty}`);
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_extra", `เพิ่มนอกใบเดิม จำนวน ${fmtQty(receivedQty, receivedQtyG)}`);
     } else if (notReceived) {
-      pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `ไม่ได้รับสินค้า (สั่งไว้ ${orderedQty})`);
-    } else if (receivedQty !== orderedQty) {
-      pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `สั่งไว้ ${orderedQty} ได้รับจริง ${receivedQty}`);
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_not_received", `ไม่ได้รับสินค้า (สั่งไว้ ${fmtQty(orderedQty, orderedQtyG)})`);
+    } else if (receivedQty !== orderedQty || receivedQtyG !== orderedQtyG) {
+      pushAdminFlag(branch, date, itemId, itemName, "receipt_mismatch", `สั่งไว้ ${fmtQty(orderedQty, orderedQtyG)} ได้รับจริง ${fmtQty(receivedQty, receivedQtyG)}`);
     }
     if (notReceived) return { ok: true }; // ไม่ได้รับจริง — ไม่ auto-fill สต็อก
     // auto-fill เข้าหน้าสต็อกของ "วันนี้ที่ติ๊กจริง" ไม่ใช่วันที่ในใบ (เผื่อของมาส่งช้ากว่าที่นัด)
