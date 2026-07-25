@@ -260,7 +260,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       <div className="mb-1 flex justify-end pr-1">
         <span className="text-[10px] font-medium uppercase tracking-wide text-brand-ink/40">จำนวนที่ได้รับจริง</span>
       </div>
-      <div className="grid gap-1.5">
+      <div className="grid gap-1">
         {items.map((item) => {
           const confirmed = item.receivedQty !== null;
           const sel = selection[item.itemId];
@@ -277,20 +277,20 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           const noteOnBlur = confirmed ? () => handleNoteCommit(item) : undefined;
 
           return (
-            <div key={item.itemId} className="rounded-lg bg-black/[.02] px-2.5 py-2.5">
-              <div className="flex items-center gap-2.5">
+            <div key={item.itemId} className="rounded-lg bg-black/[.02] px-2 py-1.5">
+              <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={confirmed ? true : sel === "received"}
                   onChange={() => (confirmed ? handleUncheck(item) : toggleSelection(item.itemId, "received"))}
-                  className="h-[18px] w-[18px] shrink-0 accent-ok"
+                  className="h-4 w-4 shrink-0 accent-ok"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[13px] font-medium">
+                  <div className="truncate text-[12.5px] font-medium leading-tight">
                     {item.name} {item.isExtra && <Badge tone="orange">นอกใบ</Badge>}
                     {confirmed && item.notReceived && <Badge tone="warn">ไม่ได้รับ</Badge>}
                   </div>
-                  <div className="text-[11px] text-brand-ink/45">
+                  <div className="truncate text-[10.5px] leading-tight text-brand-ink/45">
                     {item.isExtra ? "เพิ่มนอกใบเดิม" : `จำนวนตามเอกสาร ${item.orderedQty} ${item.unit}${item.orderedQtyG ? ` +${item.orderedQtyG}g` : ""}`}
                     {mismatch && (
                       <span className="text-warn"> · ได้รับจริง {item.receivedQty}{(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}</span>
@@ -307,11 +307,11 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                       onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
                       onBlur={qtyOnBlur}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`field w-14 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                      className={`field w-11 shrink-0 px-1 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
                     {(showGrams(item.itemId) || item.isExtra) && (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <span className="text-[11px] text-brand-ink/40">+g</span>
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <span className="text-[10px] text-brand-ink/40">+g</span>
                         <input
                           inputMode="numeric"
                           value={qtyGVal}
@@ -319,7 +319,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                           onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
                           onBlur={qtyOnBlur}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          className={`field w-12 shrink-0 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                          className={`field w-9 shrink-0 px-1 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                         />
                       </div>
                     )}
@@ -328,7 +328,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                 <button
                   type="button"
                   onClick={() => setNoteOpen((o) => ({ ...o, [item.itemId]: !o[item.itemId] }))}
-                  className="relative shrink-0 rounded-lg p-1.5 text-brand-ink/40 hover:bg-black/5"
+                  className="relative shrink-0 rounded-lg p-1 text-brand-ink/40 hover:bg-black/5"
                   aria-label="หมายเหตุ"
                 >
                   📝
@@ -340,7 +340,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   <button
                     type="button"
                     onClick={() => removeItem(item)}
-                    className="shrink-0 text-[11px] font-medium text-warn underline underline-offset-2"
+                    className="shrink-0 text-[10.5px] font-medium text-warn underline underline-offset-2"
                   >
                     ลบ
                   </button>
@@ -351,7 +351,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                     checked={sel === "notReceived"}
                     onChange={() => toggleSelection(item.itemId, "notReceived")}
                     title="ไม่ได้รับ"
-                    className="h-[18px] w-[18px] shrink-0 accent-warn"
+                    className="h-4 w-4 shrink-0 accent-warn"
                   />
                 )}
               </div>
@@ -362,13 +362,15 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   onBlur={noteOnBlur}
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                   placeholder={confirmed ? "หมายเหตุ (ไม่บังคับ)" : "หมายเหตุ (ไม่บังคับ — บันทึกพร้อมกดยืนยันทั้งหมด)"}
-                  className="field mt-1.5 w-full text-[12px]"
+                  className="field mt-1 w-full px-2 py-1 text-[12px]"
                 />
               )}
             </div>
           );
         })}
       </div>
+
+      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty, qtyG) => submitOne(itemId, qty, qtyG, true)} />
 
       {pendingItems.length > 0 && (
         <button
@@ -380,8 +382,6 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           {batchSubmitting ? "กำลังบันทึก…" : "ยืนยันทั้งหมด"}
         </button>
       )}
-
-      <AddExtraItem candidates={extraCandidates} onAdd={(itemId, qty, qtyG) => submitOne(itemId, qty, qtyG, true)} />
     </GlassCard>
   );
 }
@@ -406,7 +406,7 @@ function AddExtraItem({ candidates, onAdd }: {
         onClick={() => setOpen(true)}
         className="mt-2 flex w-full items-center gap-2 rounded-lg border-t border-black/5 px-2.5 py-3 text-left text-[13px] font-medium text-brand-red"
       >
-        + เพิ่มรายการอื่นนอกเหนือจากที่สั่ง
+        + รายการอื่นๆที่รับเข้า
       </button>
     );
   }
