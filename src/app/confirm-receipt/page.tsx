@@ -282,7 +282,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
           return (
             <div key={item.itemId} className="rounded-lg bg-black/[.02] px-2 py-1.5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <input
                   type="checkbox"
                   checked={confirmed ? true : sel === "received"}
@@ -302,33 +302,21 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                     {!confirmed && sel === "notReceived" && <span className="text-red-600"> · จะไม่บันทึกรับเข้า</span>}
                   </div>
                 </div>
-                {!confirmed && (
-                  <input
-                    type="checkbox"
-                    checked={sel === "notReceived"}
-                    onChange={() => toggleSelection(item.itemId, "notReceived")}
-                    title="ไม่ได้รับ"
-                    className="h-4 w-4 shrink-0 accent-warn"
-                  />
-                )}
-              </div>
-
-              <div className="mt-1 flex flex-wrap items-center justify-end gap-1.5 pl-6">
                 {!(confirmed && item.notReceived) && (
                   <>
-                    <span className="text-[10px] text-brand-ink/40">ได้รับจริง</span>
                     <input
                       inputMode="numeric"
+                      maxLength={2}
                       value={qtyVal}
                       disabled={!editable}
                       onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: e.target.value, qtyG: d[item.itemId]?.qtyG ?? qtyGVal } }))}
                       onBlur={qtyOnBlur}
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                      className={`field w-14 shrink-0 px-1.5 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                      className={`field w-9 shrink-0 px-1 py-1 text-center ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
                     {(showGrams(item.itemId) || item.isExtra) && (
                       <div className="flex shrink-0 items-center gap-0.5">
-                        <span className="text-[10px] text-brand-ink/40">+g</span>
+                        <span className="text-[9.5px] text-brand-ink/40">+g</span>
                         <input
                           inputMode="numeric"
                           value={qtyGVal}
@@ -336,7 +324,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                           onChange={(e) => setDrafts((d) => ({ ...d, [item.itemId]: { qty: d[item.itemId]?.qty ?? qtyVal, qtyG: e.target.value } }))}
                           onBlur={qtyOnBlur}
                           onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                          className={`field w-12 shrink-0 px-1 py-1 text-right ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
+                          className={`field w-10 shrink-0 px-1 py-1 text-center ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                         />
                       </div>
                     )}
@@ -361,6 +349,15 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   >
                     ลบ
                   </button>
+                )}
+                {!confirmed && (
+                  <input
+                    type="checkbox"
+                    checked={sel === "notReceived"}
+                    onChange={() => toggleSelection(item.itemId, "notReceived")}
+                    title="ไม่ได้รับ"
+                    className="h-4 w-4 shrink-0 accent-warn"
+                  />
                 )}
               </div>
 
