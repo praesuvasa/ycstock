@@ -386,7 +386,7 @@ export default function SalesPage() {
 
           {/* ลำดับที่แพรกำหนด: บันทึกเคส → แนบหลักฐาน → บันทึกยอดขาย
               ต้องบันทึกเคสก่อน เพราะยอดที่เอาไปเทียบสลิปต้องรวมผลของเคสแล้ว */}
-          {(incidents.length > 0 || incidentsDirty) && (
+          {(incidentsDirty || savedIncidents.length > 0) && (
             <div className="mt-2.5">
               <button
                 type="button"
