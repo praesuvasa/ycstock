@@ -138,8 +138,10 @@ export default function SalesPage() {
   // v1.11: เคส "รับเงินไม่ตรงบิล" (QR ↔ เงินสด) — กรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
   // ระบบคำนวณยอดเงินเข้าจริงให้เอง ไม่ต้องให้พนักงานคิดเองว่าช่องไหนบวกช่องไหนลบ
   const [incidents, setIncidents] = React.useState<PaymentIncident[]>([]);
-  // เคสต้องบันทึกก่อนแนบหลักฐาน (แพรกำหนดลำดับ) — dirty = แก้แล้วยังไม่ได้บันทึก
-  const [incidentsDirty, setIncidentsDirty] = React.useState(false);
+  // เคสต้องบันทึกก่อนแนบหลักฐาน (แพรกำหนดลำดับ)
+  // เทียบกับ "ชุดที่บันทึกไว้จริง" แทนการตั้ง flag เอง — กันเคสกดเพิ่มแล้วลบออก
+  // แล้วสถานะ "ยังไม่บันทึก" ค้างจนปลดล็อกแนบหลักฐานไม่ได้
+  const [savedIncidents, setSavedIncidents] = React.useState<PaymentIncident[]>([]);
   const [savingIncidents, setSavingIncidents] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -150,13 +152,14 @@ export default function SalesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(fromRow(data.row as SalesRow));
-      setIncidents((data.incidents ?? []) as PaymentIncident[]);
-      setIncidentsDirty(false);
+      const loaded = (data.incidents ?? []) as PaymentIncident[];
+      setIncidents(loaded);
+      setSavedIncidents(loaded);
     } catch (e: any) {
       setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(EMPTY);
       setIncidents([]);
-      setIncidentsDirty(false);
+      setSavedIncidents([]);
     } finally {
       setLoading(false);
     }
@@ -189,11 +192,17 @@ export default function SalesPage() {
 
   // v1.11: ยอด "เงินเข้าจริง" = ยอด POS ที่กรอก + ผลรวมเคสรับเงินไม่ตรงบิล
   // ตัวนี้คือตัวที่ต้องตรงกับสลิปธนาคาร/เงินในลิ้นชัก จึงใช้เทียบตอนอัปโหลดหลักฐาน
-  // ทุกการแก้เคส = ยังไม่ได้บันทึก จนกว่าจะกดปุ่มบันทึกเคส
-  const editIncidents = (fn: (prev: PaymentIncident[]) => PaymentIncident[]) => {
-    setIncidents(fn);
-    setIncidentsDirty(true);
-  };
+  const editIncidents = (fn: (prev: PaymentIncident[]) => PaymentIncident[]) => setIncidents(fn);
+
+  // เทียบเฉพาะเคสที่ "กรอกยอดแล้วจริง" — แถวเปล่าที่เพิ่งกดเพิ่ม (ยังไม่ใส่ตัวเลข) ไม่นับว่าเป็นการแก้
+  // เพราะ server ก็กรองแถวเปล่าทิ้งอยู่แล้ว · ผลคือ เพิ่มแล้วลบออก = กลับมาเหมือนเดิม = ไม่ค้างสถานะ
+  const normalizeIncidents = (list: PaymentIncident[]) =>
+    JSON.stringify(
+      list
+        .filter((i) => i.billAmount > 0 || i.actualAmount > 0)
+        .map((i) => ({ kind: i.kind, billAmount: i.billAmount, actualAmount: i.actualAmount, note: i.note ?? "" }))
+    );
+  const incidentsDirty = normalizeIncidents(incidents) !== normalizeIncidents(savedIncidents);
 
   const saveIncidents = async () => {
     setSavingIncidents(true);
@@ -206,8 +215,9 @@ export default function SalesPage() {
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกเคสไม่สำเร็จ");
-      setIncidents((data.incidents ?? []) as PaymentIncident[]); // ใช้ชุดที่ผ่านการกรองจาก server
-      setIncidentsDirty(false);
+      const saved = (data.incidents ?? []) as PaymentIncident[]; // ใช้ชุดที่ผ่านการกรองจาก server
+      setIncidents(saved);
+      setSavedIncidents(saved);
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกเคสไม่สำเร็จ");
       alert(e?.message ?? "บันทึกเคสไม่สำเร็จ");
@@ -239,6 +249,7 @@ export default function SalesPage() {
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
+      setSavedIncidents(incidents); // ปุ่มนี้บันทึกเคสให้ด้วย — sync สถานะ ไม่ให้ค้างว่า "ยังไม่บันทึก"
       alert("บันทึกยอดขายเรียบร้อย ✓");
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
@@ -375,7 +386,7 @@ export default function SalesPage() {
 
           {/* ลำดับที่แพรกำหนด: บันทึกเคส → แนบหลักฐาน → บันทึกยอดขาย
               ต้องบันทึกเคสก่อน เพราะยอดที่เอาไปเทียบสลิปต้องรวมผลของเคสแล้ว */}
-          {incidents.length > 0 && (
+          {(incidents.length > 0 || incidentsDirty) && (
             <div className="mt-2.5">
               <button
                 type="button"
