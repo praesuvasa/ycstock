@@ -607,6 +607,16 @@ export const supabaseStore = {
     return { ok: true, savedCount: payload.length };
   },
 
+  // itemId ที่ "ส่งไปแล้วและสาขายืนยันรับแล้ว" ของใบวันนั้น — ใช้กรองตอนพิมพ์ใบรอบที่ 2
+  // ไม่นับตัวที่ติ๊ก "ไม่ได้รับ" เพราะของยังไม่ถึงสาขา ถ้าจะส่งใหม่ก็ต้องพิมพ์ซ้ำ
+  async getConfirmedReceiptItemIds(branch: Branch, date: string): Promise<string[]> {
+    const { data, error } = await sb().from("restock_receipts")
+      .select("item_id")
+      .eq("branch_id", branch).eq("date", date).eq("not_received", false);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => r.item_id);
+  },
+
   async getRestockNote(branch: Branch, date: string): Promise<string> {
     const { data, error } = await sb().from("restock_notes").select("note")
       .eq("branch_id", branch).eq("date", date).maybeSingle();

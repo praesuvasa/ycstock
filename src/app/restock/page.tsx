@@ -392,6 +392,10 @@ function RestockByBranch() {
   // รายการที่ไม่มีให้เลือกในระบบ (ข้อ 16) — ของใหม่/เฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า
   // ขึ้นใบปริ้น + เก็บประวัติ แต่ "ไม่ auto-fill รับเข้า" (ไม่เข้าหน้ายืนยันรับของ) ตามที่แพรระบุ
   const [extraItems, setExtraItems] = React.useState<RestockExtraItem[]>([]);
+  // ข้อ 15: รายการที่ส่งไปแล้วและสาขายืนยันรับแล้ว — ใช้กรองตอนพิมพ์ใบรอบที่ 2 ของวันเดียวกัน
+  // (1 วัน = 1 ใบ กดบันทึกรอบ 2 คือ "รวมเข้าใบเดิม" ไม่ใช่สร้างใบใหม่ ถ้าพิมพ์ทั้งใบของรอบแรกจะปนมาด้วย)
+  const [receivedIds, setReceivedIds] = React.useState<Set<string>>(new Set());
+  const [printOnlyNew, setPrintOnlyNew] = React.useState(false);
 
   // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
   const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
@@ -424,7 +428,7 @@ function RestockByBranch() {
         if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
         return data as {
           entries: Record<string, { selected: boolean; qty: number; qtyG: number }>;
-          note?: string; extras?: RestockExtraItem[];
+          note?: string; extras?: RestockExtraItem[]; received?: string[];
         };
       }),
     ])
@@ -434,6 +438,9 @@ function RestockByBranch() {
         setSpecialActive(restockData.specialActive);
         setPrintNote(selData.note ?? "");
         setExtraItems(selData.extras ?? []);
+        const rec = selData.received ?? [];
+        setReceivedIds(new Set(rec));
+        setPrintOnlyNew(rec.length > 0); // มีของส่งไปแล้วในใบนี้ → ตั้งต้นเป็น "พิมพ์เฉพาะที่ยังไม่ได้ส่ง"
         // ถ้าเคย save (branch,date) นี้ไว้แล้ว → ใช้ค่าจาก DB ตรงๆ (ไม่ reset กลับ default)
         // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need, qtyG = 0)
         const next: Record<string, RestockSelectionEntry> = {};
@@ -672,6 +679,9 @@ function RestockByBranch() {
       const entry = selEntries[r.itemId];
       if (!entry?.selected) continue;
       if ((entry.qty ?? 0) <= 0 && (entry.qtyG ?? 0) <= 0) continue;
+      // ข้อ 15: ตัดของที่ส่งไปแล้ว+สาขายืนยันรับแล้วออก เวลาพิมพ์ใบรอบถัดไปของวันเดียวกัน
+      // (ไม่ตัดตัวที่ติ๊ก "ไม่ได้รับ" เพราะของยังไม่ถึงสาขา ต้องพิมพ์ไปส่งใหม่)
+      if (printOnlyNew && receivedIds.has(r.itemId)) continue;
       const qtyText = formatOrderQty(entry.qty ?? 0, entry.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
       const arr = byCategory.get(r.category) ?? [];
       arr.push({ ...r, qty: qtyText });
@@ -681,7 +691,7 @@ function RestockByBranch() {
     return allCats
       .map((category) => ({ category, items: byCategory.get(category) ?? [] }))
       .filter((g) => g.items.length > 0);
-  }, [rows, selEntries]);
+  }, [rows, selEntries, printOnlyNew, receivedIds]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -863,6 +873,26 @@ function RestockByBranch() {
               className="field text-left"
             />
           </label>
+          {/* ข้อ 15: ใบนี้เคยส่งไปแล้วบางส่วน — เลือกได้ว่าจะพิมพ์ทั้งใบ หรือเฉพาะของที่ยังไม่ได้ส่ง */}
+          {receivedIds.size > 0 && (
+            <div className="mt-2 rounded-lg border border-brand-blue/40 bg-brand-blue/[.07] px-3 py-2.5">
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={printOnlyNew}
+                  onChange={(e) => setPrintOnlyNew(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-ok"
+                />
+                <span className="text-[12px] leading-relaxed text-brand-ink/75">
+                  พิมพ์เฉพาะรายการที่ยังไม่ได้ส่ง
+                  <span className="block text-[11px] text-brand-ink/50">
+                    ใบนี้มี {receivedIds.size} รายการที่สาขายืนยันรับไปแล้ว — ติ๊กไว้จะไม่พิมพ์ซ้ำ กันจัดของซ้ำรอบสอง
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+
           <div className="mt-2 grid grid-cols-2 gap-2">
             <button
               type="button"

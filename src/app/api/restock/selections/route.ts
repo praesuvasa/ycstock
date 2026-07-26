@@ -26,12 +26,13 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date");
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
 
-    const [entries, note, extras] = await Promise.all([
+    const [entries, note, extras, received] = await Promise.all([
       db.getRestockSelections(branch, date),
       db.getRestockNote(branch, date),
       db.getRestockExtraItems(branch, date),
+      db.getConfirmedReceiptItemIds(branch, date), // ส่งไปแล้ว+สาขายืนยันรับแล้ว — ใช้กรองตอนพิมพ์ใบรอบถัดไป
     ]);
-    return NextResponse.json({ entries, note, extras });
+    return NextResponse.json({ entries, note, extras, received });
   } catch (e) {
     return fail(e, "getRestockSelections failed");
   }

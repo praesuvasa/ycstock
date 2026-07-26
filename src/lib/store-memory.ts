@@ -589,6 +589,17 @@ export const memoryStore = {
     return { ok: true, savedCount: entries.length };
   },
 
+  // itemId ที่ "ส่งไปแล้วและสาขายืนยันรับแล้ว" ของใบวันนั้น — ใช้กรองตอนพิมพ์ใบรอบที่ 2
+  // ไม่นับตัวที่ติ๊ก "ไม่ได้รับ" เพราะของยังไม่ถึงสาขา ถ้าจะส่งใหม่ก็ต้องพิมพ์ซ้ำ
+  getConfirmedReceiptItemIds(branch: Branch, date: string): string[] {
+    const out: string[] = [];
+    for (const r of restockReceipts.values()) {
+      if (r.branch !== branch || r.date !== date || r.notReceived) continue;
+      out.push(r.itemId);
+    }
+    return out;
+  },
+
   getRestockNote(branch: Branch, date: string): string {
     return restockNotes.get(`${branch}|${date}`) ?? "";
   },

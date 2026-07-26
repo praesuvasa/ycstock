@@ -131,6 +131,11 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  getConfirmedReceiptItemIds: (branch: Branch, date: string): Promise<string[]> =>
+    useSupabase
+      ? supabaseStore.getConfirmedReceiptItemIds(branch, date)
+      : Promise.resolve(memoryStore.getConfirmedReceiptItemIds(branch, date)),
+
   getRestockExtraItems: (branch: Branch, date: string): Promise<RestockExtraItem[]> =>
     useSupabase
       ? supabaseStore.getRestockExtraItems(branch, date)
