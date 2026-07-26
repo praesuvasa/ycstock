@@ -108,6 +108,19 @@ export interface RestockSelectionEntry {
   qtyG: number;
 }
 
+// ประวัติส่งคืน/ของเสีย (v1.10) — อ่านจาก stock_daily ที่พนักงานกรอกช่อง "ส่งคืน/เสีย" อยู่แล้ว
+// ไม่ใช่การกรอกใหม่ · เป็นแค่มุมมองย้อนหลัง (พนักงานดูสาขาตัวเอง read-only · admin ดูได้ทุกสาขา)
+export interface ReturnHistoryRow {
+  date: string;
+  branch: Branch;
+  itemId: string;
+  itemName: string;
+  unit: string;
+  returned: number;   // จำนวนแพ็ค
+  returnedG: number;  // เศษกรัม
+  note: string;
+}
+
 // รายการที่ "ไม่มีให้เลือกในระบบ" ของหน้าเติมของ (v1.10) — ของใหม่/เฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า
 // ไม่ผูก itemId และไม่ auto-fill รับเข้า (ไม่เข้าหน้ายืนยันรับของ) — เก็บไว้เป็นประวัติ + โชว์บนใบปริ้นเท่านั้น
 export interface RestockExtraItem {

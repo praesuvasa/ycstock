@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -283,6 +283,30 @@ export const memoryStore = {
       rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit, inPack: rec.inPack, inG: rec.inG });
     }
     return rows;
+  },
+
+  // ประวัติส่งคืน/ของเสีย (v1.10) — อ่านจากช่อง returned/returnedG ที่พนักงานกรอกอยู่แล้วในหน้าสต็อก
+  // branch = null → ทุกสาขา (admin เท่านั้น) · เรียงวันใหม่สุดก่อน
+  getReturnHistory(branch: Branch | null, from: string, to: string, limit = 500): ReturnHistoryRow[] {
+    seed();
+    const itemById = new Map(ITEMS.map((it) => [it.id, it]));
+    const out: ReturnHistoryRow[] = [];
+    for (const rec of stock.values()) {
+      if (branch && rec.branch !== branch) continue;
+      if (rec.date < from || rec.date > to) continue;
+      const returned = rec.returned ?? 0;
+      const returnedG = rec.returnedG ?? 0;
+      if (returned <= 0 && returnedG <= 0) continue;
+      const it = itemById.get(rec.itemId);
+      if (!it) continue;
+      out.push({
+        date: rec.date, branch: rec.branch, itemId: it.id, itemName: it.name, unit: it.unit,
+        returned, returnedG, note: rec.note ?? "",
+      });
+    }
+    return out
+      .sort((a, b) => (a.date === b.date ? a.itemName.localeCompare(b.itemName) : (a.date < b.date ? 1 : -1)))
+      .slice(0, limit);
   },
 
   // N วันล่าสุด (รวมวันนี้) + จำนวนรายการที่มีของเข้าวันนั้น — ใช้เป็น quick-list ในหน้าประวัติสินค้าเข้า

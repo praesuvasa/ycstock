@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -233,6 +233,33 @@ export const supabaseStore = {
       .sort((a, b) => a.sort - b.sort)
       .map(({ sort, ...rest }) => rest);
     return rows;
+  },
+
+  // ประวัติส่งคืน/ของเสีย (v1.10) — อ่านจากช่อง returned/returned_g ที่พนักงานกรอกอยู่แล้วในหน้าสต็อก
+  // branch = null → ทุกสาขา (admin เท่านั้น) · เรียงวันใหม่สุดก่อน
+  // ⚠️ order DESC + limit ชัดเจน (บทเรียนจากบั๊ก PostgREST ตัด 1000 แถวเงียบ ๆ) — ถ้าโดนตัดจะตัดของเก่าทิ้ง ไม่ใช่ของใหม่
+  async getReturnHistory(
+    branch: Branch | null, from: string, to: string, limit = 500
+  ): Promise<ReturnHistoryRow[]> {
+    const { items } = await this.getMeta();
+    const itemById = new Map(items.map((it) => [it.id, it]));
+    let q = sb().from("stock_daily")
+      .select("date,branch_id,item_id,returned,returned_g,note")
+      .gte("date", from).lte("date", to)
+      .or("returned.gt.0,returned_g.gt.0");
+    if (branch) q = q.eq("branch_id", branch);
+    const { data, error } = await q.order("date", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data ?? [])
+      .map((r: any) => {
+        const it = itemById.get(r.item_id);
+        if (!it) return null;
+        return {
+          date: r.date, branch: r.branch_id as Branch, itemId: it.id, itemName: it.name, unit: it.unit,
+          returned: Number(r.returned) || 0, returnedG: Number(r.returned_g) || 0, note: r.note ?? "",
+        };
+      })
+      .filter((r): r is ReturnHistoryRow => r !== null);
   },
 
   // N วันล่าสุด (รวมวันนี้) + จำนวนรายการที่มีของเข้าวันนั้น — ใช้เป็น quick-list ในหน้าประวัติสินค้าเข้า

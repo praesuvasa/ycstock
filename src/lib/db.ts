@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -25,6 +25,11 @@ export const db = {
 
   getStockIn: (branch: Branch, date: string) =>
     useSupabase ? supabaseStore.getStockIn(branch, date) : Promise.resolve(memoryStore.getStockIn(branch, date)),
+  getReturnHistory: (branch: Branch | null, from: string, to: string, limit?: number): Promise<ReturnHistoryRow[]> =>
+    useSupabase
+      ? supabaseStore.getReturnHistory(branch, from, to, limit)
+      : Promise.resolve(memoryStore.getReturnHistory(branch, from, to, limit)),
+
   getRecentStockInDays: (branch: Branch, days: number) =>
     useSupabase ? supabaseStore.getRecentStockInDays(branch, days) : Promise.resolve(memoryStore.getRecentStockInDays(branch, days)),
 
