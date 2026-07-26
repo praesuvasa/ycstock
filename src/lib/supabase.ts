@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -90,7 +90,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield,expiry_check,expiry_warn_days");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -103,6 +103,8 @@ export const supabaseStore = {
       remainderGroup: r.remainder_group ?? undefined, sort: r.sort,
       checkFrequency: r.check_frequency ?? "daily", showRemainderOnRestock: r.show_remainder ?? false,
       variableYield: r.variable_yield ?? false,
+      expiryCheck: r.expiry_check ?? false,
+      expiryWarnDays: Number(r.expiry_warn_days ?? 5),
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
@@ -605,6 +607,92 @@ export const supabaseStore = {
     const { error } = await sb().from("restock_selections").upsert(payload, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
     return { ok: true, savedCount: payload.length };
+  },
+
+  // ── ตรวจวันหมดอายุ (v1.12) ──
+  async getExpiryChecks(branch: Branch, checkDate: string): Promise<ExpiryCheckRow[]> {
+    const { data, error } = await sb().from("expiry_checks")
+      .select("id,item_id,expiry_date,qty,disposition,note")
+      .eq("branch_id", branch).eq("check_date", checkDate)
+      .order("id");
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id, itemId: r.item_id, expiryDate: r.expiry_date, qty: Number(r.qty),
+      disposition: r.disposition ?? null, note: r.note ?? "",
+    }));
+  },
+
+  // บันทึกทับทั้งชุดต่อ (สาขา,วันตรวจ) แล้วเขียนผลลง stock_daily ให้เอง
+  //
+  // ⚠️ ต้อง idempotent — บันทึกซ้ำต้องไม่บวกทบ ใช้คอลัมน์ expiry_returned/expiry_used เป็นตัวจำว่า
+  // "ครั้งก่อนระบบใส่ไปเท่าไหร่" แล้วถอนของเก่าออกก่อนใส่ของใหม่ (แพทเทิร์นเดียวกับ in_auto_pack)
+  // ยอดที่พนักงานกรอกเองในหน้าสต็อกจึงไม่ถูกทับหาย
+  async saveExpiryChecks(
+    branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string
+  ): Promise<void> {
+    const { error: delErr } = await sb().from("expiry_checks")
+      .delete().eq("branch_id", branch).eq("check_date", checkDate);
+    if (delErr) throw delErr;
+
+    if (rows.length > 0) {
+      const { error: insErr } = await sb().from("expiry_checks").insert(
+        rows.map((r) => ({
+          branch_id: branch, check_date: checkDate, item_id: r.itemId,
+          expiry_date: r.expiryDate, qty: r.qty, disposition: r.disposition ?? null, note: r.note,
+          created_by_user_id: userId, created_by_name: userName,
+        }))
+      );
+      if (insErr) throw insErr;
+    }
+
+    // รวมยอดต่อ item ที่ต้องไปลงสต็อก
+    const wantReturn = new Map<string, number>();
+    const wantUsed = new Map<string, number>();
+    for (const r of rows) {
+      if (r.disposition === "return") wantReturn.set(r.itemId, (wantReturn.get(r.itemId) ?? 0) + r.qty);
+      else if (r.disposition === "sell_front") wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
+    }
+
+    // ทุก item ที่เคยมีผลตรวจลงสต็อกไว้ ต้องถูกพิจารณาด้วย (เผื่อรอบนี้ถูกยกเลิก → ต้องถอนของเก่าออก)
+    const { data: existing } = await sb().from("stock_daily")
+      .select("item_id,used,returned,expiry_used,expiry_returned")
+      .eq("branch_id", branch).eq("date", checkDate);
+    const touched = new Set<string>([...wantReturn.keys(), ...wantUsed.keys()]);
+    for (const r of existing ?? []) {
+      if (Number(r.expiry_returned) !== 0 || Number(r.expiry_used) !== 0) touched.add(r.item_id);
+    }
+    if (touched.size === 0) return;
+
+    const byItem = new Map((existing ?? []).map((r: any) => [r.item_id, r]));
+    for (const itemId of touched) {
+      const cur: any = byItem.get(itemId);
+      const newRet = wantReturn.get(itemId) ?? 0;
+      const newUse = wantUsed.get(itemId) ?? 0;
+      if (cur) {
+        const baseRet = Number(cur.returned) - Number(cur.expiry_returned); // ส่วนที่พนักงานกรอกเอง
+        const baseUse = Number(cur.used) - Number(cur.expiry_used);
+        const { error: updErr } = await sb().from("stock_daily").update({
+          returned: Math.max(baseRet, 0) + newRet, expiry_returned: newRet,
+          used: Math.max(baseUse, 0) + newUse, expiry_used: newUse,
+        }).eq("branch_id", branch).eq("date", checkDate).eq("item_id", itemId);
+        if (updErr) throw updErr;
+      } else if (newRet > 0 || newUse > 0) {
+        // ยังไม่มีแถวสต็อกของวันนี้ — สร้างจากยกมา แล้วใส่ผลตรวจลงไป (ยังไม่นับว่าพนักงานยืนยันคงเหลือ)
+        const { data: prev } = await sb().from("stock_daily")
+          .select("remain_pack,remain_g").eq("branch_id", branch).eq("item_id", itemId).lt("date", checkDate)
+          .order("date", { ascending: false }).limit(1).maybeSingle();
+        const carryPack = prev?.remain_pack ?? 0;
+        const carryG = prev?.remain_g ?? 0;
+        const { error: insErr2 } = await sb().from("stock_daily").insert({
+          date: checkDate, branch_id: branch, item_id: itemId,
+          carry_pack: carryPack, carry_g: carryG, in_pack: 0, in_g: 0,
+          used: newUse, remain_pack: Math.max(carryPack - newUse - newRet, 0), remain_g: carryG,
+          returned: newRet, returned_g: 0, note: "", variance: 0,
+          expiry_returned: newRet, expiry_used: newUse, remain_confirmed: false,
+        });
+        if (insErr2) throw insErr2;
+      }
+    }
   },
 
   // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — บันทึกทับทั้งชุดต่อ (สาขา,วันที่) ──

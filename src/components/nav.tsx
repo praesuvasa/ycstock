@@ -15,6 +15,7 @@ const USER_TABS: Tab[] = [
   { href: "/sales", label: "ยอดขาย", icon: "💰" },
   { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "🙋" },
+  { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
 ];
 const ADMIN_TABS: Tab[] = [
@@ -27,6 +28,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
   { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
+  { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
 ];
 const ADMIN_MENU: Tab[] = [

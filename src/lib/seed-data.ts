@@ -239,6 +239,14 @@ const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
 // ผลผลิตไม่แน่นอน อาจได้ไม่เต็มแพ็ค (2026-07-21 แพรยืนยัน) — คนละเรื่องกับ SHOW_REMAINDER_ON_RESTOCK ข้างบน
 // (อันนั้นคือเศษที่เปิดใช้แล้วเหลือ ของหมุนช้า / อันนี้คือรอบสั่ง-สั่งผลิตอาจได้ของไม่เต็มแพ็คจากตัวการผลิตเอง)
 // Greek Yogurt 1kg / Overnight oats biscoff / Plain Yogurt (ธรรมชาติ) ยืนยันแล้วว่าเข้าเต็มแพ็คปกติ ไม่อยู่ในกลุ่มนี้
+// ตรวจวันหมดอายุ (v1.12) — 12 รายการที่แพรระบุ: Cereals · Yogurt 500g · โยเกิร์ตถุง
+// รอบตรวจ อังคาร+ศุกร์ · ค่าจริงบน production ตั้งที่ items.expiry_check (migration 0040)
+const EXPIRY_CHECK_ITEMS = new Set<string>([
+  "Cornflakes Malt (M)", "Granola (M)", "Choc Chip Cookies", "Cranberry Cookies",
+  "Greek Yogurt 500g", "Plain Yogurt 500g",
+  "ถุงสตรอเบอรี่", "ถุงบลูเบอรี่", "ถุงธรรมชาติ", "ถุงลิ้นจี่", "ถุงยูส", "ถุงพีช",
+]);
+
 const VARIABLE_YIELD_ITEMS = new Set<string>([
   "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
   "น้ำ Ice cream / Soft Serve", // เพิ่ม 2026-07-21 แพรยืนยัน
@@ -266,6 +274,8 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     checkFrequency: MON_THU_ITEMS.has(name) ? "monThu" : "daily",
     showRemainderOnRestock: SHOW_REMAINDER_ON_RESTOCK.has(name),
     variableYield: VARIABLE_YIELD_ITEMS.has(name),
+    expiryCheck: EXPIRY_CHECK_ITEMS.has(name),
+    expiryWarnDays: 5,
   };
 });
 

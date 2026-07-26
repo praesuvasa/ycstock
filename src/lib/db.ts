@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -131,6 +131,17 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  // ── ตรวจวันหมดอายุ (v1.12) ──
+  getExpiryChecks: (branch: Branch, checkDate: string): Promise<ExpiryCheckRow[]> =>
+    useSupabase
+      ? supabaseStore.getExpiryChecks(branch, checkDate)
+      : Promise.resolve(memoryStore.getExpiryChecks(branch, checkDate)),
+
+  saveExpiryChecks: (branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string): Promise<void> =>
+    useSupabase
+      ? supabaseStore.saveExpiryChecks(branch, checkDate, rows, userId, userName)
+      : Promise.resolve(memoryStore.saveExpiryChecks(branch, checkDate, rows, userId, userName)),
+
   getPaymentIncidents: (branch: Branch, date: string): Promise<PaymentIncident[]> =>
     useSupabase
       ? supabaseStore.getPaymentIncidents(branch, date)

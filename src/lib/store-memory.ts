@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -34,6 +34,9 @@ interface StockRec extends StockRow {
   // พนักงานกดยืนยันยอด "คงเหลือ" เองที่หน้าสต็อกแล้วหรือยัง (v1.9.3) — true เฉพาะตอน save ผ่านหน้าสต็อกจริง
   // แถวที่เกิดจาก auto-fill รับของอย่างเดียว (ยังไม่มีใครมานับ/ยืนยันคงเหลือ) จะเป็น false ไว้ก่อน
   remainConfirmed?: boolean;
+  // ส่วนของ used/returned ที่มาจากผลตรวจวันหมดอายุ (v1.12) — ใช้ถอนของเก่าตอนบันทึกซ้ำ
+  expiryReturned?: number;
+  expiryUsed?: number;
 }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
 interface CupRec extends CupRow { date: string; branch: Branch; }
@@ -59,6 +62,9 @@ interface PaymentIncidentRec {
   createdByUserId: string; createdByName: string; createdAt: string;
 }
 const paymentIncidents = new Map<string, PaymentIncidentRec[]>();
+
+// ตรวจวันหมดอายุ (v1.12) — key = `${branch}|${checkDate}` เก็บทั้งชุดต่อรอบตรวจ
+const expiryChecks = new Map<string, ExpiryCheckRow[]>();
 
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
@@ -596,6 +602,55 @@ export const memoryStore = {
       });
     }
     return { ok: true, savedCount: entries.length };
+  },
+
+  // ── ตรวจวันหมดอายุ (v1.12) ──
+  getExpiryChecks(branch: Branch, checkDate: string): ExpiryCheckRow[] {
+    return (expiryChecks.get(`${branch}|${checkDate}`) ?? []).map((r, i) => ({ ...r, id: i + 1 }));
+  },
+  // บันทึกทับทั้งชุด แล้วเขียนผลลงสต็อกแบบ idempotent (ถอนของเก่าก่อนใส่ใหม่ — ไม่บวกทบ)
+  saveExpiryChecks(
+    branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string
+  ): void {
+    seed();
+    expiryChecks.set(`${branch}|${checkDate}`, rows.map((r) => ({ ...r })));
+
+    const wantReturn = new Map<string, number>();
+    const wantUsed = new Map<string, number>();
+    for (const r of rows) {
+      if (r.disposition === "return") wantReturn.set(r.itemId, (wantReturn.get(r.itemId) ?? 0) + r.qty);
+      else if (r.disposition === "sell_front") wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
+    }
+    const touched = new Set<string>([...wantReturn.keys(), ...wantUsed.keys()]);
+    for (const rec of stock.values()) {
+      if (rec.branch !== branch || rec.date !== checkDate) continue;
+      if ((rec.expiryReturned ?? 0) !== 0 || (rec.expiryUsed ?? 0) !== 0) touched.add(rec.itemId);
+    }
+
+    for (const itemId of touched) {
+      const key = sk(checkDate, branch, itemId);
+      const cur = stock.get(key);
+      const newRet = wantReturn.get(itemId) ?? 0;
+      const newUse = wantUsed.get(itemId) ?? 0;
+      if (cur) {
+        const baseRet = Math.max(cur.returned - (cur.expiryReturned ?? 0), 0);
+        const baseUse = Math.max(cur.used - (cur.expiryUsed ?? 0), 0);
+        stock.set(key, {
+          ...cur, returned: baseRet + newRet, used: baseUse + newUse,
+          expiryReturned: newRet, expiryUsed: newUse,
+        });
+      } else if (newRet > 0 || newUse > 0) {
+        const prev = latestBefore(branch, itemId, checkDate);
+        const carryPack = prev?.remainPack ?? 0;
+        const carryG = prev?.remainG ?? 0;
+        stock.set(key, {
+          date: checkDate, branch, itemId, carryPack, carryG, inPack: 0, inG: 0,
+          used: newUse, remainPack: Math.max(carryPack - newUse - newRet, 0), remainG: carryG,
+          returned: newRet, note: "", variance: 0,
+          expiryReturned: newRet, expiryUsed: newUse, remainConfirmed: false,
+        });
+      }
+    }
   },
 
   // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — บันทึกทับทั้งชุดต่อ (สาขา,วันที่) ──

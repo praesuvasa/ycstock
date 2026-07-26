@@ -115,3 +115,28 @@ export function sumIncidentAdjustments(incidents: PaymentIncident[]): IncidentAd
     { qr: 0, cash: 0, overBill: 0 }
   );
 }
+
+// ── ตรวจวันหมดอายุ (v1.12) ──
+// รอบตรวจ: อังคาร + ศุกร์ (แพรเลือก เพราะรถเข้าส่งของ พุธ + เสาร์ → ตรวจก่อน 1 วัน ของส่งคืนขึ้นรถทัน)
+export const EXPIRY_CHECK_DAYS: Weekday[] = ["tue", "fri"];
+export const isExpiryCheckDue = (weekday: Weekday): boolean => EXPIRY_CHECK_DAYS.includes(weekday);
+
+// ช่วงห่างรอบตรวจสูงสุด 4 วัน (ศุกร์→อังคาร) — ตั้งเตือนน้อยกว่านี้จะมีของหมดอายุ "ระหว่างรอบ"
+// โดยไม่เคยขึ้นเตือนสักครั้ง จึงบังคับขั้นต่ำไว้ที่ 5
+export const EXPIRY_MIN_WARN_DAYS = 5;
+
+export type ExpiryStatus = "ok" | "near" | "expired";
+
+/** นับวันแบบเทียบวันที่ล้วน (ไม่เอาเวลามาเกี่ยว) — วันหมดอายุ − วันที่ตรวจ */
+export function daysUntil(expiryDate: string, fromDate: string): number {
+  const a = new Date(`${expiryDate}T00:00:00Z`).getTime();
+  const b = new Date(`${fromDate}T00:00:00Z`).getTime();
+  return Math.round((a - b) / 86400000);
+}
+
+/** ok = ยังไม่ถึงเกณฑ์เตือน · near = ใกล้หมดอายุ (ถึงเกณฑ์แล้ว) · expired = เลยวันหมดอายุ */
+export function expiryStatus(expiryDate: string, checkDate: string, warnDays: number): ExpiryStatus {
+  const left = daysUntil(expiryDate, checkDate);
+  if (left < 0) return "expired";
+  return left <= Math.max(warnDays, EXPIRY_MIN_WARN_DAYS) ? "near" : "ok";
+}

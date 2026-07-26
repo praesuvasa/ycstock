@@ -28,6 +28,9 @@ export interface Item {
   // ผลผลิตออกมาไม่แน่นอน อาจไม่เต็มแพ็ค (เช่น Yuzu/Kyoho — คนละเรื่องกับ showRemainderOnRestock ข้างบน
   // ซึ่งคือ "เศษที่เปิดใช้แล้วเหลือ" ส่วนอันนี้คือ "จำนวนที่จะสั่ง/แบ่งเข้าสาขาอาจไม่ใช่แพ็คเต็ม") — คุมช่อง "+g" ตอนสั่ง/สั่งผลิต
   variableYield: boolean;
+  // ── ตรวจวันหมดอายุ (v1.12) — รอบตรวจ อังคาร+ศุกร์ ──
+  expiryCheck?: boolean;      // ต้องเดินตรวจวันหมดอายุไหม
+  expiryWarnDays?: number;    // เตือนล่วงหน้ากี่วัน (ขั้นต่ำ 5 — ช่วงห่างรอบตรวจสูงสุด 4 วัน)
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)
@@ -106,6 +109,22 @@ export interface RestockSelectionEntry {
   qty: number;
   // เศษ g ที่ไม่เต็มแพ็ค (มีความหมายเฉพาะรายการ hasRemainder เช่น Yuzu/Kyoho — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง) — default 0
   qtyG: number;
+}
+
+// ── ตรวจวันหมดอายุ (v1.12) ──
+// 1 แถว = 1 ชุดวันหมดอายุ ของ 1 รายการ · 1 รายการมีได้หลายชุด (ของบนชั้นปนหลายวัน)
+export type ExpiryDisposition = "sell_front" | "return";
+
+export interface ExpiryCheckRow {
+  id?: number;
+  itemId: string;
+  itemName?: string;
+  unit?: string;
+  category?: string;
+  expiryDate: string;   // yyyy-mm-dd
+  qty: number;          // นับของจริงตอนตรวจ
+  disposition?: ExpiryDisposition | null; // null = ยังวางขายต่อ
+  note: string;
 }
 
 // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — QR ↔ เงินสด ──
