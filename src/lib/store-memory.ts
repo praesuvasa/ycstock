@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -45,6 +45,13 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
 const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
+
+// รายการที่ไม่มีให้เลือกในระบบ (v1.10) — key = `${branch}|${date}` เก็บทั้งชุดต่อคู่ (ไม่ผูก itemId)
+interface RestockExtraRec {
+  name: string; qty: number; note: string;
+  createdByUserId: string; createdByName: string; createdAt: string;
+}
+const restockExtraItems = new Map<string, RestockExtraRec[]>();
 
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
@@ -538,6 +545,20 @@ export const memoryStore = {
   },
   saveRestockNote(branch: Branch, date: string, note: string): void {
     restockNotes.set(`${branch}|${date}`, note);
+  },
+
+  // ── รายการที่ไม่มีให้เลือกในระบบ (v1.10) — ไม่ผูก itemId ไม่ auto-fill รับเข้า เก็บเป็นประวัติ ──
+  getRestockExtraItems(branch: Branch, date: string): RestockExtraItem[] {
+    return (restockExtraItems.get(`${branch}|${date}`) ?? [])
+      .map((r) => ({ name: r.name, qty: r.qty, note: r.note, createdByName: r.createdByName, createdAt: r.createdAt }));
+  },
+  // บันทึกทับทั้งชุดต่อ (สาขา,วันที่) เหมือน restock_selections — ลบของเดิมแล้วใส่ชุดใหม่
+  saveRestockExtraItems(branch: Branch, date: string, items: RestockExtraItem[], userId: string, userName: string): void {
+    const now = new Date().toISOString();
+    restockExtraItems.set(`${branch}|${date}`, items.map((it) => ({
+      name: it.name, qty: it.qty, note: it.note,
+      createdByUserId: userId, createdByName: userName, createdAt: now,
+    })));
   },
 
   // ── ยืนยันรับของ (v1.9) — ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" ของสาขานั้น ──

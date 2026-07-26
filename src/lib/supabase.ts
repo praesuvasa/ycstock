@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -550,6 +550,35 @@ export const supabaseStore = {
       branch_id: branch, date, note, updated_by: userName, updated_by_user_id: userId, updated_at: new Date().toISOString(),
     }, { onConflict: "branch_id,date" });
     if (error) throw error;
+  },
+
+  // ── รายการที่ไม่มีให้เลือกในระบบ (v1.10) — ไม่ผูก item_id ไม่ auto-fill รับเข้า เก็บเป็นประวัติ ──
+  async getRestockExtraItems(branch: Branch, date: string): Promise<RestockExtraItem[]> {
+    const { data, error } = await sb().from("restock_extra_items")
+      .select("name,qty,note,created_by_name,created_at")
+      .eq("branch_id", branch).eq("date", date)
+      .order("id");
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      name: r.name, qty: Number(r.qty), note: r.note ?? "",
+      createdByName: r.created_by_name ?? undefined, createdAt: r.created_at ?? undefined,
+    }));
+  },
+  // บันทึกทับทั้งชุดต่อ (สาขา,วันที่) — ลบของเดิมแล้ว insert ชุดใหม่ ให้ตรงกับสิ่งที่เห็นบนหน้าจอเสมอ
+  async saveRestockExtraItems(
+    branch: Branch, date: string, items: RestockExtraItem[], userId: string, userName: string
+  ): Promise<void> {
+    const { error: delErr } = await sb().from("restock_extra_items")
+      .delete().eq("branch_id", branch).eq("date", date);
+    if (delErr) throw delErr;
+    if (items.length === 0) return;
+    const { error: insErr } = await sb().from("restock_extra_items").insert(
+      items.map((it) => ({
+        branch_id: branch, date, name: it.name, qty: it.qty, note: it.note,
+        created_by_user_id: userId, created_by_name: userName,
+      }))
+    );
+    if (insErr) throw insErr;
   },
 
   // ── ยืนยันรับของ (v1.9) — ไม่ผูกวันนี้อย่างเดียว โชว์ "ทุกใบที่ยังยืนยันไม่ครบ" ของสาขานั้น ──

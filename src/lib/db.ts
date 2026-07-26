@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -126,6 +126,16 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  getRestockExtraItems: (branch: Branch, date: string): Promise<RestockExtraItem[]> =>
+    useSupabase
+      ? supabaseStore.getRestockExtraItems(branch, date)
+      : Promise.resolve(memoryStore.getRestockExtraItems(branch, date)),
+
+  saveRestockExtraItems: (branch: Branch, date: string, items: RestockExtraItem[], userId: string, userName: string): Promise<void> =>
+    useSupabase
+      ? supabaseStore.saveRestockExtraItems(branch, date, items, userId, userName)
+      : Promise.resolve(memoryStore.saveRestockExtraItems(branch, date, items, userId, userName)),
+
   saveRestockNote: (branch: Branch, date: string, note: string, userId: string, userName: string): Promise<void> =>
     useSupabase
       ? supabaseStore.saveRestockNote(branch, date, note, userId, userName)

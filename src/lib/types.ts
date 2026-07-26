@@ -108,6 +108,16 @@ export interface RestockSelectionEntry {
   qtyG: number;
 }
 
+// รายการที่ "ไม่มีให้เลือกในระบบ" ของหน้าเติมของ (v1.10) — ของใหม่/เฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า
+// ไม่ผูก itemId และไม่ auto-fill รับเข้า (ไม่เข้าหน้ายืนยันรับของ) — เก็บไว้เป็นประวัติ + โชว์บนใบปริ้นเท่านั้น
+export interface RestockExtraItem {
+  name: string;
+  qty: number;
+  note: string;
+  createdByName?: string;
+  createdAt?: string;
+}
+
 // ── Auth / RBAC / Audit (v1.2) ──
 // restock = เจ้าหน้าที่ Restock/สั่งผลิต — เข้าได้แค่หน้า /restock เท่านั้น (ไม่ใช่ user ทั่วไป ไม่ใช่ admin เต็ม)
 export type Role = "user" | "admin" | "restock";

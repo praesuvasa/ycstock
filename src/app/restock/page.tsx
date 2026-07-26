@@ -11,7 +11,7 @@ import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, Button, SaveBar, PageTitle, Accordion } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import type {
-  Branch, Weekday, RestockRow, RestockSelectionEntry, Meta, Item,
+  Branch, Weekday, RestockRow, RestockSelectionEntry, RestockExtraItem, Meta, Item,
   ProdBranchKey, ProductionOrderItemInput, ProductionOrderSummary,
   // alias กัน ProductionOrder/ProductionOrderItem (type) ชนชื่อกับ component ProductionOrder เดิมในไฟล์นี้ — ดู spec ข้อ 8
   ProductionOrder as ProductionOrderRecord, ProductionOrderItem as ProductionOrderItemRecord,
@@ -211,10 +211,11 @@ type PrintRow = RestockRow & { qty: string };
 const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
 
 function PrintSheet({
-  branch, date, weekdayLabel, printGroups, totalCount, note,
+  branch, date, weekdayLabel, printGroups, totalCount, note, extras,
 }: {
   branch: Branch; date: string; weekdayLabel: string;
   printGroups: { category: string; items: PrintRow[] }[]; totalCount: number; note?: string;
+  extras?: RestockExtraItem[];
 }) {
   const byCategory = new Map(printGroups.map((g) => [g.category, g]));
   const col1 = PRINT_LEFT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
@@ -259,8 +260,19 @@ function PrintSheet({
         </table>
         {withExtra && (
           <div className="mt-3">
-            <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
-            {[0, 1, 2, 3].map((i) => (
+            <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
+            {/* รายการที่กรอกไว้ในระบบ (ข้อ 16) พิมพ์ออกมาเลย — ที่เหลือเว้นบรรทัดว่างให้เขียนเพิ่มหน้างาน */}
+            {(extras ?? []).map((e, i) => (
+              <div key={`x${i}`} className="mb-1 flex items-baseline gap-1.5 border-b border-neutral-400 pb-[2px]">
+                <span className="inline-block h-[10px] w-[10px] shrink-0 border-[1.3px] border-black" />
+                <span className="flex-1 text-[9.5px] text-black">
+                  {e.name}
+                  {e.note ? <span className="text-[8px] text-neutral-600"> · {e.note}</span> : null}
+                </span>
+                <span className="text-[9.5px] font-bold text-black">{e.qty || ""}</span>
+              </div>
+            ))}
+            {[0, 1, 2].map((i) => (
               <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
             ))}
           </div>
@@ -377,6 +389,9 @@ function RestockByBranch() {
   const [error, setError] = React.useState<string | null>(null);
   // โน้ตถึงพนักงาน ต่อ (สาขา,วันที่) — พิมพ์ลงในใบส่งของ + บันทึกลง DB พร้อมตอนกด "บันทึกตัวเลือก" กลับมาเปิดคู่เดิมต้องเจอ
   const [printNote, setPrintNote] = React.useState("");
+  // รายการที่ไม่มีให้เลือกในระบบ (ข้อ 16) — ของใหม่/เฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า
+  // ขึ้นใบปริ้น + เก็บประวัติ แต่ "ไม่ auto-fill รับเข้า" (ไม่เข้าหน้ายืนยันรับของ) ตามที่แพรระบุ
+  const [extraItems, setExtraItems] = React.useState<RestockExtraItem[]>([]);
 
   // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
   const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
@@ -407,7 +422,10 @@ function RestockByBranch() {
       fetch(`/api/restock/selections?branch=${branch}&date=${date}`).then(async (r) => {
         const data = await r.json();
         if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
-        return data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }>; note?: string };
+        return data as {
+          entries: Record<string, { selected: boolean; qty: number; qtyG: number }>;
+          note?: string; extras?: RestockExtraItem[];
+        };
       }),
     ])
       .then(([restockData, selData]) => {
@@ -415,6 +433,7 @@ function RestockByBranch() {
         setRows(restockData.rows);
         setSpecialActive(restockData.specialActive);
         setPrintNote(selData.note ?? "");
+        setExtraItems(selData.extras ?? []);
         // ถ้าเคย save (branch,date) นี้ไว้แล้ว → ใช้ค่าจาก DB ตรงๆ (ไม่ reset กลับ default)
         // ถ้าไม่เคย (หรือเป็นไอเทมใหม่ที่เพิ่มเข้าระบบทีหลัง) → fallback ไป default เดิม (selected = need>0, qty = need, qtyG = 0)
         const next: Record<string, RestockSelectionEntry> = {};
@@ -483,7 +502,7 @@ function RestockByBranch() {
       const res = await fetch("/api/restock/selections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, entries, note: printNote }),
+        body: JSON.stringify({ branch, date, entries, note: printNote, extras: extraItems }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
@@ -787,6 +806,55 @@ function RestockByBranch() {
 
       {confirmed && !loading && !error && rows.length > 0 && (
         <>
+          {/* ข้อ 16: รายการที่ไม่มีให้เลือกในระบบ — ขึ้นใบปริ้น + เก็บประวัติ แต่ไม่ auto-fill รับเข้า */}
+          <GlassCard className="mt-3">
+            <p className="text-[13px] font-semibold">รายการอื่นๆ ที่ไม่มีในระบบ</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-brand-ink/50">
+              ของใหม่/ของเฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า — จะขึ้นในใบส่งของและเก็บเป็นประวัติไว้
+              แต่ระบบจะไม่เติมยอด &ldquo;รับเข้า&rdquo; ให้อัตโนมัติ ต้องกรอกที่หน้าสต็อกเอง
+            </p>
+            <div className="mt-2 grid gap-2">
+              {extraItems.map((it, i) => (
+                <div key={i} className="grid gap-1.5 rounded-lg bg-black/[.02] p-2">
+                  <div className="flex gap-1.5">
+                    <input
+                      value={it.name}
+                      onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                      placeholder="ชื่อของที่ต้องการ"
+                      className="field min-w-0 flex-1 text-left"
+                    />
+                    <input
+                      inputMode="numeric" value={it.qty || ""}
+                      onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) || 0 } : x)))}
+                      placeholder="จำนวน"
+                      className="field w-16 shrink-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setExtraItems((prev) => prev.filter((_, j) => j !== i))}
+                      className="shrink-0 rounded-lg px-2 text-[11px] font-medium text-warn underline underline-offset-2"
+                    >
+                      ลบ
+                    </button>
+                  </div>
+                  <input
+                    value={it.note}
+                    onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
+                    placeholder="หมายเหตุ (ไม่บังคับ)"
+                    className="field text-left text-[12px]"
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setExtraItems((prev) => [...prev, { name: "", qty: 0, note: "" }])}
+              className="mt-2 w-full rounded-lg border border-dashed border-black/20 px-3 py-2.5 text-[13px] font-medium text-brand-red"
+            >
+              + เพิ่มรายการ
+            </button>
+          </GlassCard>
+
           <label className="mt-3 flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">โน้ตถึงพนักงาน (แสดงในใบส่งของที่พิมพ์ ไม่บังคับ — กดบันทึกตัวเลือกแล้วจะจำไว้)</span>
             <textarea
@@ -836,7 +904,7 @@ function RestockByBranch() {
         </p>
       )}
     </div>
-    <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} note={printNote} />
+    <PrintSheet branch={branch} date={date} weekdayLabel={dayLabel} printGroups={printGroups} totalCount={printTotal} note={printNote} extras={extraItems} />
     </>
   );
 }

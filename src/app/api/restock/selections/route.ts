@@ -3,7 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import { requireAdminOrRestock, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { BRANCHES } from "@/lib/types";
-import type { RestockSelectionEntry } from "@/lib/types";
+import type { RestockSelectionEntry, RestockExtraItem } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +26,12 @@ export async function GET(req: NextRequest) {
     const date = searchParams.get("date");
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
 
-    const [entries, note] = await Promise.all([
+    const [entries, note, extras] = await Promise.all([
       db.getRestockSelections(branch, date),
       db.getRestockNote(branch, date),
+      db.getRestockExtraItems(branch, date),
     ]);
-    return NextResponse.json({ entries, note });
+    return NextResponse.json({ entries, note, extras });
   } catch (e) {
     return fail(e, "getRestockSelections failed");
   }
@@ -41,7 +42,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const s = await requireAdminOrRestock();
-    const body = (await req.json()) as { branch?: string; date?: string; entries?: RestockSelectionEntry[]; note?: string };
+    const body = (await req.json()) as {
+      branch?: string; date?: string; entries?: RestockSelectionEntry[]; note?: string; extras?: RestockExtraItem[];
+    };
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
       return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
@@ -50,9 +53,15 @@ export async function POST(req: NextRequest) {
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
     if (!Array.isArray(body.entries)) return NextResponse.json({ error: "entries จำเป็น" }, { status: 400 });
 
+    // รายการนอกระบบ: กรองชื่อว่างทิ้ง + ตัดช่องว่างหัวท้าย กันแถวเปล่าหลุดลง DB
+    const extras: RestockExtraItem[] = (body.extras ?? [])
+      .map((e) => ({ name: (e.name ?? "").trim(), qty: Number(e.qty) || 0, note: (e.note ?? "").trim() }))
+      .filter((e) => e.name !== "");
+
     const [result] = await Promise.all([
       db.saveRestockSelections(branch, date, body.entries, s.userId, s.name),
       db.saveRestockNote(branch, date, body.note ?? "", s.userId, s.name),
+      db.saveRestockExtraItems(branch, date, extras, s.userId, s.name),
     ]);
     const selectedCount = body.entries.filter((e) => e.selected).length;
     await writeAudit(s, "save_restock_selection", {
