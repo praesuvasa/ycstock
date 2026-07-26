@@ -108,6 +108,24 @@ export interface RestockSelectionEntry {
   qtyG: number;
 }
 
+// ── เคส "รับเงินไม่ตรงบิล" (v1.11) — QR ↔ เงินสด ──
+// POS บอกยอดตามบิล แต่เงินเข้าจริงต่างออกไป · พนักงานกรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
+// ระบบคำนวณ "ยอดเงินเข้าจริง" ให้เอง (POS + ผลรวมการปรับ) → เอาไปเทียบสลิปตอนอัปโหลดหลักฐาน
+export type PaymentIncidentKind =
+  | "over_no_change"    // โอนเกิน ไม่ได้ทอนคืน — ส่วนเกินนับเป็นรายได้ร้าน
+  | "over_cash_change"  // โอนเกิน ทอนเป็นเงินสด — ยอดรวมตรงบิล
+  | "under_cash_topup"; // โอนขาด จ่ายสดเพิ่ม — ยอดรวมตรงบิล
+
+export interface PaymentIncident {
+  id?: number;
+  kind: PaymentIncidentKind;
+  billAmount: number;    // ยอดตามบิล/POS
+  actualAmount: number;  // ยอดที่โอนเข้าจริง
+  note: string;
+  createdByName?: string;
+  createdAt?: string;
+}
+
 // ประวัติส่งคืน/ของเสีย (v1.10) — อ่านจาก stock_daily ที่พนักงานกรอกช่อง "ส่งคืน/เสีย" อยู่แล้ว
 // ไม่ใช่การกรอกใหม่ · เป็นแค่มุมมองย้อนหลัง (พนักงานดูสาขาตัวเอง read-only · admin ดูได้ทุกสาขา)
 export interface ReturnHistoryRow {

@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -131,6 +131,16 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  getPaymentIncidents: (branch: Branch, date: string): Promise<PaymentIncident[]> =>
+    useSupabase
+      ? supabaseStore.getPaymentIncidents(branch, date)
+      : Promise.resolve(memoryStore.getPaymentIncidents(branch, date)),
+
+  savePaymentIncidents: (branch: Branch, date: string, incidents: PaymentIncident[], userId: string, userName: string): Promise<void> =>
+    useSupabase
+      ? supabaseStore.savePaymentIncidents(branch, date, incidents, userId, userName)
+      : Promise.resolve(memoryStore.savePaymentIncidents(branch, date, incidents, userId, userName)),
+
   getConfirmedReceiptItemIds: (branch: Branch, date: string): Promise<string[]> =>
     useSupabase
       ? supabaseStore.getConfirmedReceiptItemIds(branch, date)

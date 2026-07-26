@@ -1,5 +1,5 @@
 // Pure business logic — ใช้ได้ทั้ง BFF และ UI (คำนวณสดขณะพิมพ์)
-import type { Branch, Weekday, CupRow, CupSize, CheckFrequency } from "./types";
+import type { Branch, Weekday, CupRow, CupSize, CheckFrequency, PaymentIncident, PaymentIncidentKind } from "./types";
 
 const n = (v: unknown): number => {
   const x = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -80,4 +80,38 @@ export function cupReconcile(rows: CupRow[]): CupReconResult {
   const balanced = perSize.every((r) => r.diff === 0);
   const swapLikely = !balanced && totalDiff === 0;
   return { perSize, totalUsed, totalSold, totalDiff, swapLikely, balanced };
+}
+
+// ── เคส "รับเงินไม่ตรงบิล" (v1.11) ──
+// ใช้ร่วมกันทั้ง client (โชว์ผลทันทีตอนกรอก) และ server (คำนวณยอดจริงตอนเทียบสลิป)
+// จุดเดียวที่รู้สูตร — แก้ที่นี่ที่เดียวถ้าต้องเพิ่มประเภทเคสใหม่
+//
+//   diff = ยอดโอนจริง − ยอดตามบิล
+//   over_no_change    โอนเกิน ไม่ได้ทอน  → QR +diff · เงินสดไม่ขยับ · ส่วนเกิน = รายได้ร้าน
+//   over_cash_change  โอนเกิน ทอนเป็นสด  → QR +diff · เงินสด −diff (สุทธิตรงบิล)
+//   under_cash_topup  โอนขาด จ่ายสดเพิ่ม → QR +diff (diff ติดลบ) · เงินสด −diff (สุทธิตรงบิล)
+export interface IncidentAdjustment {
+  qr: number;      // บวก/ลบเข้ายอด QR
+  cash: number;    // บวก/ลบเข้ายอดเงินสด
+  overBill: number; // ส่วนที่เกินยอดบิลจริง ๆ (รายได้ร้าน) — 0 ถ้าทอนคืน/เก็บเพิ่มจนสุทธิตรง
+}
+
+export function incidentAdjustment(
+  kind: PaymentIncidentKind, billAmount: number, actualAmount: number
+): IncidentAdjustment {
+  const diff = n(actualAmount) - n(billAmount);
+  if (kind === "over_no_change") return { qr: diff, cash: 0, overBill: diff };
+  // อีก 2 เคสเงินสดชดเชยกลับเสมอ ยอดรวมจึงตรงบิล
+  return { qr: diff, cash: -diff, overBill: 0 };
+}
+
+/** รวมผลการปรับของทุกเคสในวันนั้น — ใช้บวกทับยอดที่กรอกจาก POS */
+export function sumIncidentAdjustments(incidents: PaymentIncident[]): IncidentAdjustment {
+  return incidents.reduce<IncidentAdjustment>(
+    (acc, it) => {
+      const a = incidentAdjustment(it.kind, it.billAmount, it.actualAmount);
+      return { qr: acc.qr + a.qr, cash: acc.cash + a.cash, overBill: acc.overBill + a.overBill };
+    },
+    { qr: 0, cash: 0, overBill: 0 }
+  );
 }

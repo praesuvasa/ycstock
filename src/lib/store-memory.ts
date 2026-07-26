@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive } from "./calc";
@@ -52,6 +52,13 @@ interface RestockExtraRec {
   createdByUserId: string; createdByName: string; createdAt: string;
 }
 const restockExtraItems = new Map<string, RestockExtraRec[]>();
+
+// เคส "รับเงินไม่ตรงบิล" (v1.11) — key = `${branch}|${date}` เก็บทั้งชุดต่อคู่
+interface PaymentIncidentRec {
+  kind: PaymentIncidentKind; billAmount: number; actualAmount: number; note: string;
+  createdByUserId: string; createdByName: string; createdAt: string;
+}
+const paymentIncidents = new Map<string, PaymentIncidentRec[]>();
 
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
@@ -589,6 +596,23 @@ export const memoryStore = {
       });
     }
     return { ok: true, savedCount: entries.length };
+  },
+
+  // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — บันทึกทับทั้งชุดต่อ (สาขา,วันที่) ──
+  getPaymentIncidents(branch: Branch, date: string): PaymentIncident[] {
+    return (paymentIncidents.get(`${branch}|${date}`) ?? []).map((r, i) => ({
+      id: i + 1, kind: r.kind, billAmount: r.billAmount, actualAmount: r.actualAmount,
+      note: r.note, createdByName: r.createdByName, createdAt: r.createdAt,
+    }));
+  },
+  savePaymentIncidents(
+    branch: Branch, date: string, incidents: PaymentIncident[], userId: string, userName: string
+  ): void {
+    const now = new Date().toISOString();
+    paymentIncidents.set(`${branch}|${date}`, incidents.map((it) => ({
+      kind: it.kind, billAmount: it.billAmount, actualAmount: it.actualAmount, note: it.note,
+      createdByUserId: userId, createdByName: userName, createdAt: now,
+    })));
   },
 
   // itemId ที่ "ส่งไปแล้วและสาขายืนยันรับแล้ว" ของใบวันนั้น — ใช้กรองตอนพิมพ์ใบรอบที่ 2

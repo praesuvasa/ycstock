@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
@@ -605,6 +605,35 @@ export const supabaseStore = {
     const { error } = await sb().from("restock_selections").upsert(payload, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
     return { ok: true, savedCount: payload.length };
+  },
+
+  // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — บันทึกทับทั้งชุดต่อ (สาขา,วันที่) ──
+  async getPaymentIncidents(branch: Branch, date: string): Promise<PaymentIncident[]> {
+    const { data, error } = await sb().from("sales_payment_incidents")
+      .select("id,kind,bill_amount,actual_amount,note,created_by_name,created_at")
+      .eq("branch_id", branch).eq("date", date)
+      .order("id");
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id, kind: r.kind, billAmount: Number(r.bill_amount), actualAmount: Number(r.actual_amount),
+      note: r.note ?? "", createdByName: r.created_by_name ?? undefined, createdAt: r.created_at ?? undefined,
+    }));
+  },
+  async savePaymentIncidents(
+    branch: Branch, date: string, incidents: PaymentIncident[], userId: string, userName: string
+  ): Promise<void> {
+    const { error: delErr } = await sb().from("sales_payment_incidents")
+      .delete().eq("branch_id", branch).eq("date", date);
+    if (delErr) throw delErr;
+    if (incidents.length === 0) return;
+    const { error: insErr } = await sb().from("sales_payment_incidents").insert(
+      incidents.map((it) => ({
+        branch_id: branch, date, kind: it.kind,
+        bill_amount: it.billAmount, actual_amount: it.actualAmount, note: it.note,
+        created_by_user_id: userId, created_by_name: userName,
+      }))
+    );
+    if (insErr) throw insErr;
   },
 
   // itemId ที่ "ส่งไปแล้วและสาขายืนยันรับแล้ว" ของใบวันนั้น — ใช้กรองตอนพิมพ์ใบรอบที่ 2

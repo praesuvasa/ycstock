@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
-import type { Branch, SalesRow, SalesEvidence, EvidenceType, MatchStatus } from "@/lib/types";
+import type { Branch, SalesRow, SalesEvidence, EvidenceType, MatchStatus, PaymentIncident, PaymentIncidentKind } from "@/lib/types";
+import { incidentAdjustment, sumIncidentAdjustments } from "@/lib/calc";
 import { baht, todayISO } from "@/lib/fmt";
 import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge } from "@/components/ui";
 import { useMe } from "@/components/nav";
@@ -102,6 +103,13 @@ const fromRow = (row: SalesRow): Form => ({
   lineman: String(row.lineman ?? 0),
 });
 
+// v1.11: ประเภทเคส "รับเงินไม่ตรงบิล" — เพิ่มประเภทใหม่ที่นี่ที่เดียว (สูตรคำนวณอยู่ใน calc.ts)
+const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }[] = [
+  { kind: "over_no_change", label: "โอนเกิน · ไม่ได้ทอนคืน", hint: "ส่วนเกินนับเป็นรายได้ของร้าน" },
+  { kind: "over_cash_change", label: "โอนเกิน · ทอนเป็นเงินสด", hint: "หยิบเงินสดในลิ้นชักคืนลูกค้า" },
+  { kind: "under_cash_topup", label: "โอนขาด · จ่ายสดเพิ่ม", hint: "โอนไม่ครบ แล้วจ่ายส่วนต่างเป็นเงินสด" },
+];
+
 // อ่านสาขา/วันที่จาก query string ถ้ามี (เช่น มาจาก prompt "ไปกรอกยอดขาย" หลังบันทึกสต็อก)
 // ใช้ window.location ตรงๆ แทน useSearchParams เพื่อเลี่ยงต้องห่อ Suspense
 function fromQuery<T extends string>(key: string, valid: readonly T[], fallback: T): T {
@@ -127,6 +135,9 @@ export default function SalesPage() {
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  // v1.11: เคส "รับเงินไม่ตรงบิล" (QR ↔ เงินสด) — กรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
+  // ระบบคำนวณยอดเงินเข้าจริงให้เอง ไม่ต้องให้พนักงานคิดเองว่าช่องไหนบวกช่องไหนลบ
+  const [incidents, setIncidents] = React.useState<PaymentIncident[]>([]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -136,9 +147,11 @@ export default function SalesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(fromRow(data.row as SalesRow));
+      setIncidents((data.incidents ?? []) as PaymentIncident[]);
     } catch (e: any) {
       setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(EMPTY);
+      setIncidents([]);
     } finally {
       setLoading(false);
     }
@@ -169,6 +182,13 @@ export default function SalesPage() {
   const delivery = toNum(form.grab) + toNum(form.lineman);
   const total = inStore + delivery;
 
+  // v1.11: ยอด "เงินเข้าจริง" = ยอด POS ที่กรอก + ผลรวมเคสรับเงินไม่ตรงบิล
+  // ตัวนี้คือตัวที่ต้องตรงกับสลิปธนาคาร/เงินในลิ้นชัก จึงใช้เทียบตอนอัปโหลดหลักฐาน
+  const adj = React.useMemo(() => sumIncidentAdjustments(incidents), [incidents]);
+  const actualQr = toNum(form.qr) + adj.qr;
+  const actualCash = toNum(form.cash) + adj.cash;
+  const hasAdjustment = adj.qr !== 0 || adj.cash !== 0;
+
   const save = async () => {
     setSaving(true);
     setErr(null);
@@ -183,7 +203,7 @@ export default function SalesPage() {
       const res = await fetch("/api/sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, row }),
+        body: JSON.stringify({ branch, date, row, incidents }),
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
@@ -239,11 +259,97 @@ export default function SalesPage() {
         {toNum(form.qr) > 0 && (
           <div className="mt-2.5">
             <EvidenceSlot
-              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={toNum(form.qr)}
+              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={actualQr}
               row={evidence.qr} onUploaded={(row) => setEvidence((p) => ({ ...p, qr: row }))}
             />
           </div>
         )}
+        {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) */}
+        <div className="mt-3 rounded-xl border border-black/10 bg-black/[.02] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-medium">รับเงินไม่ตรงบิล</p>
+              <p className="text-[11px] leading-relaxed text-brand-ink/50">
+                ลูกค้าโอนเกิน/ขาด — กรอกยอดข้างบนตาม POS ตามปกติ ระบบจะปรับให้เอง
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIncidents((p) => [...p, { kind: "over_no_change", billAmount: 0, actualAmount: 0, note: "" }])}
+              className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-red"
+            >
+              + เพิ่มเคส
+            </button>
+          </div>
+
+          {incidents.length > 0 && (
+            <div className="mt-2.5 grid gap-2">
+              {incidents.map((it, i) => {
+                const a = incidentAdjustment(it.kind, it.billAmount, it.actualAmount);
+                const patch = (p: Partial<PaymentIncident>) =>
+                  setIncidents((prev) => prev.map((x, j) => (j === i ? { ...x, ...p } : x)));
+                return (
+                  <div key={i} className="rounded-lg bg-white/70 px-2.5 py-2">
+                    <div className="mb-1.5 flex items-start justify-between gap-2">
+                      <select
+                        value={it.kind}
+                        onChange={(e) => patch({ kind: e.target.value as PaymentIncidentKind })}
+                        className="field min-w-0 flex-1 py-1 text-left text-[12px]"
+                      >
+                        {INCIDENT_KINDS.map((k) => (
+                          <option key={k.kind} value={k.kind}>{k.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => setIncidents((prev) => prev.filter((_, j) => j !== i))}
+                        className="shrink-0 pt-1 text-[11px] font-medium text-warn underline underline-offset-2"
+                      >
+                        ลบ
+                      </button>
+                    </div>
+                    <div className="flex gap-2">
+                      <label className="flex flex-1 flex-col gap-0.5">
+                        <span className="text-[10px] text-brand-ink/50">ยอดตามบิล</span>
+                        <input
+                          inputMode="decimal" value={it.billAmount || ""}
+                          onChange={(e) => patch({ billAmount: toNum(e.target.value) })}
+                          className="field py-1 text-center text-[13px]"
+                        />
+                      </label>
+                      <label className="flex flex-1 flex-col gap-0.5">
+                        <span className="text-[10px] text-brand-ink/50">โอนเข้าจริง</span>
+                        <input
+                          inputMode="decimal" value={it.actualAmount || ""}
+                          onChange={(e) => patch({ actualAmount: toNum(e.target.value) })}
+                          className="field py-1 text-center text-[13px]"
+                        />
+                      </label>
+                    </div>
+                    {(it.billAmount > 0 || it.actualAmount > 0) && (
+                      <p className="mt-1.5 text-[11px] text-sky-700">
+                        QR {a.qr >= 0 ? "+" : ""}{a.qr}
+                        {a.cash !== 0 && <> · เงินสด {a.cash >= 0 ? "+" : ""}{a.cash}</>}
+                        {a.overBill !== 0 && <> · เกินบิล {a.overBill} (รายได้ร้าน)</>}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {hasAdjustment && (
+            <div className="mt-2.5 rounded-lg bg-brand-blue/15 px-2.5 py-2 text-[12px] text-sky-800">
+              <p className="font-medium">ยอดเงินเข้าจริง (ใช้เทียบสลิป/นับลิ้นชัก)</p>
+              <p className="mt-0.5 tabular-nums">
+                QR {baht(actualQr)} · เงินสด {baht(actualCash)}
+                {adj.overBill !== 0 && <> · เกินบิลรวม {baht(adj.overBill)}</>}
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="mt-3">
           <Stat label="รวม In-store" value={baht(inStore)} tone="default" />
         </div>
