@@ -63,10 +63,10 @@ const RAW: Row[] = [
   ["Honey Jelly", "Toppings", "1,000g/pack", 1, 1, null],
   // Fruits
   ["Strawberry (250g)", "Fruits", "250g/box", 4, 4, 0],
-  ["Strawberry (500g)", "Fruits", "500g/box", 0, 0, 0],
-  ["Blueberry (125g)", "Fruits", "125g/box", 0, 0, 0],
+  ["Strawberry (500g)", "Fruits", "500g/box", null, null, null],
+  ["Blueberry (125g)", "Fruits", "125g/box", null, null, null],
   ["Blueberry (300g)", "Fruits", "300g/box", 3, 3, 0],
-  ["Blueberry (500g)", "Fruits", "500g/box", 0, 0, 0],
+  ["Blueberry (500g)", "Fruits", "500g/box", null, null, null],
   ["Apple Cinnamon", "Fruits", "500g/pack", 1, 1, 0],
   ["Banana", "Fruits", "ลูก", 0, 0, 0],
   // Sauces
@@ -225,6 +225,8 @@ const SHOW_REMAINDER_ON_RESTOCK = new Set<string>([
   "Cookies Crumbs", "Oreo", "Choc Chips", "Cornflakes (Topping)", "Granola (Topping)",
   "Almond", "Pecan", "Walnut", "Coconut Chips", "Chia Seed", "Flax Seed", "Cacao Nibs",
   "Grape Jelly", "Honey Jelly", "Apple Cinnamon",
+  // 2026-07-26: ตัวหลักของกลุ่มเศษรวมผลไม้ (ไซซ์ที่เข้าจริง) — เศษกรัมทั้งกลุ่มกองอยู่ที่ 2 ตัวนี้
+  "Blueberry (300g)", "Strawberry (250g)",
   "Honey", "Caramel", "Peanut Butter Sauce",
   "ผงโกโก้ (COCOA)", "ผงมาคิ (MAQUI)", "ผงคาม (CAMU)", "น้ำเชื่อม (Syrup)",
   "Biscoff Spread เล็ก", "ซอส Chocolate", "ซอส Strawberry", "ปีโป้", "ปีโป้ลิ้นจี่",

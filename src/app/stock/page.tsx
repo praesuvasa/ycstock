@@ -194,8 +194,10 @@ export default function StockPage() {
   const groups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
-      // แสดงรายการที่ stock ในสาขานี้ + ทุกสมาชิกกลุ่มเศษรวม (ให้นับกล่องได้ทุกขนาด) + ถึงรอบเช็ควันนี้ (daily/จันทร์+พฤหัส)
-      .filter((it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && isCheckDue(it.checkFrequency, weekday))
+      // แสดงเฉพาะรายการที่ stock ในสาขานี้ (par != null) + ถึงรอบเช็ควันนี้ (daily/จันทร์+พฤหัส)
+      // 2026-07-26: เลิกบังคับโชว์ "ทุกสมาชิกกลุ่มเศษรวม" แล้ว — ไซซ์ที่ไม่ได้เข้าจริง (Blueberry 125g/500g,
+      // Strawberry 500g) ตั้ง par เป็น null ไปแล้ว จึงหายไปเอง เหลือแต่ไซซ์หลักที่ถือเศษกรัมของทั้งกลุ่ม
+      .filter((it) => meta.par[it.id]?.[branch] != null && isCheckDue(it.checkFrequency, weekday))
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
@@ -214,10 +216,13 @@ export default function StockPage() {
   const [showHidden, setShowHidden] = React.useState(false);
   // กลุ่มย่อยที่พับไว้ (เช่น ถุงมือ) — key = "หมวด|ชื่อกลุ่ม" กันชนกันข้ามหมวด
   const [openSub, setOpenSub] = React.useState<Record<string, boolean>>({});
+  // ด่านยืนยันวันที่/สาขา ก่อนเข้าหน้ากรอกจริง (แพรขอ 2026-07-26)
+  // เดิมเปิดหน้ามาก็โชว์ข้อมูลวันนี้เลย ทำให้เผลอกรอกผิดวัน/ผิดสาขาโดยไม่ทันดู
+  const [started, setStarted] = React.useState(false);
   const hiddenGroups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
-      .filter((it) => (meta.par[it.id]?.[branch] != null || it.remainderGroup) && !isCheckDue(it.checkFrequency, weekday))
+      .filter((it) => meta.par[it.id]?.[branch] != null && !isCheckDue(it.checkFrequency, weekday))
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
@@ -243,8 +248,10 @@ export default function StockPage() {
   const groupIds = React.useMemo(() => {
     const m = new Map<string, string[]>();
     if (!meta) return m;
+    // เอาเฉพาะสมาชิกที่ stock จริงในสาขานี้ — "ตัวหลัก" (leader ที่ถือเศษกรัมของทั้งกลุ่ม) = ids[0]
+    // ถ้ายังรวมไซซ์ที่ par=null อยู่ leader จะกลายเป็นไซซ์ที่ถูกซ่อน แล้วช่องกรอกเศษกรัมจะหายไปทั้งกลุ่ม
     const gs = meta.items
-      .filter((it) => it.remainderGroup) // ทุกสมาชิกกลุ่ม (ไม่ว่า par จะมีหรือไม่)
+      .filter((it) => it.remainderGroup && meta.par[it.id]?.[branch] != null)
       .sort((a, b) => a.sort - b.sort);
     for (const it of gs) {
       const g = it.remainderGroup!;
@@ -429,13 +436,44 @@ export default function StockPage() {
 
       <GlassCard className="mb-3">
         <div className="grid gap-3">
-          <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
+          <BranchPicker
+            value={branch}
+            onChange={(b) => { setBranch(b); setStarted(false); }}
+            locked={scoped}
+          />
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">วันที่</span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
+            <input
+              type="date" value={date}
+              onChange={(e) => { setDate(e.target.value); setStarted(false); }}
+              className="field"
+            />
+            {date !== todayISO() && (
+              <span className="text-[11px] font-medium text-warn">⚠️ ไม่ใช่วันนี้ — {thaiDate(date)}</span>
+            )}
           </label>
+          {!started && (
+            <button
+              type="button"
+              onClick={() => setStarted(true)}
+              className="w-full rounded-xl bg-brand-red px-4 py-3 text-[15px] font-semibold text-white shadow-glass"
+            >
+              ยืนยัน แล้วเริ่มนับสต็อก
+            </button>
+          )}
         </div>
       </GlassCard>
+
+      {!started && (
+        <GlassCard>
+          <p className="py-6 text-center text-sm leading-relaxed text-brand-ink/50">
+            ตรวจสาขาและวันที่ด้านบนให้ถูกก่อน<br />
+            แล้วกด &ldquo;ยืนยัน แล้วเริ่มนับสต็อก&rdquo; เพื่อดู/กรอกรายการ
+          </p>
+        </GlassCard>
+      )}
+
+      {started && (<>
 
       {receiptPending && (
         <Link
@@ -785,7 +823,9 @@ export default function StockPage() {
           );
         })
       )}
+      </>)}
 
+      {started && (
       <SaveBar>
         {!loading && total > 0 && (
           <p className={`mb-2 text-center text-xs font-semibold ${unconfirmedCount > 0 ? "text-warn" : "text-ok"}`}>
@@ -798,6 +838,7 @@ export default function StockPage() {
           {saving ? "กำลังบันทึก…" : "บันทึกสต็อกวันนี้"}
         </Button>
       </SaveBar>
+      )}
 
       {/* Prompt หลังบันทึกสต็อกสำเร็จ — ชวนไปกรอกยอดขายต่อ (ไม่บังคับ) */}
       {showSavePrompt && (

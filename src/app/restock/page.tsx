@@ -145,20 +145,17 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 }
 
-// ── ข้อ 3: บังคับยืนยันสาขา/วันที่ก่อนเห็นรายการ — client-side + localStorage เท่านั้น (per-device แม่นพอ) ──
-// เก็บ "แต่ละ pair ที่เคยยืนยันแล้ว" แยกคีย์กัน (ไม่ใช่ค่าเดียวทับกัน) — admin สลับ SND→NVP→KCN→กลับ SND ต้องไม่โดน gate ซ้ำ
-// เปลี่ยน branch/date/orderDate/deliveryDate ไปเป็น pair ที่ไม่เคยยืนยัน → gate ใหม่ตามปกติ
-function useConfirmGate(storageKeyPrefix: string, pairKey: string) {
-  const storageKey = `${storageKeyPrefix}:${pairKey}`;
-  const [confirmed, setConfirmed] = React.useState(false);
-  React.useEffect(() => {
-    setConfirmed(localStorage.getItem(storageKey) === "1");
-  }, [storageKey]);
-  function confirm() {
-    localStorage.setItem(storageKey, "1");
-    setConfirmed(true);
-  }
-  return { confirmed, confirm };
+// ── บังคับยืนยันสาขา/วันที่ก่อนเห็นรายการ ──
+// 2026-07-26 (แพรขอ): เลิกจำใน localStorage แล้ว — ต้องยืนยันใหม่ "ทุกครั้งที่เข้าหน้า"
+// ไม่ว่าจะเป็นการทำใบใหม่หรือกลับมาแก้ใบเดิม เพราะเคสจริงคือเลือกรายการไปเกือบเสร็จ
+// แล้วเพิ่งเห็นว่าวันที่ผิด ต้องเริ่มใหม่ทั้งใบ · เก็บสถานะไว้ใน state อย่างเดียว
+// (pairKey เปลี่ยน = เปลี่ยนสาขา/วันที่ → กลับไปติด gate เองอัตโนมัติ)
+function useConfirmGate(pairKey: string) {
+  const [confirmedKey, setConfirmedKey] = React.useState<string | null>(null);
+  return {
+    confirmed: confirmedKey === pairKey,
+    confirm: () => setConfirmedKey(pairKey),
+  };
 }
 
 // ── local component: Accordion หัวข้อมี checkbox "เลือกทั้งหมดในหมวดนี้" (indeterminate ได้) ──
@@ -393,7 +390,7 @@ function RestockByBranch() {
 
   // ── ข้อ 3: gate ยืนยันสาขา+วันที่ก่อนเห็นรายการ ──
   const pairKey = `${branch}|${date}`;
-  const { confirmed, confirm } = useConfirmGate("yc:restock:gate:byBranch", pairKey);
+  const { confirmed, confirm } = useConfirmGate(pairKey);
 
   React.useEffect(() => {
     if (!confirmed) return; // กันยิง API เปล่าๆ ตอนผู้ใช้ยังเปลี่ยนวันที่ไปมาไม่นิ่ง
@@ -1098,7 +1095,7 @@ function ProductionOrder({
 
   // ── ข้อ 3: gate ยืนยันวันที่สั่งผลิต/จัดส่งก่อนเห็น/แก้กริดรายการ — ข้ามตอนแก้ไขใบเก่า (วันที่ fix จากตอนสร้างแล้ว ไม่ใช่ "เริ่มกรอกใหม่") ──
   const pairKey = `${orderDate}|${deliveryDate}`;
-  const gate = useConfirmGate("yc:restock:gate:production", pairKey);
+  const gate = useConfirmGate(pairKey);
   const confirmed = editOrderId != null ? true : gate.confirmed;
   const confirm = gate.confirm;
 
