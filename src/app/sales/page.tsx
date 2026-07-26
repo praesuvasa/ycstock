@@ -204,6 +204,9 @@ export default function SalesPage() {
         .map((i) => ({ kind: i.kind, billAmount: i.billAmount, actualAmount: i.actualAmount, note: i.note ?? "" }))
     );
   const incidentsDirty = normalizeIncidents(incidents) !== normalizeIncidents(savedIncidents);
+  // ต้องกรอกยอด QR ตาม POS ก่อน (แพรกำหนด) — เคสทุกประเภทปรับยอด QR เป็นฐาน
+  // ถ้าฐานยังเป็น 0 "ยอดเงินเข้าจริง" จะเพี้ยน แล้วพนักงานอาจเอาไปเทียบสลิปผิดตัว
+  const posReady = toNum(form.qr) > 0;
 
   const saveIncidents = async () => {
     setSavingIncidents(true);
@@ -311,12 +314,20 @@ export default function SalesPage() {
             </div>
             <button
               type="button"
+              disabled={!posReady}
               onClick={() => editIncidents((p) => [...p, { kind: "over_no_change", billAmount: 0, actualAmount: 0, note: "" }])}
-              className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-red"
+              className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-red disabled:opacity-40"
             >
               + เพิ่มเคส
             </button>
           </div>
+
+          {!posReady && (
+            <div className="mt-2 rounded-lg border border-warn/30 bg-warn/[.07] px-2.5 py-2 text-[11.5px] leading-relaxed text-warn">
+              กรอกยอด <b>PromptPay / QR</b> ด้านบนตาม POS ก่อน ถึงจะเพิ่มเคสได้
+              <span className="block text-brand-ink/50">เพราะเคสทุกแบบคิดจากยอด QR เป็นฐาน — ถ้าฐานยังว่าง ยอดเงินเข้าจริงจะเพี้ยน</span>
+            </div>
+          )}
 
           {incidents.length > 0 && (
             <div className="mt-2.5 grid gap-2">
@@ -402,7 +413,7 @@ export default function SalesPage() {
               <button
                 type="button"
                 onClick={saveIncidents}
-                disabled={savingIncidents || !incidentsDirty}
+                disabled={savingIncidents || !incidentsDirty || !posReady}
                 className={`w-full rounded-lg px-3 py-2 text-[12.5px] font-semibold transition disabled:opacity-60 ${
                   incidentsDirty ? "bg-brand-red text-white" : "border border-ok/40 bg-ok/10 text-ok"
                 }`}
