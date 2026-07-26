@@ -244,6 +244,31 @@ export const memoryStore = {
           `ระบบเติมให้ ${inAutoPack} → พนักงานแก้เป็น ${r.inPack}`);
         inAutoPack = undefined; inAutoG = undefined;
       }
+
+      // ── แจ้งเตือนแอดมินเพิ่ม 2 เคส (แพรขอ 2026-07-26) ──
+      const itemName = ITEMS.find((x) => x.id === r.itemId)?.name ?? r.itemId;
+
+      // 1) คงเหลือ > ของที่มี (ยกมา+รับเข้า) — เป็นไปไม่ได้ เพราะขาย/ส่งคืนมีแต่ทำให้ลดลง
+      //    เช็คเฉพาะ "แพ็ค" ไม่เช็คกรัม เพราะเศษกรัมเกินยกมาได้ตามปกติ (แกะกล่องใหม่มาใช้)
+      if (r.remainPack > carryPack + r.inPack) {
+        pushAdminFlag(branch, date, r.itemId, itemName, "stock_impossible",
+          `คงเหลือ ${r.remainPack} เกินของที่มี ${carryPack + r.inPack} (ยกมา ${carryPack} + รับเข้า ${r.inPack})`);
+      }
+
+      // 2) ย้อนไปแก้ยอดของวันก่อนหน้า — เฉพาะตอนค่าเปลี่ยนจริง (กดบันทึกซ้ำเฉย ๆ ไม่ต้องเตือน)
+      const isBackdated = date !== new Date().toISOString().slice(0, 10);
+      if (isBackdated && existing && existing.remainConfirmed) {
+        const changes: string[] = [];
+        if (existing.remainPack !== r.remainPack) changes.push(`คงเหลือ ${existing.remainPack}→${r.remainPack}`);
+        if ((existing.remainG ?? 0) !== r.remainG) changes.push(`คงเหลือเศษ ${existing.remainG ?? 0}→${r.remainG}g`);
+        if (existing.inPack !== r.inPack) changes.push(`รับเข้า ${existing.inPack}→${r.inPack}`);
+        if ((existing.inG ?? 0) !== r.inG) changes.push(`รับเข้าเศษ ${existing.inG ?? 0}→${r.inG}g`);
+        if (changes.length) {
+          pushAdminFlag(branch, date, r.itemId, itemName, "stock_backdated_edit",
+            `แก้ย้อนหลัง · ${changes.join(" · ")}`);
+        }
+      }
+
       stock.set(key, { ...r, date, branch, carryPack, carryG, variance: v, inAutoPack, inAutoG, remainConfirmed: true });
     }
     return { ok: true, updated, inserted };

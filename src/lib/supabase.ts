@@ -148,8 +148,13 @@ export const supabaseStore = {
   async saveStock(branch: Branch, date: string, rows: StockRow[]) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
-      .select("item_id,in_auto_pack,in_auto_g").eq("branch_id", branch).eq("date", date);
+      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed")
+      .eq("branch_id", branch).eq("date", date);
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
+    // แถวเดิมของวันนี้ ไว้เทียบว่า "แก้ย้อนหลัง" เปลี่ยนค่าอะไรไปบ้าง
+    const prevRowMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, r]));
+    // แก้ของวันก่อนหน้า = ไม่ใช่วันนี้ (เทียบวันที่ฝั่งเซิร์ฟเวอร์ ไม่เชื่อเครื่อง client)
+    const isBackdated = date !== new Date().toISOString().slice(0, 10);
     // ยกมาคำนวณสดจาก DB ตอนบันทึกเสมอ — ห้ามเชื่อ carryPack ที่ client ส่งมา เพราะอาจเป็นค่าเก่าที่ค้างอยู่ในหน้าเว็บ
     // ตั้งแต่ก่อนมีการแก้ไขคงเหลือของวันก่อนหน้าไปแล้ว (กันเซฟทับค่าที่แก้ไปแล้วกลับเป็นค่าผิดเดิม)
     const prevMap = await latestStockMapBefore(branch, date);
@@ -173,6 +178,42 @@ export const supabaseStore = {
         });
         inAutoPack = null; inAutoG = null;
       }
+
+      // ── แจ้งเตือนแอดมินเพิ่ม 2 เคส (แพรขอ 2026-07-26) ──
+      const nameOf = async () => {
+        if (!itemNameMap) {
+          const { data: items } = await sb().from("items").select("id,name");
+          itemNameMap = new Map((items ?? []).map((it: any) => [it.id, it.name]));
+        }
+        return itemNameMap.get(r.itemId) ?? r.itemId;
+      };
+
+      // 1) คงเหลือ > ของที่มี (ยกมา+รับเข้า) — เป็นไปไม่ได้ เพราะขาย/ส่งคืนมีแต่ทำให้ลดลง
+      //    เช็คเฉพาะ "แพ็ค" ไม่เช็คกรัม เพราะเศษกรัมเกินยกมาได้ตามปกติ (แกะกล่องใหม่มาใช้)
+      if (r.remainPack > carryPack + r.inPack) {
+        flags.push({
+          branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
+          reason: "stock_impossible",
+          detail: `คงเหลือ ${r.remainPack} เกินของที่มี ${carryPack + r.inPack} (ยกมา ${carryPack} + รับเข้า ${r.inPack})`,
+        });
+      }
+
+      // 2) ย้อนไปแก้ยอดของวันก่อนหน้า — เฉพาะตอนค่าเปลี่ยนจริง (กดบันทึกซ้ำเฉย ๆ ไม่ต้องเตือน)
+      const before: any = prevRowMap.get(r.itemId);
+      if (isBackdated && before && before.remain_confirmed) {
+        const changes: string[] = [];
+        if (Number(before.remain_pack) !== r.remainPack) changes.push(`คงเหลือ ${before.remain_pack}→${r.remainPack}`);
+        if (Number(before.remain_g) !== r.remainG) changes.push(`คงเหลือเศษ ${before.remain_g}→${r.remainG}g`);
+        if (Number(before.in_pack) !== r.inPack) changes.push(`รับเข้า ${before.in_pack}→${r.inPack}`);
+        if (Number(before.in_g) !== r.inG) changes.push(`รับเข้าเศษ ${before.in_g}→${r.inG}g`);
+        if (changes.length) {
+          flags.push({
+            branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
+            reason: "stock_backdated_edit", detail: `แก้ย้อนหลัง · ${changes.join(" · ")}`,
+          });
+        }
+      }
+
       payload.push({
         date, branch_id: branch, item_id: r.itemId,
         carry_pack: carryPack, carry_g: carryG, in_pack: r.inPack, in_g: r.inG,

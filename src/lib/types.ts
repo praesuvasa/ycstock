@@ -309,7 +309,13 @@ export interface RestockSheetSummary {
 }
 
 // คิวตรวจสอบแอดมิน — รับไม่ตรงยอดสั่ง / เพิ่มรายการนอกใบ / แก้ทับค่า auto-fill ทีหลังในหน้าสต็อก
-export type AdminFlagReason = "receipt_mismatch" | "receipt_not_received" | "receipt_extra" | "stock_override" | "receipt_edited";
+export type AdminFlagReason =
+  | "receipt_mismatch" | "receipt_not_received" | "receipt_extra"
+  | "stock_override" | "receipt_edited"
+  // คงเหลือมากกว่า "ของที่มี" (ยกมา+รับเข้า) — เป็นไปไม่ได้ทางกายภาพ เพราะขาย/ส่งคืนมีแต่ทำให้ลดลง
+  | "stock_impossible"
+  // ย้อนกลับไปแก้ยอดคงเหลือ/รับเข้า ของวันก่อนหน้า (ไม่ใช่วันนี้)
+  | "stock_backdated_edit";
 
 export interface AdminFlag {
   id: number;
