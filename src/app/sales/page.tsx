@@ -57,6 +57,7 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
       )}
       <div className="min-w-0 flex-1">
         <div className="text-[11px] text-brand-ink/50">หลักฐาน{label}</div>
+        <div className="text-[11.5px] font-semibold text-sky-800">ต้องตรงกับ {baht(enteredAmount)}</div>
         {m ? (
           <>
             <Badge tone={m.tone}>{m.text}</Badge>
@@ -375,12 +376,22 @@ export default function SalesPage() {
           )}
 
           {hasAdjustment && (
-            <div className="mt-2.5 rounded-lg bg-brand-blue/15 px-2.5 py-2 text-[12px] text-sky-800">
-              <p className="font-medium">ยอดเงินเข้าจริง (ใช้เทียบสลิป/นับลิ้นชัก)</p>
-              <p className="mt-0.5 tabular-nums">
-                QR {baht(actualQr)} · เงินสด {baht(actualCash)}
-                {adj.overBill !== 0 && <> · เกินบิลรวม {baht(adj.overBill)}</>}
+            <div className="mt-2.5 rounded-xl border-2 border-brand-blue/50 bg-brand-blue/15 px-3 py-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">
+                ยอดเงินเข้าจริง — ใช้ยอดนี้เทียบสลิป
               </p>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span className="text-[12px] text-sky-700">QR</span>
+                <span className="text-[26px] font-bold leading-none tabular-nums text-sky-900">{baht(actualQr)}</span>
+                <span className="text-[11px] text-sky-700/70">(POS {baht(toNum(form.qr))})</span>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-2 border-t border-sky-700/15 pt-1.5">
+                <span className="text-[12px] text-sky-700">เงินสดในลิ้นชัก</span>
+                <span className="text-[16px] font-semibold leading-none tabular-nums text-sky-900">{baht(actualCash)}</span>
+              </div>
+              {adj.overBill !== 0 && (
+                <p className="mt-1.5 text-[11.5px] text-sky-700">เกินบิลรวม {baht(adj.overBill)} (นับเป็นรายได้ร้าน)</p>
+              )}
             </div>
           )}
 
