@@ -393,7 +393,7 @@ export default function SalesPage() {
               </p>
               <div className="mt-1.5 flex items-baseline gap-2">
                 <span className="text-[12px] text-sky-700">QR</span>
-                <span className="text-[26px] font-bold leading-none tabular-nums text-sky-900">{baht(actualQr)}</span>
+                <span className="text-[18px] font-bold leading-none tabular-nums text-sky-900">{baht(actualQr)}</span>
                 <span className="text-[11px] text-sky-700/70">(POS {baht(toNum(form.qr))})</span>
               </div>
               <div className="mt-1.5 flex items-baseline gap-2 border-t border-sky-700/15 pt-1.5">
