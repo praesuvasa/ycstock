@@ -36,6 +36,14 @@ const varianceOf = (r: StockRow): number =>
 const isFilled = (r: StockRow): boolean =>
   r.inPack > 0 || r.inG > 0 || r.remainPack !== r.carryPack || r.remainG !== r.carryG;
 
+// กลุ่มย่อยที่ "พับเก็บไว้ก่อน" ในหมวดของมัน — ของที่ไม่ค่อยเข้า กินพื้นที่จอเปล่า ๆ (แพรขอ 2026-07-26)
+// ยังกรอกได้ปกติ แค่ต้องกดเปิดก่อน · เพิ่มกลุ่มใหม่ได้โดยใส่ต่อในลิสต์นี้ ไม่ต้องแก้ที่อื่น
+const COLLAPSIBLE_SUBGROUPS: { label: string; match: (it: Item) => boolean }[] = [
+  { label: "ถุงมือ", match: (it) => it.name.startsWith("Gloves YG") },
+];
+const subGroupOf = (it: Item): string | null =>
+  COLLAPSIBLE_SUBGROUPS.find((sg) => sg.match(it))?.label ?? null;
+
 // ── local compact UI (เฉพาะหน้านี้ — ห้ามแก้ shared ui kit signature) ──────────
 
 // tag แนวตั้งเล็กๆ แทนบรรทัดคำอธิบายเต็มความกว้างเดิม (ข้อมูลที่หายไปย้ายไปไว้ใน title/tooltip)
@@ -204,6 +212,8 @@ export default function StockPage() {
   // รายการที่ไม่ถึงรอบเช็ควันนี้ (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — ซ่อนไว้เป็นค่าเริ่มต้น
   // แต่ของอาจเข้าสาขาวันไหนก็ได้ (ไม่ผูกกับรอบเช็ค) เลยต้องมีทางกดดู/กรอกได้เผื่อมีของเข้าวันที่ไม่ตรงรอบ
   const [showHidden, setShowHidden] = React.useState(false);
+  // กลุ่มย่อยที่พับไว้ (เช่น ถุงมือ) — key = "หมวด|ชื่อกลุ่ม" กันชนกันข้ามหมวด
+  const [openSub, setOpenSub] = React.useState<Record<string, boolean>>({});
   const hiddenGroups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
@@ -278,20 +288,28 @@ export default function StockPage() {
   }, [shownItems, rows]);
 
   // นับ ยืนยันแล้ว (จาก confirmed map) + ค้างยืนยัน + รายการที่เกิน (คงเหลือรวมเกินของที่มี / variance / กลุ่มเกิน)
-  const { filledCount, errorCount, unconfirmedCount } = React.useMemo(() => {
-    let filled = 0, error = 0, unconfirmed = 0;
+  // errorItems เก็บ "ชื่อ + เกินเท่าไหร่" ไว้โชว์ใน popup ตอนกดบันทึก (แพรขอ 2026-07-26) — เดิมบอกแค่จำนวนรายการ ต้องไล่หาเองทีละอัน
+  const { filledCount, errorCount, unconfirmedCount, errorItems } = React.useMemo(() => {
+    let filled = 0, unconfirmed = 0;
+    const errs: string[] = [];
     for (const it of shownItems) {
       const r = rows[it.id];
       if (!r) continue;
       if (confirmed[it.id]) filled++; else unconfirmed++;
       if (it.remainderGroup) continue; // กลุ่มเช็คแยกด้านล่าง
-      const bad = it.hasRemainder
-        ? derive(r, it.gramsPerUOM).usedTotalG < 0
-        : varianceOf(r) !== 0;
-      if (bad) error++;
+      if (it.hasRemainder) {
+        const d = derive(r, it.gramsPerUOM);
+        if (d.usedTotalG < 0) errs.push(`${it.name} — เกิน ${d.overG} ${it.isCup ? "ชิ้น" : "g"}`);
+      } else {
+        const v = varianceOf(r);
+        if (v !== 0) errs.push(`${it.name} — ยอดไม่ตรง (ต่าง ${v > 0 ? "+" : ""}${v})`);
+      }
     }
-    for (const [g] of groupIds) if (groupTotals(g).overG > 0) error++;
-    return { filledCount: filled, errorCount: error, unconfirmedCount: unconfirmed };
+    for (const [g] of groupIds) {
+      const overG = groupTotals(g).overG;
+      if (overG > 0) errs.push(`กลุ่ม ${g} — เกิน ${overG} g`);
+    }
+    return { filledCount: filled, errorCount: errs.length, unconfirmedCount: unconfirmed, errorItems: errs };
   }, [shownItems, rows, groupIds, groupTotals, confirmed]);
 
   type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG" | "returnedG";
@@ -375,7 +393,10 @@ export default function StockPage() {
   async function handleSave() {
     if (unconfirmedCount > 0) return; // save gate: ต้องยืนยันครบทุกรายการก่อน (ปุ่มถูก disabled อยู่แล้ว กันไว้อีกชั้น)
     if (errorCount > 0) {
-      const ok = window.confirm(`มี ${errorCount} รายการที่คงเหลือรวมเกินของที่มี\nต้องการบันทึกเลยไหม?`);
+      // โชว์ชื่อรายการที่มีปัญหาให้ครบ (จำกัด 15 บรรทัดกัน popup ยาวเกินจอมือถือ) จะได้กลับไปแก้ถูกตัว
+      const shown = errorItems.slice(0, 15).map((s) => `• ${s}`).join("\n");
+      const more = errorItems.length > 15 ? `\n… และอีก ${errorItems.length - 15} รายการ` : "";
+      const ok = window.confirm(`มี ${errorCount} รายการที่ยอดไม่ตรง/คงเหลือเกินของที่มี\n\n${shown}${more}\n\nต้องการบันทึกเลยไหม?`);
       if (!ok) return;
     }
     setSaving(true);
@@ -464,6 +485,29 @@ export default function StockPage() {
           const cupSum = cupSummaryByCategory.get(g.category);
           const isHiddenGroup = hiddenCategorySet.has(g.category);
           const categoryIncomplete = !isHiddenGroup && g.items.some((it) => rows[it.id] && !confirmed[it.id]);
+          // แยกรายการที่อยู่ในกลุ่มย่อยพับเก็บ (เช่น ถุงมือ) ออกไปต่อท้ายหมวด — เปิดดู/กรอกได้เมื่อกด
+          const subBuckets = new Map<string, Item[]>();
+          const mainItems: Item[] = [];
+          for (const it of g.items) {
+            const sg = subGroupOf(it);
+            if (!sg) { mainItems.push(it); continue; }
+            const cur = subBuckets.get(sg) ?? [];
+            cur.push(it);
+            subBuckets.set(sg, cur);
+          }
+          // ลำดับที่ render: รายการปกติ → หัวข้อกลุ่มพับ → (ถ้ากดเปิด) รายการในกลุ่มนั้น ต่อท้ายหัวข้อทันที
+          type RowEntry =
+            | { kind: "item"; item: Item }
+            | { kind: "toggle"; label: string; items: Item[] };
+          const rowEntries: RowEntry[] = [
+            ...mainItems.map((item) => ({ kind: "item", item }) as RowEntry),
+            ...Array.from(subBuckets.entries()).flatMap(([label, items]) => [
+              { kind: "toggle", label, items } as RowEntry,
+              ...(openSub[`${g.category}|${label}`]
+                ? items.map((item) => ({ kind: "item", item }) as RowEntry)
+                : []),
+            ]),
+          ];
           return (
             <Accordion
               key={g.category}
@@ -485,15 +529,31 @@ export default function StockPage() {
               defaultOpen={gi === 0}
             >
               <div className="grid gap-2 py-1">
-                {cupSum && cupSum.count > 0 && (
-                  <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
-                    <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
-                    <span className="text-xl font-bold tabular-nums">
-                      {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
-                    </span>
-                  </div>
-                )}
-                {g.items.map((it) => {
+                {rowEntries.map((e) => {
+                  if (e.kind === "toggle") {
+                    const key = `${g.category}|${e.label}`;
+                    const open = !!openSub[key];
+                    const pending = e.items.filter((x) => rows[x.id] && !confirmed[x.id]).length;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setOpenSub((s) => ({ ...s, [key]: !s[key] }))}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-2 text-left"
+                      >
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-brand-ink/70">
+                          <span className={`inline-block text-[10px] transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
+                          {e.label} {e.items.length} รายการ
+                        </span>
+                        {!open && pending > 0 && (
+                          <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
+                            ยังไม่กรอก {pending}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  }
+                  const it = e.item;
                   const row = rows[it.id];
                   if (!row) return null;
                   const N = it.gramsPerUOM;
@@ -711,6 +771,15 @@ export default function StockPage() {
                     </div>
                   );
                 })}
+                {/* บรรทัดรวมแก้วอยู่ "ล่างสุด" ของหมวด (แพรขอ 2026-07-26) — เดิมอยู่บนสุดแล้วมองข้ามง่ายเพราะต้องเลื่อนกลับขึ้นไปดู */}
+                {cupSum && cupSum.count > 0 && (
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
+                    <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
+                    <span className="text-xl font-bold tabular-nums">
+                      {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </Accordion>
           );

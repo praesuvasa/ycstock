@@ -196,7 +196,10 @@ export default function CupsPage() {
     () => [...catalog.smoothies.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.smoothies)],
     [catalog.smoothies, lineFor, totalLine]
   );
-  const yogurt500Lines = React.useMemo(() => catalog.yogurt500.map(lineFor), [catalog.yogurt500, lineFor]);
+  const yogurt500Lines = React.useMemo(
+    () => [...catalog.yogurt500.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.yogurt500)],
+    [catalog.yogurt500, lineFor, totalLine]
+  );
   const shakeLines = React.useMemo(() => catalog.shake.map(lineFor), [catalog.shake, lineFor]);
   const drinkLines = React.useMemo(
     () => [...catalog.drink.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.drink)],

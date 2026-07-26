@@ -7,7 +7,7 @@ import { useMe } from "@/components/nav";
 import { resizeImageToBase64 } from "@/lib/image-client";
 
 const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "neutral" }> = {
-  ok: { text: "✅ ตรงกับที่กรอก", tone: "ok" },
+  ok: { text: "✅ ยอดถูกต้อง", tone: "ok" },
   mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
   unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
   duplicate: { text: "🚫 รูปนี้ถูกใช้ไปแล้ว", tone: "warn" },

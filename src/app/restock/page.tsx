@@ -425,7 +425,10 @@ function RestockByBranch() {
           const saved = selData.entries[r.itemId];
           next[r.itemId] = saved
             ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty, qtyG: saved.qtyG }
-            : { itemId: r.itemId, selected: r.need != null && r.need > 0, qty: r.need ?? 0, qtyG: 0 };
+            // ยังไม่เคยบันทึกคู่ (สาขา,วันที่) นี้ → ไม่ติ๊กให้ล่วงหน้า (แพรขอ 2026-07-26)
+            // เดิมติ๊กให้อัตโนมัติเมื่อ need>0 ทำให้พนักงานแยกไม่ออกว่าอันไหนตัวเองเลือก อันไหนระบบเลือกให้
+            // ยังใส่ตัวเลข Par−คงเหลือ ไว้ในช่องเหมือนเดิม (ช่วยกรอกเร็ว) แค่ต้องติ๊กเองก่อนถึงจะนับ
+            : { itemId: r.itemId, selected: false, qty: r.need ?? 0, qtyG: 0 };
         }
         setSelEntries(next);
         setSavedEntries(selData.entries); // snapshot ของจริงจาก DB ณ ตอนโหลด — ใช้เทียบสถานะแต่ละแถว
@@ -502,7 +505,7 @@ function RestockByBranch() {
   // ค่าที่ระบบเดาให้ตอนยังไม่เคยมีใครกรอก (Par − คงเหลือ) — ใช้เทียบว่าแถวนี้ "ยังไม่ถูกแตะเลย" หรือเปล่า
   // qtyG ไม่มี default ให้เดา (เป็นเคสพิเศษที่ผลผลิตไม่เต็มแพ็ค) เริ่มที่ 0 เสมอ
   function defaultOf(r: RestockRow): { selected: boolean; qty: number; qtyG: number } {
-    return { selected: r.need != null && r.need > 0, qty: r.need ?? 0, qtyG: 0 };
+    return { selected: false, qty: r.need ?? 0, qtyG: 0 };
   }
   // สถานะต่อแถว: บันทึกแล้ว (ตรงกับ DB) / แก้ไขแล้วยังไม่บันทึก / แนะนำ (ยังไม่แตะ ไม่เคยบันทึกคู่นี้เลย)
   function statusOf(r: RestockRow): "saved" | "dirty" | "suggested" {
@@ -758,10 +761,10 @@ function RestockByBranch() {
               {emergencySpecialItems.length > 0 && (
                 <div className="mt-3 rounded-xl border border-brand-orange/40 bg-brand-orange/[.06] p-2.5">
                   <p className="mb-2 px-0.5 text-[11px] leading-relaxed text-orange-700">
-                    ⚠️ 7 รายการ special ไม่ถึงรอบเข้าวันนี้ ({branch} เข้าเฉพาะวัน{ownSpecialDay ?? "—"}) — ใช้ส่วนนี้เฉพาะกรณีต้องสั่งฉุกเฉินนอกรอบเท่านั้น
+                    7 รายการ special ไม่ถึงรอบเข้าวันนี้ ({branch} เข้าเฉพาะวัน{ownSpecialDay ?? "—"}) — ติ๊กเลือกเองเฉพาะรายการที่ต้องการเพิ่มจริง
                   </p>
                   <SelectableAccordion
-                    title="🚨 สั่งฉุกเฉิน (นอกรอบ special)"
+                    title="รายการเพิ่มเติม"
                     total={emergencySpecialItems.length}
                     selectedCount={emergencySpecialItems.filter((r) => selEntries[r.itemId]?.selected).length}
                     onToggleAll={() => toggleCategoryAll(emergencySpecialItems)}
