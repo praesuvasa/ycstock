@@ -138,6 +138,9 @@ export default function SalesPage() {
   // v1.11: เคส "รับเงินไม่ตรงบิล" (QR ↔ เงินสด) — กรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
   // ระบบคำนวณยอดเงินเข้าจริงให้เอง ไม่ต้องให้พนักงานคิดเองว่าช่องไหนบวกช่องไหนลบ
   const [incidents, setIncidents] = React.useState<PaymentIncident[]>([]);
+  // เคสต้องบันทึกก่อนแนบหลักฐาน (แพรกำหนดลำดับ) — dirty = แก้แล้วยังไม่ได้บันทึก
+  const [incidentsDirty, setIncidentsDirty] = React.useState(false);
+  const [savingIncidents, setSavingIncidents] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -148,10 +151,12 @@ export default function SalesPage() {
       if (!res.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(fromRow(data.row as SalesRow));
       setIncidents((data.incidents ?? []) as PaymentIncident[]);
+      setIncidentsDirty(false);
     } catch (e: any) {
       setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(EMPTY);
       setIncidents([]);
+      setIncidentsDirty(false);
     } finally {
       setLoading(false);
     }
@@ -184,6 +189,33 @@ export default function SalesPage() {
 
   // v1.11: ยอด "เงินเข้าจริง" = ยอด POS ที่กรอก + ผลรวมเคสรับเงินไม่ตรงบิล
   // ตัวนี้คือตัวที่ต้องตรงกับสลิปธนาคาร/เงินในลิ้นชัก จึงใช้เทียบตอนอัปโหลดหลักฐาน
+  // ทุกการแก้เคส = ยังไม่ได้บันทึก จนกว่าจะกดปุ่มบันทึกเคส
+  const editIncidents = (fn: (prev: PaymentIncident[]) => PaymentIncident[]) => {
+    setIncidents(fn);
+    setIncidentsDirty(true);
+  };
+
+  const saveIncidents = async () => {
+    setSavingIncidents(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/sales/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, incidents }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกเคสไม่สำเร็จ");
+      setIncidents((data.incidents ?? []) as PaymentIncident[]); // ใช้ชุดที่ผ่านการกรองจาก server
+      setIncidentsDirty(false);
+    } catch (e: any) {
+      setErr(e?.message ?? "บันทึกเคสไม่สำเร็จ");
+      alert(e?.message ?? "บันทึกเคสไม่สำเร็จ");
+    } finally {
+      setSavingIncidents(false);
+    }
+  };
+
   const adj = React.useMemo(() => sumIncidentAdjustments(incidents), [incidents]);
   const actualQr = toNum(form.qr) + adj.qr;
   const actualCash = toNum(form.cash) + adj.cash;
@@ -256,14 +288,6 @@ export default function SalesPage() {
           <NumberField label="PromptPay / QR" value={form.qr} onChange={set("qr")} />
           <NumberField label="EDC บัตร" value={form.edc} onChange={set("edc")} />
         </div>
-        {toNum(form.qr) > 0 && (
-          <div className="mt-2.5">
-            <EvidenceSlot
-              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={actualQr}
-              row={evidence.qr} onUploaded={(row) => setEvidence((p) => ({ ...p, qr: row }))}
-            />
-          </div>
-        )}
         {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) */}
         <div className="mt-3 rounded-xl border border-black/10 bg-black/[.02] px-3 py-2.5">
           <div className="flex items-center justify-between gap-2">
@@ -275,7 +299,7 @@ export default function SalesPage() {
             </div>
             <button
               type="button"
-              onClick={() => setIncidents((p) => [...p, { kind: "over_no_change", billAmount: 0, actualAmount: 0, note: "" }])}
+              onClick={() => editIncidents((p) => [...p, { kind: "over_no_change", billAmount: 0, actualAmount: 0, note: "" }])}
               className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-red"
             >
               + เพิ่มเคส
@@ -287,7 +311,7 @@ export default function SalesPage() {
               {incidents.map((it, i) => {
                 const a = incidentAdjustment(it.kind, it.billAmount, it.actualAmount);
                 const patch = (p: Partial<PaymentIncident>) =>
-                  setIncidents((prev) => prev.map((x, j) => (j === i ? { ...x, ...p } : x)));
+                  editIncidents((prev) => prev.map((x, j) => (j === i ? { ...x, ...p } : x)));
                 return (
                   <div key={i} className="rounded-lg bg-white/70 px-2.5 py-2">
                     <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -302,7 +326,7 @@ export default function SalesPage() {
                       </select>
                       <button
                         type="button"
-                        onClick={() => setIncidents((prev) => prev.filter((_, j) => j !== i))}
+                        onClick={() => editIncidents((prev) => prev.filter((_, j) => j !== i))}
                         className="shrink-0 pt-1 text-[11px] font-medium text-warn underline underline-offset-2"
                       >
                         ลบ
@@ -348,7 +372,45 @@ export default function SalesPage() {
               </p>
             </div>
           )}
+
+          {/* ลำดับที่แพรกำหนด: บันทึกเคส → แนบหลักฐาน → บันทึกยอดขาย
+              ต้องบันทึกเคสก่อน เพราะยอดที่เอาไปเทียบสลิปต้องรวมผลของเคสแล้ว */}
+          {incidents.length > 0 && (
+            <div className="mt-2.5">
+              <button
+                type="button"
+                onClick={saveIncidents}
+                disabled={savingIncidents || !incidentsDirty}
+                className={`w-full rounded-lg px-3 py-2 text-[12.5px] font-semibold transition disabled:opacity-60 ${
+                  incidentsDirty ? "bg-brand-red text-white" : "border border-ok/40 bg-ok/10 text-ok"
+                }`}
+              >
+                {savingIncidents ? "กำลังบันทึก…" : incidentsDirty ? "บันทึกเคส (ทำก่อนแนบหลักฐาน)" : "✓ บันทึกเคสแล้ว"}
+              </button>
+              {incidentsDirty && (
+                <p className="mt-1 text-center text-[11px] text-warn">
+                  ยังไม่ได้บันทึกเคส — แนบหลักฐานตอนนี้ยอดอาจไม่ตรง
+                </p>
+              )}
+            </div>
+          )}
         </div>
+
+        {toNum(form.qr) > 0 && (
+          <div className="mt-2.5">
+            {incidentsDirty ? (
+              <div className="rounded-xl border border-warn/30 bg-warn/[.07] px-2.5 py-2.5 text-[11.5px] leading-relaxed text-warn">
+                กดปุ่ม &ldquo;บันทึกเคส&rdquo; ด้านบนก่อน แล้วช่องแนบหลักฐาน QR จะเปิดให้ใช้
+                <span className="block text-brand-ink/50">เพราะยอดที่ใช้เทียบสลิปต้องรวมผลของเคสแล้ว</span>
+              </div>
+            ) : (
+            <EvidenceSlot
+              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={actualQr}
+              row={evidence.qr} onUploaded={(row) => setEvidence((p) => ({ ...p, qr: row }))}
+            />
+            )}
+          </div>
+        )}
 
         <div className="mt-3">
           <Stat label="รวม In-store" value={baht(inStore)} tone="default" />
