@@ -890,6 +890,7 @@ export const supabaseStore = {
         order_id: header.id, item_id: i.itemId ?? null, branch_key: i.itemId ? i.branch : null,
         qty: i.qty, qty_g: i.qtyG,
         extra_name: i.extraName ?? null, extra_unit: i.extraUnit ?? null, extra_note: i.extraNote ?? null,
+        in_stock_no_produce: i.inStockNoProduce ?? false,
       }));
     let items: any[] = [];
     if (rows.length > 0) {
@@ -932,6 +933,7 @@ export const supabaseStore = {
           const { error: e3 } = await sb().from("production_order_items").update({
             qty: row.qty, qty_g: row.qtyG,
             extra_name: row.extraName ?? null, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
+            in_stock_no_produce: row.inStockNoProduce ?? false,
             updated_at: now,
           }).eq("id", row.id).eq("order_id", id);
           if (e3) throw e3;
@@ -939,6 +941,7 @@ export const supabaseStore = {
           const { error: e4 } = await sb().from("production_order_items").insert({
             order_id: id, item_id: null, branch_key: null, qty: row.qty, qty_g: row.qtyG,
             extra_name: row.extraName, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
+            in_stock_no_produce: row.inStockNoProduce ?? false,
           });
           if (e4) throw e4;
         }
@@ -1054,6 +1057,7 @@ function rowFromProdOrderItemDb(r: any): ProductionOrderItem {
     id: r.id, itemId: r.item_id ?? undefined, branch: r.branch_key ?? undefined,
     qty: Number(r.qty), qtyG: Number(r.qty_g),
     extraName: r.extra_name ?? undefined, extraUnit: r.extra_unit ?? undefined, extraNote: r.extra_note ?? undefined,
+    inStockNoProduce: r.in_stock_no_produce ?? false,
     confirmed: r.confirmed, confirmedQty: r.confirmed_qty ?? undefined, confirmedQtyG: r.confirmed_qty_g ?? undefined,
     confirmedAt: r.confirmed_at ?? undefined, confirmedByName: r.confirmed_by_name ?? undefined,
   };

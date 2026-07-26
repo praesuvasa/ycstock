@@ -235,6 +235,8 @@ export interface ProductionOrderItem {
   confirmedQtyG?: number;
   confirmedAt?: string;       // ISO
   confirmedByName?: string;
+  // ข้อ 17: มีของอยู่แล้ว ไม่ต้องผลิตใหม่ — ยังต้องหยิบไปส่ง จึงยังอยู่ในใบ แต่แยกกลุ่มท้ายใบ
+  inStockNoProduce?: boolean;
 }
 
 export interface ProductionOrder {
@@ -272,6 +274,7 @@ export interface ProductionOrderItemInput {
   extraName?: string;
   extraUnit?: string;
   extraNote?: string;
+  inStockNoProduce?: boolean;
 }
 
 // ── ยืนยันรับของ (v1.9) — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้

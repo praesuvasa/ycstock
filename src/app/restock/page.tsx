@@ -953,7 +953,7 @@ const PROD_FIELDS: { key: ProdField; label: string }[] = [
 interface ExtraRow { id: string; name: string; qty: string; unit: string; note: string }
 
 function ProductionRow({
-  item, par, values, gValues, onChange, onChangeG, tone, isNew, reflected,
+  item, par, values, gValues, onChange, onChangeG, tone, isNew, reflected, inStock, onToggleInStock,
 }: {
   item: Item;
   par: Partial<Record<Branch, number | null>>;
@@ -964,6 +964,8 @@ function ProductionRow({
   tone?: "orange";
   isNew?: boolean;
   reflected?: boolean;
+  inStock?: boolean;
+  onToggleInStock?: () => void;
 }) {
   const hasG = item.variableYield; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
   const gUnit = item.isCup ? "ชิ้น" : "g";
@@ -975,11 +977,20 @@ function ProductionRow({
     <div className={`px-3 py-2.5 ${isOrange ? "rounded-xl border border-brand-orange/40 bg-brand-orange/10" : "glass-soft"}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className={`text-sm font-medium ${isOrange ? "text-orange-700" : ""}`}>{item.name}</span>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           {reflected && <Badge tone="blue">จาก Restock</Badge>}
           {isNew && <Badge tone="ok">ไอเทมใหม่</Badge>}
+          {inStock && <Badge tone="orange">มีของแล้ว</Badge>}
         </div>
       </div>
+      {/* ข้อ 17: มีของค้างสต็อกอยู่แล้ว ไม่ต้องผลิตใหม่ — ยังต้องหยิบไปส่ง จึงยังกรอกจำนวนตามปกติ
+          ใบพิมพ์จะย้ายรายการนี้ไปกลุ่มแยกท้ายใบ ทีมผลิตจะได้ไม่ทำซ้ำ */}
+      {onToggleInStock && (
+        <label className="mb-2 flex items-center gap-1.5">
+          <input type="checkbox" checked={!!inStock} onChange={onToggleInStock} className="h-3.5 w-3.5 accent-brand-orange" />
+          <span className="text-[11px] text-brand-ink/60">มีของแล้ว ไม่ต้องผลิต (หยิบจากสต็อกเดิมไปส่ง)</span>
+        </label>
+      )}
       <div className="grid grid-cols-4 gap-1.5">
         {PROD_FIELDS.map((f) => {
           const parVal = f.key === "other" ? undefined : par[f.key as Branch];
@@ -1032,6 +1043,8 @@ function ProductionRow({
 // ── ใบสั่งผลิตพิมพ์ A4 — แยกจาก CSV เหมือนใบส่งของ ให้ทีมผลิตติ๊ก ☐ + เซ็นชื่อได้ ──
 interface ProdPrintRow { id: string; name: string; snd: string; nvp: string; kcn: string; other: string; total: string; note: string }
 const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 40;
+// ข้อ 17: หมวดพิเศษบนใบสั่งผลิต — ของที่มีอยู่แล้ว ไม่ต้องผลิตใหม่ แค่หยิบจากสต็อกเดิมไปส่ง
+const IN_STOCK_CATEGORY = "✅ มีของแล้ว — ไม่ต้องผลิต (หยิบจากสต็อกเดิม)";
 
 function ProductionPrintSheet({
   orderDate, deliveryDate, printGroups, totalCount, note,
@@ -1185,6 +1198,16 @@ function ProductionOrder({
 
   const [prodQty, setProdQty] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
   const [prodQtyG, setProdQtyG] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
+  // ข้อ 17: itemId ที่ติ๊ก "มีของแล้ว ไม่ต้องผลิต" — ยังส่งจำนวนตามปกติ แต่ใบพิมพ์แยกกลุ่มท้ายใบ
+  const [inStockIds, setInStockIds] = React.useState<Set<string>>(new Set());
+  function toggleInStock(itemId: string) {
+    setInStockIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
+      return next;
+    });
+    setDirty(true);
+  }
   const [extraRows, setExtraRows] = React.useState<ExtraRow[]>([]);
   const [extraName, setExtraName] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -1265,8 +1288,10 @@ function ProductionOrder({
         const qtyG: Record<string, Partial<Record<ProdField, string>>> = {};
         const extras: ExtraRow[] = [];
         const ids: Record<string, number> = {};
+        const inStock = new Set<string>(); // ข้อ 17 — แถวไหนติ๊กไว้ = ทั้งรายการนั้นติ๊ก
         for (const it of order.items) {
           if (it.itemId && it.branch) {
+            if (it.inStockNoProduce) inStock.add(it.itemId);
             const field = prodFieldFromBranchKey(it.branch);
             if (!qty[it.itemId]) qty[it.itemId] = {};
             if (!qtyG[it.itemId]) qtyG[it.itemId] = {};
@@ -1281,6 +1306,7 @@ function ProductionOrder({
         }
         setProdQty(qty);
         setProdQtyG(qtyG);
+        setInStockIds(inStock);
         setExtraRows(extras);
         setSavedItemIds(ids);
         setRemovedExtraIds([]);
@@ -1394,7 +1420,10 @@ function ProductionOrder({
         const existingId = savedItemIds[key];
         // ช่องที่ไม่เคย save และยังเป็น 0 อยู่ — ไม่ต้องส่งขึ้นไปเปล่าๆ (backend กรองซ้ำอีกชั้นตามข้อ 0.6 อยู่แล้ว)
         if (pack === 0 && gramQty === 0 && existingId == null) continue;
-        items.push({ id: existingId, itemId: it.id, branch: branchKeyFromProdField(f.key), qty: pack, qtyG: gramQty });
+        items.push({
+          id: existingId, itemId: it.id, branch: branchKeyFromProdField(f.key), qty: pack, qtyG: gramQty,
+          inStockNoProduce: inStockIds.has(it.id),
+        });
       }
     }
     for (const r of extraRows) {
@@ -1511,7 +1540,8 @@ function ProductionOrder({
       for (const it of g.items) {
         const total = totalFor(it);
         if (total.raw <= 0) continue;
-        pushRow(g.category, {
+        // ข้อ 17: ของที่มีอยู่แล้ว แยกไปกลุ่มท้ายใบ ทีมผลิตจะได้ไม่ผลิตซ้ำ แต่ยังเห็นว่าต้องหยิบไปส่ง
+        pushRow(inStockIds.has(it.id) ? IN_STOCK_CATEGORY : g.category, {
           id: it.id, name: it.name,
           snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
           total: total.text, note: "",
@@ -1521,7 +1551,7 @@ function ProductionOrder({
     for (const it of dept2Items) {
       const total = totalFor(it);
       if (total.raw <= 0) continue;
-      pushRow("แผนกอื่น", {
+      pushRow(inStockIds.has(it.id) ? IN_STOCK_CATEGORY : "แผนกอื่น", {
         id: it.id, name: it.name,
         snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
         total: total.text, note: "",
@@ -1530,8 +1560,11 @@ function ProductionOrder({
     for (const r of extraRows) {
       pushRow("รายการพิเศษ", { id: r.id, name: r.name, snd: "", nvp: "", kcn: "", other: r.unit || "", total: r.qty || "0", note: r.note });
     }
-    return out;
-  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG]);
+    // ข้อ 17: ดันกลุ่ม "มีของแล้ว" ไปท้ายใบเสมอ ไม่ว่าจะเจอรายการแรกตอนไหน
+    return out.sort((a, b) =>
+      (a.category === IN_STOCK_CATEGORY ? 1 : 0) - (b.category === IN_STOCK_CATEGORY ? 1 : 0)
+    );
+  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG, inStockIds]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -1598,6 +1631,8 @@ function ProductionOrder({
                     onChange={(f, v) => setProd(it.id, f, v)}
                     onChangeG={(f, v) => setProdG(it.id, f, v)}
                     reflected={isReflected(it.id)}
+                    inStock={inStockIds.has(it.id)}
+                    onToggleInStock={() => toggleInStock(it.id)}
                   />
                 ))}
               </div>
@@ -1622,6 +1657,8 @@ function ProductionOrder({
                   tone="orange"
                   isNew={NEW_ITEM_NAMES.includes(it.name)}
                   reflected={isReflected(it.id)}
+                  inStock={inStockIds.has(it.id)}
+                  onToggleInStock={() => toggleInStock(it.id)}
                 />
               ))}
             </div>

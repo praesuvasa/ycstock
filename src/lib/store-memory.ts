@@ -79,6 +79,7 @@ interface ProductionOrderRec {
 interface ProductionOrderItemRec {
   id: number; orderId: number; itemId?: string; branch?: ProdBranchKey;
   qty: number; qtyG: number; extraName?: string; extraUnit?: string; extraNote?: string;
+  inStockNoProduce?: boolean;
   confirmed: boolean; confirmedQty?: number; confirmedQtyG?: number;
   confirmedAt?: string; confirmedByUserId?: string; confirmedByName?: string;
   createdAt: string; updatedAt: string;
@@ -91,6 +92,7 @@ function prodOrderItemToDto(r: ProductionOrderItemRec): ProductionOrderItem {
   return {
     id: r.id, itemId: r.itemId, branch: r.branch, qty: r.qty, qtyG: r.qtyG,
     extraName: r.extraName, extraUnit: r.extraUnit, extraNote: r.extraNote,
+    inStockNoProduce: r.inStockNoProduce ?? false,
     confirmed: r.confirmed, confirmedQty: r.confirmedQty, confirmedQtyG: r.confirmedQtyG,
     confirmedAt: r.confirmedAt, confirmedByName: r.confirmedByName,
   };
@@ -784,6 +786,7 @@ export const memoryStore = {
       productionOrderItems.set(itemId, {
         id: itemId, orderId: id, itemId: i.itemId, branch: i.itemId ? i.branch : undefined,
         qty: i.qty, qtyG: i.qtyG, extraName: i.extraName, extraUnit: i.extraUnit, extraNote: i.extraNote,
+        inStockNoProduce: i.inStockNoProduce ?? false,
         confirmed: false, createdAt: now, updatedAt: now,
       });
     }
@@ -831,6 +834,7 @@ export const memoryStore = {
           productionOrderItems.set(itemId, {
             id: itemId, orderId: id, qty: row.qty, qtyG: row.qtyG,
             extraName: row.extraName, extraUnit: row.extraUnit, extraNote: row.extraNote,
+            inStockNoProduce: row.inStockNoProduce ?? false,
             confirmed: false, createdAt: now, updatedAt: now,
           });
         }
