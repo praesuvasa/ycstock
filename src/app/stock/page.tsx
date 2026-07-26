@@ -44,6 +44,11 @@ const COLLAPSIBLE_SUBGROUPS: { label: string; match: (it: Item) => boolean }[] =
 const subGroupOf = (it: Item): string | null =>
   COLLAPSIBLE_SUBGROUPS.find((sg) => sg.match(it))?.label ?? null;
 
+// เพดานช่อง "แพ็คเต็ม" ของรายการที่ชั่งกิโล/นับเศษ + ผลไม้ (แพรยืนยัน 2026-07-26)
+// ของกลุ่มนี้ Par สูงสุด 6 แพ็ค — พิมพ์เกิน 15 คือผิดแน่นอน ไม่ใช่ของเข้าเยอะจริง
+const PACK_CAP = 15;
+const isPackCapped = (it: Item | undefined): boolean => !!it && (it.hasRemainder || !!it.remainderGroup);
+
 // ── local compact UI (เฉพาะหน้านี้ — ห้ามแก้ shared ui kit signature) ──────────
 
 // tag แนวตั้งเล็กๆ แทนบรรทัดคำอธิบายเต็มความกว้างเดิม (ข้อมูลที่หายไปย้ายไปไว้ใน title/tooltip)
@@ -322,11 +327,18 @@ export default function StockPage() {
   type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG" | "returnedG";
   // คงเหลือแพ็ค = ยกมา + รับเข้า − ออก/ขาย − ส่งคืน/เสีย (ส่งคืนหักจากยอด stock)
   const calcRemainPack = (r: StockRow) => Math.max(r.carryPack + r.inPack - r.used - r.returned, 0);
+  const PACK_FIELDS = new Set<NumField>(["inPack", "used", "remainPack", "returned"]);
   function setField(itemId: string, field: NumField, raw: string, N: number) {
     setRows((prev) => {
       const cur = prev[itemId];
       if (!cur) return prev;
-      const val = toNum(raw);
+      let val = toNum(raw);
+      // จำกัดช่อง "แพ็คเต็ม" ไม่เกิน 15 เฉพาะของชั่งกิโล/นับเศษ + ผลไม้ (แพรยืนยัน 2026-07-26)
+      // กลุ่มนี้ Par สูงสุดแค่ 6 แพ็ค เกิน 15 คือพิมพ์ผิดแน่นอน (เคสจริง: Blueberry 500g โดนพิมพ์ 243)
+      // ของอื่น (Shake Par 80-100, ถุงกระดาษ Par 40, ฟอยล์แก้ว Par 30) ไม่จำกัด เพราะเข้าเยอะจริง
+      if (PACK_FIELDS.has(field) && isPackCapped(itemById.get(itemId))) {
+        val = Math.min(val, PACK_CAP);
+      }
       const next: StockRow = { ...cur };
       switch (field) {
         case "inPack": // รับเข้า (แพ็ค) → คงเหลือแพ็ค ปรับตาม
@@ -607,7 +619,7 @@ export default function StockPage() {
                   const isConfirmed = !!confirmed[it.id];
 
                   // จำกัดช่องแพ็ค ≤15 เฉพาะไอเทม hasRemainder === true (กันสลับกับช่องกรัม) — ไม่แตะบล็อกกรัม/กลุ่ม
-                  const packLimited = it.hasRemainder;
+                  const packLimited = isPackCapped(it);
                   const inPackWarn = packLimited && row.inPack > 15;
                   const usedWarn = packLimited && row.used > 15;
                   const remainPackWarn = packLimited && row.remainPack > 15;
