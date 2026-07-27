@@ -86,7 +86,7 @@ export default function ConfirmReceiptPage() {
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
         กรุณาตรวจสอบรายการและจำนวนให้ถูกต้องก่อนกดยืนยันรับสินค้า
         <span className="mt-1 block font-medium text-brand-ink/70">
-          ระบบติ๊ก &ldquo;ได้รับครบ&rdquo; ไว้ให้ทุกรายการแล้ว — แตะเปลี่ยนเป็นแดงเฉพาะตัวที่ไม่ได้รับ
+          ของมาครบกดปุ่ม &ldquo;เลือกทั้งหมด&rdquo; ได้เลย — แล้วแตะเปลี่ยนเป็นแดงเฉพาะตัวที่ไม่ได้รับ
           หรือแก้จำนวนที่ไม่ตรง แล้วกดยืนยันทีเดียว
         </span>
         <span className="mt-1 block text-brand-ink/60">
@@ -167,6 +167,12 @@ export default function ConfirmReceiptPage() {
 interface Draft { qty: string; qtyG: string }
 type Selection = "received" | "notReceived";
 
+// ของที่เข้าสาขาเป็นแพ็คปิดผนึกเสมอ — ตอน "รับของ" จึงไม่มีทางมีเศษกรัม (แพรระบุ 2026-07-28)
+// ** ใช้เฉพาะหน้ายืนยันรับของ ** หน้าสต็อก/สั่งของยังกรอกเศษกรัมได้ตามปกติ
+// เพราะเศษเกิดตอนเปิดกล่องใช้งาน ไม่ใช่ตอนรับเข้า — คนละจังหวะกัน
+const NO_GRAMS_CATEGORIES = new Set(["Toppings", "Softserve Toppings"]);
+const NO_GRAMS_ITEMS = new Set(["Greek Yogurt 1kg", "Plain Yogurt (ธรรมชาติ)"]);
+
 function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;
 }) {
@@ -181,9 +187,14 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const [batchSubmitting, setBatchSubmitting] = React.useState(false);
 
   const itemMeta = React.useMemo(() => new Map((meta?.items ?? []).map((it) => [it.id, it])), [meta]);
-  const showGrams = (itemId: string) => {
-    const it = itemMeta.get(itemId);
-    return !!it && (it.hasRemainder || it.variableYield);
+  const showGrams = (item: RestockReceiptStatus) => {
+    if (item.isExtra) return true; // ของนอกใบ ไม่รู้ว่ามาแบบไหน ให้กรอกได้เสมอ
+    const it = itemMeta.get(item.itemId);
+    if (!it || !(it.hasRemainder || it.variableYield)) return false;
+    const noGrams = NO_GRAMS_ITEMS.has(it.name) || NO_GRAMS_CATEGORIES.has(it.category);
+    // ยกเว้นให้โชว์ ถ้าใบสั่งของใบนั้นระบุเศษกรัมมาจริง — ไม่งั้นยอดที่ผิดจะแก้ไม่ได้เลย
+    // (ซ่อนช่องแล้วค่าเดิมยังถูกส่งไปบันทึกอยู่ดี จะกลายเป็นตัวเลขที่ไม่มีใครแตะได้)
+    return !noGrams || (item.orderedQtyG ?? 0) > 0;
   };
 
   const load = React.useCallback(() => {
@@ -191,18 +202,10 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     fetch(`/api/confirm-receipt?branch=${branch}&date=${date}`)
       .then((r) => r.json())
       .then((d: { items?: RestockReceiptStatus[] }) => {
-        const rows = d.items ?? [];
-        setItems(rows);
-        // ติ๊ก "ได้รับครบ" ไว้ให้ทุกรายการตั้งแต่แรก (แพรขอ 2026-07-27)
-        // ของที่ขาดหรือยอดไม่ตรงมีไม่กี่รายการ ให้แตะเปลี่ยนเฉพาะตัวนั้นเร็วกว่าไล่ติ๊กทีละอัน
-        // เติมเฉพาะตัวที่ยังไม่มีในลิสต์ — ไม่ทับสิ่งที่พนักงานเพิ่งเลือกไปแล้ว
-        setSelection((prev) => {
-          const next = { ...prev };
-          for (const it of rows) {
-            if (it.receivedQty === null && next[it.itemId] === undefined) next[it.itemId] = "received";
-          }
-          return next;
-        });
+        // เปิดหน้ามาไม่ติ๊กอะไรไว้เลย (แพรเปลี่ยนกลับ 2026-07-28)
+        // เคยลองติ๊กให้ล่วงหน้าแล้ว แต่มันเท่ากับระบบตอบแทนพนักงานว่า "ของมาครบ"
+        // ทั้งที่ยังไม่มีใครมอง — ให้กด "เลือกทั้งหมด" เองแทน จะได้เป็นการตัดสินใจของคน
+        setItems(d.items ?? []);
       })
       .finally(() => setLoading(false))
       .catch(() => setLoading(false));
@@ -287,16 +290,23 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const pendingItems = items.filter((i) => i.receivedQty === null);
   // นับว่า "เลือกแล้ว" ไม่ว่าจะติ๊กได้รับหรือไม่ได้รับ — ทั้งคู่ถือว่าพนักงานตัดสินใจแล้ว
   const allSelected = pendingItems.length > 0 && pendingItems.every((item) => !!selection[item.itemId]);
+  const selectedCount = pendingItems.filter((item) => !!selection[item.itemId]).length;
 
-  // ตอนนี้ระบบติ๊ก "ได้รับครบ" ไว้ให้ตั้งแต่โหลดแล้ว ปุ่มนี้จึงเป็นตัวช่วยกรณีอยากเริ่มใหม่
-  // (ล้างทั้งหมด → ไล่ติ๊กเอง) หรือติ๊กกลับทั้งหมดหลังล้างไปแล้ว
-  function toggleSelectAll() {
+  // 2 ปุ่มแยกกัน ไม่ใช่ปุ่มสลับ (แพรขอ 2026-07-28) — ปุ่มสลับต้องอ่านป้ายก่อนถึงจะรู้ว่ากดแล้วได้อะไร
+  // และป้ายจะเปลี่ยนไปมาตามสถานะ ทำให้ตำแหน่งเดิมทำคนละอย่างในแต่ละครั้ง
+  // ทั้งสองปุ่มแตะแค่สถานะติ๊ก ไม่ยุ่งกับ drafts (ตัวเลขแพ็ค/เศษกรัมที่กรอกไว้) — กดแล้วเลขไม่หาย
+  function selectAll() {
     setSelection((s) => {
       const next = { ...s };
-      for (const item of pendingItems) {
-        if (allSelected) delete next[item.itemId];
-        else next[item.itemId] = "received";
-      }
+      for (const item of pendingItems) next[item.itemId] = "received";
+      return next;
+    });
+  }
+
+  function clearAll() {
+    setSelection((s) => {
+      const next = { ...s };
+      for (const item of pendingItems) delete next[item.itemId];
       return next;
     });
   }
@@ -342,13 +352,24 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   return (
     <GlassCard>
       {pendingItems.length > 0 && (
-        <button
-          type="button"
-          onClick={toggleSelectAll}
-          className="mb-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink"
-        >
-          {allSelected ? "ล้างการติ๊กทั้งหมด" : "ติ๊ก \u201cได้รับครบ\u201d ทั้งหมด"}
-        </button>
+        <div className="mb-2 flex gap-1.5">
+          <button
+            type="button"
+            onClick={selectAll}
+            disabled={allSelected}
+            className="flex-1 rounded-lg border border-ok/40 bg-ok/10 px-3 py-1.5 text-[12px] font-semibold text-ok disabled:opacity-40"
+          >
+            เลือกทั้งหมด
+          </button>
+          <button
+            type="button"
+            onClick={clearAll}
+            disabled={selectedCount === 0}
+            className="flex-1 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink/70 disabled:opacity-40"
+          >
+            ยกเลิกเลือกทั้งหมด
+          </button>
+        </div>
       )}
       <div className="grid gap-1">
         {items.map((item) => {
@@ -401,7 +422,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                       className={`field w-9 shrink-0 px-1 py-1 text-center text-[12px] ${mismatch ? "border-warn/50 bg-warn/10" : ""} ${!editable ? "opacity-40" : ""}`}
                     />
-                    {(showGrams(item.itemId) || item.isExtra) && (
+                    {showGrams(item) && (
                       <div className="flex shrink-0 items-center gap-0.5">
                         <span className="text-[9.5px] text-brand-ink/40">+g</span>
                         <input
