@@ -86,6 +86,10 @@ export default function ConfirmReceiptPage() {
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
         กรุณาตรวจสอบรายการและจำนวนให้ถูกต้องก่อนกดยืนยันรับสินค้า
         <span className="mt-1 block font-medium text-brand-ink/70">
+          ระบบติ๊ก &ldquo;ได้รับครบ&rdquo; ไว้ให้ทุกรายการแล้ว — แตะเปลี่ยนเป็นแดงเฉพาะตัวที่ไม่ได้รับ
+          หรือแก้จำนวนที่ไม่ตรง แล้วกดยืนยันทีเดียว
+        </span>
+        <span className="mt-1 block text-brand-ink/60">
           รายการที่ยืนยันแล้ว จะถูกใส่ในช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกให้อัตโนมัติ — ไม่ต้องกรอกซ้ำ
         </span>
       </div>
@@ -186,7 +190,20 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     setLoading(true);
     fetch(`/api/confirm-receipt?branch=${branch}&date=${date}`)
       .then((r) => r.json())
-      .then((d: { items?: RestockReceiptStatus[] }) => setItems(d.items ?? []))
+      .then((d: { items?: RestockReceiptStatus[] }) => {
+        const rows = d.items ?? [];
+        setItems(rows);
+        // ติ๊ก "ได้รับครบ" ไว้ให้ทุกรายการตั้งแต่แรก (แพรขอ 2026-07-27)
+        // ของที่ขาดหรือยอดไม่ตรงมีไม่กี่รายการ ให้แตะเปลี่ยนเฉพาะตัวนั้นเร็วกว่าไล่ติ๊กทีละอัน
+        // เติมเฉพาะตัวที่ยังไม่มีในลิสต์ — ไม่ทับสิ่งที่พนักงานเพิ่งเลือกไปแล้ว
+        setSelection((prev) => {
+          const next = { ...prev };
+          for (const it of rows) {
+            if (it.receivedQty === null && next[it.itemId] === undefined) next[it.itemId] = "received";
+          }
+          return next;
+        });
+      })
       .finally(() => setLoading(false))
       .catch(() => setLoading(false));
   }, [branch, date]);
@@ -271,7 +288,8 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   // นับว่า "เลือกแล้ว" ไม่ว่าจะติ๊กได้รับหรือไม่ได้รับ — ทั้งคู่ถือว่าพนักงานตัดสินใจแล้ว
   const allSelected = pendingItems.length > 0 && pendingItems.every((item) => !!selection[item.itemId]);
 
-  // กดครั้งแรก = เลือกทั้งหมด (ได้รับ) · กดซ้ำ (ตอนเลือกครบแล้ว) = เอาที่ติ๊กออกทั้งหมด
+  // ตอนนี้ระบบติ๊ก "ได้รับครบ" ไว้ให้ตั้งแต่โหลดแล้ว ปุ่มนี้จึงเป็นตัวช่วยกรณีอยากเริ่มใหม่
+  // (ล้างทั้งหมด → ไล่ติ๊กเอง) หรือติ๊กกลับทั้งหมดหลังล้างไปแล้ว
   function toggleSelectAll() {
     setSelection((s) => {
       const next = { ...s };
@@ -329,7 +347,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           onClick={toggleSelectAll}
           className="mb-2 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink"
         >
-          {allSelected ? "เอาที่เลือกออกทั้งหมด" : "เลือกทั้งหมด"}
+          {allSelected ? "ล้างการติ๊กทั้งหมด" : "ติ๊ก \u201cได้รับครบ\u201d ทั้งหมด"}
         </button>
       )}
       <div className="grid gap-1">
