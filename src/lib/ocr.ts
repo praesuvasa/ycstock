@@ -123,3 +123,66 @@ export function describeMismatch(enteredAmount: number, ocr: OcrResult, checkNam
   const suffix = !amountWrong ? " (ยอดถูกต้อง)" : "";
   return `${reasons.join(" และ ")}ไม่ตรงกับที่ควรจะเป็น${suffix}`;
 }
+
+// ── อ่านบิลสิทธิ์พนักงาน (v1.13 เฟส 2) ──
+// ต่างจาก readEvidenceImage ตรงที่บิลหน้าร้านมี 3 ตัวเลขที่ต้องแยกให้ออก (เต็ม/ส่วนลด/จ่ายจริง)
+// ยอดที่ตัดสิทธิ์คือ "ส่วนลด" เท่านั้น — อ่านผิดช่องแล้วสิทธิ์จะเพี้ยนทันที จึงบังคับให้ตอบครบทั้ง 3
+export interface BillReading {
+  billTotal: number | null;
+  discountAmount: number | null;
+  paidAmount: number | null;
+  billDate: string | null;   // yyyy-mm-dd
+  clarity: "clear" | "unclear";
+}
+
+export async function readStaffBillImage(base64: string, mediaType: string): Promise<BillReading> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY — ติดต่อแอดมินเพื่อเปิดใช้การอ่านยอดอัตโนมัติ");
+
+  const schema = {
+    type: "object",
+    properties: {
+      billTotal: { type: ["number", "null"], description: "ยอดรวมก่อนหักส่วนลด (subtotal / ยอดสินค้า) เป็นตัวเลขล้วน — null ถ้าอ่านไม่ได้" },
+      discountAmount: { type: ["number", "null"], description: "ยอดส่วนลดบนบิล เป็นเลขบวก (ถ้าบิลเขียนติดลบ ให้ตอบค่าสัมบูรณ์) — null ถ้าบิลนี้ไม่มีส่วนลด" },
+      paidAmount: { type: ["number", "null"], description: "ยอดสุทธิที่ลูกค้าจ่ายจริงหลังหักส่วนลด (grand total / ยอดชำระ) — null ถ้าอ่านไม่ได้" },
+      billDate: { type: ["string", "null"], description: "วันที่บนบิลในรูปแบบ YYYY-MM-DD (แปลง พ.ศ. เป็น ค.ศ. ให้ด้วยถ้าบิลเป็น พ.ศ.) — null ถ้าไม่มี/อ่านไม่ออก" },
+      clarity: { type: "string", enum: ["clear", "unclear"], description: "unclear ถ้าภาพไม่ชัดจนไม่มั่นใจตัวเลข หรือแยกไม่ออกว่าตัวไหนคือส่วนลด" },
+    },
+    required: ["billTotal", "discountAmount", "paidAmount", "billDate", "clarity"],
+  };
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 512,
+      tools: [{ name: "report_bill", description: "รายงานตัวเลขที่อ่านได้จากบิลหน้าร้าน", input_schema: schema }],
+      tool_choice: { type: "tool", name: "report_bill" },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: "อ่านบิลขายหน้าร้านนี้ แล้วรายงาน 1) ยอดรวมก่อนหักส่วนลด 2) ยอดส่วนลด 3) ยอดสุทธิที่จ่ายจริง 4) วันที่บนบิล — ถ้าบิลไม่มีบรรทัดส่วนลดเลย ให้ discountAmount เป็น null อย่าเดา" },
+        ],
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Anthropic API error (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const toolUse = (data?.content ?? []).find((b: any) => b.type === "tool_use");
+  if (!toolUse) throw new Error("อ่านผลจาก Claude ไม่สำเร็จ (ไม่มี tool_use block)");
+  const i = toolUse.input ?? {};
+  const numOrNull = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.abs(v) : null);
+  return {
+    billTotal: numOrNull(i.billTotal),
+    discountAmount: numOrNull(i.discountAmount),
+    paidAmount: numOrNull(i.paidAmount),
+    billDate: typeof i.billDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(i.billDate) ? i.billDate : null,
+    clarity: i.clarity === "unclear" ? "unclear" : "clear",
+  };
+}

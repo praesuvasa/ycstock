@@ -69,6 +69,12 @@ export async function POST(req: Request) {
     if (billTotal > 0 && Math.abs(billTotal - discountAmount - paidAmount) > 0.5) {
       reasons.push(`ยอดไม่สัมพันธ์กัน (${billTotal} − ${discountAmount} ≠ ${paidAmount})`);
     }
+    // OCR อ่านได้ยอดหนึ่ง แต่พนักงานแก้เป็นอีกยอด — อาจเป็นการแก้ที่ถูกต้อง (รูปไม่ชัด)
+    // หรือเป็นการพิมพ์ทับให้ตัวเองได้เยอะขึ้น แยกกันเองไม่ได้ → ให้แอดมินดู
+    const ocrDiscount = body?.ocrDiscount == null ? null : num(body.ocrDiscount);
+    if (ocrDiscount != null && Math.abs(ocrDiscount - discountAmount) > 1) {
+      reasons.push(`ยอดที่กรอก ${discountAmount} ต่างจากที่อ่านได้จากรูป ${ocrDiscount}`);
+    }
 
     // รูปบิลเป็นตัวเลือก — เฟส 1 กรอกยอดเอง รูปเก็บไว้เป็นหลักฐานให้แอดมินย้อนดู
     let imagePath: string | null = null;
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
       userId: s.userId,
       userName: s.name,
       branch: s.branchScope === "all" ? null : (s.branchScope as Branch),
-      useDate, billTotal, discountAmount, paidAmount, imagePath,
+      useDate, billTotal, discountAmount, paidAmount, imagePath, ocrDiscount,
       needsReview: reasons.length > 0,
       reviewNote: reasons.join(" · "),
       note: String(body?.note ?? "").trim(),

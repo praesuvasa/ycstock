@@ -205,6 +205,7 @@ export interface StaffAllowanceUse {
   paidAmount: number;     // จ่ายเองส่วนที่เกิน
   imagePath?: string | null;
   imageUrl?: string;      // signed url — ใส่ตอนตอบ API เท่านั้น
+  ocrDiscount?: number | null; // ยอดส่วนลดที่ OCR อ่านได้ — ต่างจากที่กรอก = ส่งให้แอดมินตรวจ
   needsReview: boolean;
   reviewNote: string;
   note: string;

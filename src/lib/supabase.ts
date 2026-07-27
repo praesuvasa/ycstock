@@ -112,7 +112,8 @@ const userRow = (r: any): User => ({
 const allowanceRow = (r: any): StaffAllowanceUse => ({
   id: r.id, userId: r.user_id, branch: r.branch_id ?? null, useDate: r.use_date,
   billTotal: Number(r.bill_total), discountAmount: Number(r.discount_amount), paidAmount: Number(r.paid_amount),
-  imagePath: r.image_path ?? null, needsReview: !!r.needs_review, reviewNote: r.review_note ?? "",
+  imagePath: r.image_path ?? null, ocrDiscount: r.ocr_discount == null ? null : Number(r.ocr_discount),
+  needsReview: !!r.needs_review, reviewNote: r.review_note ?? "",
   note: r.note ?? "", userName: r.created_by_name ?? undefined, createdAt: r.created_at,
 });
 
@@ -471,7 +472,7 @@ export const supabaseStore = {
   async listAllowanceUses(userId: string, month: string): Promise<StaffAllowanceUse[]> {
     const { from, to } = monthRange(month);
     const { data, error } = await sb().from("staff_allowance_uses")
-      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,needs_review,review_note,note,created_by_name,created_at")
+      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,ocr_discount,needs_review,review_note,note,created_by_name,created_at")
       .eq("user_id", userId).gte("use_date", from).lt("use_date", to)
       .order("use_date", { ascending: false }).order("id", { ascending: false }).limit(500);
     if (error) throw error;
@@ -485,7 +486,7 @@ export const supabaseStore = {
       .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").eq("allowance_enabled", true).eq("active", true).order("created_at");
     if (uErr) throw uErr;
     const { data: uses, error: rErr } = await sb().from("staff_allowance_uses")
-      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,needs_review,review_note,note,created_by_name,created_at")
+      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,ocr_discount,needs_review,review_note,note,created_by_name,created_at")
       .gte("use_date", from).lt("use_date", to)
       .order("use_date", { ascending: false }).limit(2000);
     if (rErr) throw rErr;
@@ -508,7 +509,8 @@ export const supabaseStore = {
     const { error } = await sb().from("staff_allowance_uses").insert({
       user_id: row.userId, branch_id: row.branch ?? null, use_date: row.useDate,
       bill_total: row.billTotal, discount_amount: row.discountAmount, paid_amount: row.paidAmount,
-      image_path: row.imagePath ?? null, needs_review: row.needsReview, review_note: row.reviewNote,
+      image_path: row.imagePath ?? null, ocr_discount: row.ocrDiscount ?? null,
+      needs_review: row.needsReview, review_note: row.reviewNote,
       note: row.note, created_by_name: row.userName ?? null,
     });
     if (error) throw error;

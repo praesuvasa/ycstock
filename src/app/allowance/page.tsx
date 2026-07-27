@@ -67,6 +67,10 @@ export default function AllowancePage() {
   const [discount, setDiscount] = React.useState("");
   const [note, setNote] = React.useState("");
   const [image, setImage] = React.useState<{ base64: string; mediaType: string; preview: string } | null>(null);
+  // OCR อ่านบิลให้ (เฟส 2) — ผลที่ได้แค่ "เติมให้" พนักงานยังต้องตรวจก่อนกดบันทึกเสมอ
+  const [ocrState, setOcrState] = React.useState<"idle" | "reading" | "done" | "failed">("idle");
+  const [ocrMsg, setOcrMsg] = React.useState("");
+  const [ocrDiscount, setOcrDiscount] = React.useState<number | null>(null);
 
   const toNum = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   // จ่ายเอง = ยอดเต็ม − ส่วนลด · คำนวณให้ ไม่ให้กรอกเอง จะได้ไม่มีทางกรอกขัดกันเอง
@@ -81,9 +85,45 @@ export default function AllowancePage() {
     const reader = new FileReader();
     reader.onload = () => {
       const url = String(reader.result);
-      setImage({ base64: url.split(",")[1] ?? "", mediaType: f.type, preview: url });
+      const base64 = url.split(",")[1] ?? "";
+      setImage({ base64, mediaType: f.type, preview: url });
+      readBill(base64, f.type);
     };
     reader.readAsDataURL(f);
+  }
+
+  // เติมช่องให้จากรูป — เติมเฉพาะช่องที่ยังว่าง ไม่ทับที่พนักงานพิมพ์ไปแล้ว
+  async function readBill(base64: string, mediaType: string) {
+    setOcrState("reading");
+    setOcrMsg("");
+    setOcrDiscount(null);
+    try {
+      const res = await fetch("/api/allowance/read-bill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType }),
+      });
+      const d = await res.json();
+      if (d?.error || !d?.reading) throw new Error(d?.error ?? "อ่านบิลไม่สำเร็จ");
+      const r = d.reading as { billTotal: number | null; discountAmount: number | null; billDate: string | null; clarity: string };
+      if (r.billTotal != null) setBillTotal((v) => (v ? v : String(r.billTotal)));
+      if (r.discountAmount != null) setDiscount((v) => (v ? v : String(r.discountAmount)));
+      if (r.billDate) setUseDate((v) => (v === todayISO() ? r.billDate! : v));
+      setOcrDiscount(r.discountAmount);
+      if (r.clarity === "unclear") {
+        setOcrState("failed");
+        setOcrMsg("รูปไม่ชัดพอ — กรอกยอดเองแล้วตรวจอีกครั้งก่อนบันทึก");
+      } else if (r.discountAmount == null) {
+        setOcrState("failed");
+        setOcrMsg("ไม่เจอบรรทัดส่วนลดบนบิลนี้ — กรอกยอดเอง");
+      } else {
+        setOcrState("done");
+        setOcrMsg("อ่านยอดจากรูปให้แล้ว ตรวจให้ตรงก่อนกดบันทึก");
+      }
+    } catch (e: any) {
+      setOcrState("failed");
+      setOcrMsg(String(e?.message ?? e) + " — กรอกยอดเองได้ตามปกติ");
+    }
   }
 
   async function save() {
@@ -95,13 +135,14 @@ export default function AllowancePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           useDate, billTotal: toNum(billTotal), discountAmount: toNum(discount), paidAmount: paid, note,
-          imageBase64: image?.base64, mediaType: image?.mediaType,
+          ocrDiscount, imageBase64: image?.base64, mediaType: image?.mediaType,
         }),
       });
       const d = await res.json();
       if (!res.ok || !d?.ok) throw new Error(d?.error ?? "บันทึกไม่สำเร็จ");
       window.alert(d.needsReview ? `บันทึกแล้ว — แต่ส่งให้แอดมินตรวจ\n${d.reviewNote}` : "บันทึกการใช้สิทธิ์แล้ว ✓");
       setBillTotal(""); setDiscount(""); setNote(""); setImage(null);
+      setOcrState("idle"); setOcrMsg(""); setOcrDiscount(null);
       loadMine();
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
@@ -192,9 +233,18 @@ export default function AllowancePage() {
                 )}
 
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-brand-ink/50">รูปบิล (ไม่บังคับ แต่แนบไว้จะตรวจย้อนหลังได้)</span>
+                  <span className="text-[11px] text-brand-ink/50">รูปบิล — แนบแล้วระบบอ่านยอดให้อัตโนมัติ</span>
                   <input type="file" accept="image/*" capture="environment" onChange={pickImage} className="text-[12px]" />
                 </label>
+                {ocrState !== "idle" && (
+                  <p className={`rounded-lg px-2.5 py-2 text-[11.5px] leading-relaxed ${
+                    ocrState === "reading" ? "bg-black/[.03] text-brand-ink/55"
+                      : ocrState === "done" ? "bg-ok/10 text-ok"
+                      : "bg-warn/10 text-warn"
+                  }`}>
+                    {ocrState === "reading" ? "กำลังอ่านยอดจากรูป…" : ocrMsg}
+                  </p>
+                )}
                 {image && <img src={image.preview} alt="บิล" className="max-h-52 w-full rounded-lg object-contain" />}
 
                 <label className="flex flex-col gap-1">
