@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Role, BranchScope } from "@/lib/types";
 
-export type Me = { id: string; name: string; role: Role; branchScope: BranchScope };
+export type Me = { id: string; name: string; role: Role; branchScope: BranchScope; allowanceEnabled?: boolean };
 
 type Tab = { href: string; label: string; icon: string };
 
@@ -18,6 +18,7 @@ const USER_TABS: Tab[] = [
   { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
   { href: "/return-form", label: "ใบส่งคืน", icon: "🧾" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
+  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "🎟️" },
 ];
 const ADMIN_TABS: Tab[] = [
   { href: "/", label: "หน้าหลัก", icon: "🏠" },
@@ -32,6 +33,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
   { href: "/return-form", label: "ใบส่งคืน", icon: "🧾" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
+  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "🎟️" },
 ];
 const ADMIN_MENU: Tab[] = [
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "🚩" },
@@ -45,8 +47,12 @@ const RESTOCK_TABS: Tab[] = [
   { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "📦" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
 ];
-const tabsForRole = (role: Role | undefined): Tab[] =>
-  role === "admin" ? ADMIN_TABS : role === "restock" ? RESTOCK_TABS : USER_TABS;
+// เมนู "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว (v1.13)
+// ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้ — พนักงานบางคนยังไม่ได้รับสิทธิ์ กันคำถาม "ทำไมหนูไม่มี"
+const tabsForMe = (me: Me | null): Tab[] => {
+  const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
+  return me?.allowanceEnabled ? base : base.filter((t) => t.href !== "/allowance");
+};
 
 // context ให้ทุกส่วน (nav + หน้า) แชร์ me (โหลดครั้งเดียว)
 const MeCtx = React.createContext<Me | null>(null);
@@ -228,7 +234,7 @@ function Sidebar() {
   const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
   const logout = useLogout();
-  const tabs = tabsForRole(me?.role);
+  const tabs = tabsForMe(me);
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const tabBadge = (href: string) =>
     href === "/requisitions" ? unseenReq
@@ -323,7 +329,7 @@ function BottomNav() {
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
-  const tabs = tabsForRole(me?.role);
+  const tabs = tabsForMe(me);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden print:hidden">
       <div className="mx-auto flex max-w-3xl">

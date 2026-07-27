@@ -1,9 +1,9 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, StaffAllowanceUse, AllowanceSummary } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
-import { variance, restockNeed, isSpecialActive } from "./calc";
+import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // ── users + audit (memory) ──
@@ -67,6 +67,10 @@ const paymentIncidents = new Map<string, PaymentIncidentRec[]>();
 
 // ตรวจวันหมดอายุ (v1.12) — key = `${branch}|${checkDate}` เก็บทั้งชุดต่อรอบตรวจ
 const expiryChecks = new Map<string, ExpiryCheckRow[]>();
+
+// สิทธิ์ซื้อของในร้าน (v1.13) — 1 แถว = 1 บิลที่ใช้สิทธิ์
+const allowanceUses: StaffAllowanceUse[] = [];
+let allowanceSeq = 1;
 
 // ── ยืนยันรับของ (v1.9) ──
 interface RestockReceiptRec {
@@ -467,16 +471,48 @@ export const memoryStore = {
     const { passcodeHash, ...pub } = u;
     return pub;
   },
-  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }): User | null {
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number }): User | null {
     const u = users.find((x) => x.id === id);
     if (!u) return null;
     if (patch.name !== undefined) u.name = patch.name;
     if (patch.role !== undefined) u.role = patch.role;
     if (patch.branchScope !== undefined) u.branchScope = patch.branchScope;
     if (patch.active !== undefined) u.active = patch.active;
+    if (patch.allowanceEnabled !== undefined) u.allowanceEnabled = patch.allowanceEnabled;
+    if (patch.allowanceMonthly !== undefined) u.allowanceMonthly = patch.allowanceMonthly;
     if (patch.passcode) u.passcodeHash = hashPasscode(patch.passcode);
     const { passcodeHash, ...pub } = u;
     return pub;
+  },
+
+  // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
+  listAllowanceUses(userId: string, month: string): StaffAllowanceUse[] {
+    const { from, to } = monthRange(month);
+    return allowanceUses
+      .filter((r) => r.userId === userId && r.useDate >= from && r.useDate < to)
+      .sort((a, b) => (a.useDate < b.useDate ? 1 : -1))
+      .map((r) => ({ ...r }));
+  },
+  getAllowanceOverview(month: string): { summaries: AllowanceSummary[]; needsReview: StaffAllowanceUse[] } {
+    const { from, to } = monthRange(month);
+    const inMonth = allowanceUses.filter((r) => r.useDate >= from && r.useDate < to);
+    const usedBy = new Map<string, number>();
+    for (const r of inMonth) usedBy.set(r.userId, (usedBy.get(r.userId) ?? 0) + r.discountAmount);
+    const nameBy = new Map(users.map((u) => [u.id, u.name]));
+    const summaries: AllowanceSummary[] = users
+      .filter((u) => u.allowanceEnabled && u.active)
+      .map((u) => {
+        const monthly = u.allowanceMonthly ?? ALLOWANCE_DEFAULT_MONTHLY;
+        const used = usedBy.get(u.id) ?? 0;
+        return { userId: u.id, userName: u.name, branchScope: u.branchScope, monthly, used, remaining: Math.max(monthly - used, 0) };
+      });
+    const needsReview = inMonth
+      .filter((r) => r.needsReview)
+      .map((r) => ({ ...r, userName: nameBy.get(r.userId) ?? r.userId }));
+    return { summaries, needsReview };
+  },
+  addAllowanceUse(row: StaffAllowanceUse): void {
+    allowanceUses.push({ ...row, id: allowanceSeq++, createdAt: new Date().toISOString() });
   },
 
   // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──

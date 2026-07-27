@@ -55,7 +55,7 @@ export async function PATCH(req: Request) {
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
 
-    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string } = {};
+    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number } = {};
     if (typeof body.name === "string") patch.name = body.name.trim();
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
@@ -66,6 +66,12 @@ export async function PATCH(req: Request) {
       patch.branchScope = body.branchScope;
     }
     if (typeof body.active === "boolean") patch.active = body.active;
+    if (typeof body.allowanceEnabled === "boolean") patch.allowanceEnabled = body.allowanceEnabled;
+    if (body.allowanceMonthly !== undefined) {
+      const m = Number(body.allowanceMonthly);
+      if (!Number.isFinite(m) || m < 0) return NextResponse.json({ error: "วงเงินไม่ถูกต้อง" }, { status: 400 });
+      patch.allowanceMonthly = m;
+    }
     if (typeof body.passcode === "string" && body.passcode.trim()) patch.passcode = body.passcode.trim();
 
     const user = await db.updateUser(id, patch);

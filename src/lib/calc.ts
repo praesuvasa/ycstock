@@ -161,3 +161,17 @@ export function expiryStatus(expiryDate: string, checkDate: string, warnDays: nu
   if (left < 0) return "expired";
   return left <= effectiveWarnDays(warnDays, weekdayFromDate(checkDate)) ? "near" : "ok";
 }
+
+// ── สิทธิ์ซื้อของในร้าน (v1.13) ──
+export const monthKeyOf = (dateISO: string): string => dateISO.slice(0, 7);
+
+/** ช่วงวันของเดือน "YYYY-MM" — to เป็นแบบ exclusive (วันที่ 1 ของเดือนถัดไป) */
+export function monthRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  const nextY = m === 12 ? y + 1 : y;
+  const nextM = m === 12 ? 1 : m + 1;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { from: `${y}-${pad(m)}-01`, to: `${nextY}-${pad(nextM)}-01` };
+}
+
+export const ALLOWANCE_DEFAULT_MONTHLY = 400;

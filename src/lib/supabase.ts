@@ -1,8 +1,8 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
 import { BRANCHES } from "./types";
-import { variance, restockNeed, isSpecialActive } from "./calc";
+import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { verifyPasscode, hashPasscode } from "./auth";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
@@ -102,6 +102,19 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
     if (insErr) throw insErr;
   }
 }
+
+const userRow = (r: any): User => ({
+  id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active,
+  allowanceEnabled: r.allowance_enabled ?? false,
+  allowanceMonthly: Number(r.allowance_monthly ?? ALLOWANCE_DEFAULT_MONTHLY),
+});
+
+const allowanceRow = (r: any): StaffAllowanceUse => ({
+  id: r.id, userId: r.user_id, branch: r.branch_id ?? null, useDate: r.use_date,
+  billTotal: Number(r.bill_total), discountAmount: Number(r.discount_amount), paidAmount: Number(r.paid_amount),
+  imagePath: r.image_path ?? null, needsReview: !!r.needs_review, reviewNote: r.review_note ?? "",
+  note: r.note ?? "", userName: r.created_by_name ?? undefined, createdAt: r.created_at,
+});
 
 export const supabaseStore = {
   async getMeta(): Promise<Meta> {
@@ -427,8 +440,8 @@ export const supabaseStore = {
     return null;
   },
   async listUsers(): Promise<User[]> {
-    const { data } = await sb().from("users").select("id,name,role,branch_scope,active").order("created_at");
-    return (data ?? []).map((r: any) => ({ id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active }));
+    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").order("created_at");
+    return (data ?? []).map(userRow);
   },
   async createUser(input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }): Promise<User> {
     const id = "u-" + Math.abs(Date.now() % 1_000_000).toString(36);
@@ -439,17 +452,66 @@ export const supabaseStore = {
     if (error) throw error;
     return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true };
   },
-  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }): Promise<User | null> {
+  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number }): Promise<User | null> {
     const upd: any = {};
     if (patch.name !== undefined) upd.name = patch.name;
     if (patch.role !== undefined) upd.role = patch.role;
     if (patch.branchScope !== undefined) upd.branch_scope = patch.branchScope;
     if (patch.active !== undefined) upd.active = patch.active;
+    if (patch.allowanceEnabled !== undefined) upd.allowance_enabled = patch.allowanceEnabled;
+    if (patch.allowanceMonthly !== undefined) upd.allowance_monthly = patch.allowanceMonthly;
     if (patch.passcode) upd.passcode_hash = hashPasscode(patch.passcode);
-    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active").maybeSingle();
+    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").maybeSingle();
     if (error) throw error;
-    if (!data) return null;
-    return { id: data.id, name: data.name, role: data.role, branchScope: data.branch_scope, active: data.active };
+    return data ? userRow(data) : null;
+  },
+
+  // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
+  // ยอดที่ตัดสิทธิ์คือ discount_amount เท่านั้น (ส่วนลดบนบิล) ไม่ใช่ยอดที่จ่ายจริง
+  async listAllowanceUses(userId: string, month: string): Promise<StaffAllowanceUse[]> {
+    const { from, to } = monthRange(month);
+    const { data, error } = await sb().from("staff_allowance_uses")
+      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,needs_review,review_note,note,created_by_name,created_at")
+      .eq("user_id", userId).gte("use_date", from).lt("use_date", to)
+      .order("use_date", { ascending: false }).order("id", { ascending: false }).limit(500);
+    if (error) throw error;
+    return (data ?? []).map(allowanceRow);
+  },
+
+  // ภาพรวมทุกคนที่เปิดสิทธิ์ + บิลที่ต้องตรวจของเดือนนั้น (แอดมิน)
+  async getAllowanceOverview(month: string): Promise<{ summaries: AllowanceSummary[]; needsReview: StaffAllowanceUse[] }> {
+    const { from, to } = monthRange(month);
+    const { data: users, error: uErr } = await sb().from("users")
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").eq("allowance_enabled", true).eq("active", true).order("created_at");
+    if (uErr) throw uErr;
+    const { data: uses, error: rErr } = await sb().from("staff_allowance_uses")
+      .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,needs_review,review_note,note,created_by_name,created_at")
+      .gte("use_date", from).lt("use_date", to)
+      .order("use_date", { ascending: false }).limit(2000);
+    if (rErr) throw rErr;
+
+    const usedBy = new Map<string, number>();
+    for (const r of uses ?? []) usedBy.set(r.user_id, (usedBy.get(r.user_id) ?? 0) + Number(r.discount_amount));
+    const nameBy = new Map((users ?? []).map((u: any) => [u.id, u.name as string]));
+
+    const summaries: AllowanceSummary[] = (users ?? []).map((u: any) => {
+      const monthly = Number(u.allowance_monthly ?? ALLOWANCE_DEFAULT_MONTHLY);
+      const used = usedBy.get(u.id) ?? 0;
+      return { userId: u.id, userName: u.name, branchScope: u.branch_scope, monthly, used, remaining: Math.max(monthly - used, 0) };
+    });
+    const needsReview = (uses ?? []).filter((r: any) => r.needs_review)
+      .map((r: any) => ({ ...allowanceRow(r), userName: nameBy.get(r.user_id) ?? r.user_id }));
+    return { summaries, needsReview };
+  },
+
+  async addAllowanceUse(row: StaffAllowanceUse): Promise<void> {
+    const { error } = await sb().from("staff_allowance_uses").insert({
+      user_id: row.userId, branch_id: row.branch ?? null, use_date: row.useDate,
+      bill_total: row.billTotal, discount_amount: row.discountAmount, paid_amount: row.paidAmount,
+      image_path: row.imagePath ?? null, needs_review: row.needsReview, review_note: row.reviewNote,
+      note: row.note, created_by_name: row.userName ?? null,
+    });
+    if (error) throw error;
   },
 
   // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──

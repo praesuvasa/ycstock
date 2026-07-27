@@ -156,6 +156,24 @@ export default function UsersPage() {
                       <Segmented options={SCOPE_OPTS} value={u.branchScope}
                         onChange={(v) => v !== u.branchScope && patch(u.id, { branchScope: v })} />
                     </div>
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-black/[.03] px-2.5 py-2">
+                      <div className="min-w-0">
+                        <div className="text-[12.5px]">สิทธิ์ซื้อของในร้าน</div>
+                        <div className="text-[10.5px] text-brand-ink/45">
+                          {u.allowanceEnabled ? `฿${u.allowanceMonthly ?? 400}/เดือน · เห็นเมนูนี้` : "ยังไม่ได้รับสิทธิ์ · ไม่เห็นเมนู"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => patch(u.id, { allowanceEnabled: !u.allowanceEnabled })}
+                        disabled={busy === u.id}
+                        className={`shrink-0 rounded-lg px-3 py-1.5 text-[12px] font-medium transition ${
+                          u.allowanceEnabled ? "bg-brand-red text-white" : "border border-black/10 bg-white/70 text-brand-ink"
+                        }`}
+                      >
+                        {u.allowanceEnabled ? "เปิดอยู่" : "เปิดสิทธิ์"}
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <Button variant="ghost" onClick={() => patch(u.id, { active: !u.active })} disabled={busy === u.id}>
                         {u.active ? "ปิดการใช้งาน" : "เปิดใช้งาน"}

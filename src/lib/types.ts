@@ -187,6 +187,37 @@ export interface User {
   role: Role;
   branchScope: BranchScope;
   active: boolean;
+  // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
+  allowanceEnabled?: boolean;  // false = ยังไม่ได้รับสิทธิ์ → ไม่เห็นเมนูนี้เลย
+  allowanceMonthly?: number;   // วงเงินต่อเดือน (default 400)
+}
+
+// ── สิทธิ์ซื้อของในร้าน (v1.13) — วงเงินส่วนลด 400 บาท/คน/เดือน คิดที่ราคาขายเต็ม ──
+// แบ่งใช้หลายบิลได้ · ยอดที่ตัดสิทธิ์คือ "ส่วนลดบนบิล" ไม่ใช่ยอดที่จ่ายจริง
+export interface StaffAllowanceUse {
+  id?: number;
+  userId: string;
+  userName?: string;
+  branch?: Branch | null;
+  useDate: string;        // yyyy-mm-dd
+  billTotal: number;      // ยอดเต็มก่อนลด
+  discountAmount: number; // ยอดที่ตัดจากสิทธิ์
+  paidAmount: number;     // จ่ายเองส่วนที่เกิน
+  imagePath?: string | null;
+  imageUrl?: string;      // signed url — ใส่ตอนตอบ API เท่านั้น
+  needsReview: boolean;
+  reviewNote: string;
+  note: string;
+  createdAt?: string;
+}
+
+export interface AllowanceSummary {
+  userId: string;
+  userName: string;
+  branchScope: BranchScope;
+  monthly: number;
+  used: number;
+  remaining: number;
 }
 
 export interface Session {

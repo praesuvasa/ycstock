@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -55,7 +55,7 @@ export const db = {
     useSupabase ? supabaseStore.listUsers() : Promise.resolve(memoryStore.listUsers()),
   createUser: (input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }) =>
     useSupabase ? supabaseStore.createUser(input) : Promise.resolve(memoryStore.createUser(input)),
-  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string }) =>
+  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number }) =>
     useSupabase ? supabaseStore.updateUser(id, patch) : Promise.resolve(memoryStore.updateUser(id, patch)),
   writeAudit: (e: Omit<AuditEntry, "id" | "ts">) =>
     useSupabase ? supabaseStore.writeAudit(e) : Promise.resolve(memoryStore.writeAudit(e)),
@@ -131,6 +131,22 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
+  listAllowanceUses: (userId: string, month: string): Promise<StaffAllowanceUse[]> =>
+    useSupabase
+      ? supabaseStore.listAllowanceUses(userId, month)
+      : Promise.resolve(memoryStore.listAllowanceUses(userId, month)),
+
+  getAllowanceOverview: (month: string): Promise<{ summaries: AllowanceSummary[]; needsReview: StaffAllowanceUse[] }> =>
+    useSupabase
+      ? supabaseStore.getAllowanceOverview(month)
+      : Promise.resolve(memoryStore.getAllowanceOverview(month)),
+
+  addAllowanceUse: (row: StaffAllowanceUse): Promise<void> =>
+    useSupabase
+      ? supabaseStore.addAllowanceUse(row)
+      : Promise.resolve(memoryStore.addAllowanceUse(row)),
+
   // ── ตรวจวันหมดอายุ (v1.12) ──
   getExpiryChecks: (branch: Branch, checkDate: string): Promise<ExpiryCheckRow[]> =>
     useSupabase
