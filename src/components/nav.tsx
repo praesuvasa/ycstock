@@ -46,18 +46,27 @@ function Icon({ name, size = 18 }: { name: IconKey; size?: number }) {
   );
 }
 
-type Tab = { href: string; label: string; icon: IconKey };
+// children = เมนูกลุ่ม (กดแล้วกางออก) — ตัวกลุ่มเองไม่มี href
+type Tab = { href?: string; label: string; icon: IconKey; children?: Tab[] };
 
+// ลำดับเมนูพนักงาน — แพรกำหนด 2026-07-27 ให้เรียงตามลำดับงานจริงในวัน
+// (รับของ → นับสต็อก → ปิดยอด → ส่งเงิน) ของที่ทำนาน ๆ ครั้งไปอยู่ท้าย
+// หน้าประวัติ 2 อันยุบเป็นกลุ่มเดียว เพราะเป็นของ "ย้อนดู" ไม่ใช่งานประจำวัน
 const USER_TABS: Tab[] = [
-  { href: "/stock", label: "สต็อก", icon: "clipboard" },
-  { href: "/stock-in", label: "สินค้าเข้า", icon: "truck" },
-  { href: "/confirm-receipt", label: "รับของ", icon: "inbox" },
-  { href: "/sales", label: "ยอดขาย", icon: "banknote" },
-  { href: "/cash-remittance", label: "โอนเงินสด", icon: "bank" },
+  { href: "/confirm-receipt", label: "ยืนยันรับของ", icon: "inbox" },
+  { href: "/stock", label: "เช็คสต็อก", icon: "clipboard" },
+  { href: "/sales", label: "รายงานยอดขาย", icon: "banknote" },
+  { href: "/cash-remittance", label: "เงินสด", icon: "bank" },
+  { href: "/expiry", label: "ตรวจสอบวันหมดอายุ", icon: "calendar" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "request" },
-  { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
-  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
   { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
+  {
+    label: "ประวัติ", icon: "list",
+    children: [
+      { href: "/stock-in", label: "ประวัติสินค้าเข้า", icon: "truck" },
+      { href: "/returns", label: "ประวัติส่งคืน / ของเสีย", icon: "undo" },
+    ],
+  },
 ];
 const ADMIN_TABS: Tab[] = [
   { href: "/", label: "หน้าหลัก", icon: "home" },
@@ -91,6 +100,7 @@ const tabsForMe = (me: Me | null): Tab[] => {
   const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
   return me?.allowanceEnabled ? base : base.filter((t) => t.href !== "/allowance");
 };
+
 
 // context ให้ทุกส่วน (nav + หน้า) แชร์ me (โหลดครั้งเดียว)
 const MeCtx = React.createContext<Me | null>(null);
@@ -239,10 +249,48 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
   );
 }
 
+const ITEM_CLS = (active: boolean) =>
+  `flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] font-medium transition ${
+    active ? "bg-brand-ink text-white shadow-glass" : "text-brand-ink/70 hover:bg-white/70 hover:text-brand-ink"
+  }`;
+
+const Chevron = ({ open }: { open: boolean }) => (
+  <svg
+    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+    className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
+);
+
+/** เมนูกลุ่มในแถบซ้าย — กางเองอัตโนมัติเมื่ออยู่ในหน้าลูก จะได้ไม่ต้องกดซ้ำทุกครั้ง */
+function NavGroup({ tab, isOn, onNavigate }: { tab: Tab; isOn: (href: string) => boolean; onNavigate?: () => void }) {
+  const hasActiveChild = (tab.children ?? []).some((c) => c.href && isOn(c.href));
+  const [open, setOpen] = React.useState(hasActiveChild);
+  React.useEffect(() => { if (hasActiveChild) setOpen(true); }, [hasActiveChild]);
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen((o) => !o)} className={ITEM_CLS(false)} aria-expanded={open}>
+        <Icon name={tab.icon} />
+        <span className="flex-1 truncate">{tab.label}</span>
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <div className="mt-px flex flex-col gap-px pl-4">
+          {(tab.children ?? []).map((c) => (
+            <NavItem key={c.href} tab={c} active={!!c.href && isOn(c.href)} onClick={onNavigate} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; onClick?: () => void; badge?: number }) {
   return (
     <Link
-      href={tab.href}
+      href={tab.href ?? "#"}
       onClick={onClick}
       className={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium transition ${
         active
@@ -290,16 +338,18 @@ function Sidebar() {
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
         <nav className="flex flex-col gap-px">
           <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
-          {tabs.map((t) => (
-            <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={tabBadge(t.href)} />
-          ))}
+          {tabs.map((t) =>
+            t.children
+              ? <NavGroup key={t.label} tab={t} isOn={isOn} />
+              : <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={tabBadge(t.href!)} />
+          )}
         </nav>
 
         {me?.role === "admin" && (
           <nav className="mt-3.5 flex flex-col gap-px">
             <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
             {ADMIN_MENU.map((t) => (
-              <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
+              <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
             ))}
           </nav>
         )}
@@ -341,7 +391,7 @@ function TopBar() {
                   ADMIN_MENU.map((m) => (
                     <Link
                       key={m.href}
-                      href={m.href}
+                      href={m.href!}
                       onClick={() => setOpen(false)}
                       className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] hover:bg-brand-cream"
                     >
@@ -373,25 +423,66 @@ function BottomNav() {
   const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
   const tabs = tabsForMe(me);
+  // กลุ่มที่กางอยู่ (มือถือกางในแถบล่างไม่ได้ ต้องเด้งขึ้นมาเหนือแถบแทน)
+  const [openGroup, setOpenGroup] = React.useState<string | null>(null);
+  React.useEffect(() => { setOpenGroup(null); }, [path]);
+
+  const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
+  const badgeOf = (href?: string) =>
+    href === "/requisitions" ? unseenReq
+      : href === "/confirm-receipt" ? pendingReceipt
+      : href === "/expiry" ? expiryDue
+      : 0;
+
+  const cls = (on: boolean) =>
+    `flex min-w-[68px] flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
+      on ? "text-brand-red" : "text-brand-ink/55"
+    }`;
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden print:hidden">
+      {openGroup && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpenGroup(null)} />
+          <div className="absolute bottom-full left-0 right-0 z-40 border-t border-white/60 bg-white/95 backdrop-blur-xl">
+            {(tabs.find((t) => t.label === openGroup)?.children ?? []).map((c) => (
+              <Link
+                key={c.href}
+                href={c.href ?? "#"}
+                onClick={() => setOpenGroup(null)}
+                className={`flex items-center gap-2.5 px-4 py-3 text-[13px] ${
+                  c.href && isOn(c.href) ? "text-brand-red" : "text-brand-ink"
+                }`}
+              >
+                <Icon name={c.icon} size={17} />
+                <span>{c.label}</span>
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
+
       {/* แท็บเยอะเกินจอมือถือ — เลื่อนแนวนอนแทนการบีบจนกดไม่โดน (min-w กันแตะพลาด) */}
       <div className="mx-auto flex max-w-3xl overflow-x-auto">
         {tabs.map((t) => {
-          const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
-          const badge =
-            t.href === "/requisitions" ? unseenReq
-              : t.href === "/confirm-receipt" ? pendingReceipt
-              : t.href === "/expiry" ? expiryDue
-              : 0;
+          if (t.children) {
+            const on = t.children.some((c) => c.href && isOn(c.href));
+            return (
+              <button
+                key={t.label}
+                type="button"
+                onClick={() => setOpenGroup((g) => (g === t.label ? null : t.label))}
+                className={cls(on || openGroup === t.label)}
+              >
+                <span className="relative leading-none"><Icon name={t.icon} size={19} /></span>
+                <span className={`whitespace-nowrap ${on ? "font-semibold" : ""}`}>{t.label}</span>
+              </button>
+            );
+          }
+          const on = isOn(t.href!);
+          const badge = badgeOf(t.href);
           return (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`flex min-w-[68px] flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
-                on ? "text-brand-red" : "text-brand-ink/55"
-              }`}
-            >
+            <Link key={t.href} href={t.href!} className={cls(on)}>
               <span className="relative leading-none">
                 <Icon name={t.icon} size={19} />
                 {badge > 0 && (
