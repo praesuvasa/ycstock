@@ -111,8 +111,13 @@ export async function DELETE(req: Request) {
     if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้" }, { status: 404 });
 
     // เหลือแอดมินคนเดียวแล้วลบทิ้ง = ไม่มีใครเข้าไปจัดการระบบได้อีกเลย
-    if (target.role === "admin" && users.filter((u) => u.role === "admin" && u.active).length <= 1) {
-      return NextResponse.json({ error: "ลบแอดมินคนสุดท้ายไม่ได้" }, { status: 400 });
+    // นับ "แอดมินที่ยังใช้งานได้ หลังจากลบคนนี้ไปแล้ว" — ไม่ใช่นับรวมตัวเป้าหมายด้วย
+    // ไม่งั้นแอดมินเก่าที่ปิดการใช้งานไปแล้วจะลบทิ้งไม่ได้ ทั้งที่ลบได้ปลอดภัย
+    if (target.role === "admin") {
+      const adminsLeft = users.filter((u) => u.role === "admin" && u.active && u.id !== id).length;
+      if (adminsLeft === 0) {
+        return NextResponse.json({ error: "ลบแอดมินคนสุดท้ายไม่ได้ — สร้างแอดมินอีกคนก่อน" }, { status: 400 });
+      }
     }
 
     const act = await db.getUserActivity(id);
