@@ -39,7 +39,7 @@ export function TodayNextStep({ show, hideTask }: { show: boolean; hideTask?: st
     return (
       <div className="mt-3 rounded-2xl border border-ok/30 bg-ok/10 px-4 py-4 text-center">
         <p className="text-[16px] font-semibold text-ok">งานวันนี้ครบแล้ว</p>
-        <p className="mt-0.5 text-[12px] text-brand-ink/55">ขอบคุณมาก — ปิดร้านได้เลย</p>
+        <p className="mt-0.5 text-[12px] text-brand-ink/55">ขอบคุณสำหรับวันนี้</p>
       </div>
     );
   }

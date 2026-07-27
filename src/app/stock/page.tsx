@@ -231,6 +231,15 @@ export default function StockPage() {
   // รายการที่ไม่ถึงรอบเช็ควันนี้ (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — ซ่อนไว้เป็นค่าเริ่มต้น
   // แต่ของอาจเข้าสาขาวันไหนก็ได้ (ไม่ผูกกับรอบเช็ค) เลยต้องมีทางกดดู/กรอกได้เผื่อมีของเข้าวันที่ไม่ตรงรอบ
   const [showHidden, setShowHidden] = React.useState(false);
+  // กดแสดงแล้วเลื่อนไปหาให้เลย — หมวดที่ซ่อนอยู่ท้ายสุดของทุกหมวด ถ้าไม่เลื่อนให้จะหาไม่เจอ
+  React.useEffect(() => {
+    if (!showHidden) return;
+    const t = setTimeout(
+      () => document.getElementById("hidden-start")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      60
+    );
+    return () => clearTimeout(t);
+  }, [showHidden]);
   // กลุ่มย่อยที่พับไว้ (เช่น ถุงมือ) — key = "หมวด|ชื่อกลุ่ม" กันชนกันข้ามหมวด
   const [openSub, setOpenSub] = React.useState<Record<string, boolean>>({});
   // ด่านยืนยันวันที่/สาขา ก่อนเข้าหน้ากรอกจริง (แพรขอ 2026-07-26)
@@ -547,7 +556,7 @@ export default function StockPage() {
           <span>
             {showHidden
               ? `กำลังแสดง ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกได้ปกติถ้ามีของเข้า`
-              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกข้อมูลรับเข้ากดเพื่อแสดงรายการ`}
+              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ — ถ้ามีของเข้านอกใบยืนยันรับของ กดเพื่อกรอก`}
           </span>
           <span className="shrink-0 font-semibold text-sky-700 underline underline-offset-2">
             {showHidden ? "ซ่อน" : "แสดงรายการ"}
@@ -593,9 +602,15 @@ export default function StockPage() {
                 : []),
             ]),
           ];
+          const isFirstHidden = isHiddenGroup && hiddenGroups[0]?.category === g.category;
           return (
+            <React.Fragment key={g.category}>
+            {isFirstHidden && (
+              <div id="hidden-start" className="mb-2 mt-1 px-1 text-[11px] font-medium text-ok">
+                ↓ รายการที่ไม่ถึงรอบเช็ควันนี้ — กรอกรับเข้าได้เลย
+              </div>
+            )}
             <Accordion
-              key={g.category}
               title={
                 <span className="flex items-center gap-1.5">
                   {g.category}
@@ -611,7 +626,7 @@ export default function StockPage() {
                 </span>
               }
               count={`${g.items.length} รายการ`}
-              defaultOpen={gi === 0}
+              defaultOpen={gi === 0 || isHiddenGroup}
             >
               <div className="grid gap-2 py-1">
                 {rowEntries.map((e) => {
@@ -897,6 +912,7 @@ export default function StockPage() {
                 )}
               </div>
             </Accordion>
+            </React.Fragment>
           );
         })
       )}
