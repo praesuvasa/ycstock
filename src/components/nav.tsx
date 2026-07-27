@@ -6,46 +6,87 @@ import type { Role, BranchScope } from "@/lib/types";
 
 export type Me = { id: string; name: string; role: Role; branchScope: BranchScope; allowanceEnabled?: boolean };
 
-type Tab = { href: string; label: string; icon: string };
+type IconKey =
+  | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
+  | "request" | "calendar" | "file" | "undo" | "ticket" | "flag" | "sliders" | "users"
+  | "megaphone" | "list" | "logout";
+
+// ไอคอนเส้นเรียบ วาดเอง 24x24 — ไม่ใช้ emoji (ขนาด/สีต่างกันตามอุปกรณ์ คุมไม่ได้)
+// และไม่ดึงไลบรารีไอคอนเข้ามาเพื่อ 19 อัน (bundle โตเกินจำเป็น)
+const ICON_PATHS: Record<IconKey, string> = {
+  home: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z",
+  clipboard: "M5 5h14v16H5zM9 3h6v4H9zM9 12h6M9 16h4",
+  truck: "M3 7h11v9H3zM14 10h4l3 3v3h-7M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4M17.5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4",
+  inbox: "M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M8 10l4 4 4-4M12 3v11",
+  package: "M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10",
+  banknote: "M3 6h18v12H3zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
+  bank: "M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18",
+  cup: "M6 6h12l-1.2 13a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8zM8.5 10h7",
+  request: "M12 3v10M9 6l3-3 3 3M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4",
+  calendar: "M3.5 5h17v16h-17zM3.5 10h17M8 3v4M16 3v4",
+  file: "M6 3h8l4 4v14H6zM14 3v5h4M8.5 13h7M8.5 17h5",
+  undo: "M4 9h11a5 5 0 0 1 0 10h-5M8 5 4 9l4 4",
+  ticket: "M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12",
+  flag: "M6 21V4M6 5h11l-2.5 3.5L17 12H6",
+  sliders: "M4 7h16M4 12h16M4 17h16M9 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4M15 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4M8 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4",
+  users: "M9 11.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4M3 20a6 6 0 0 1 12 0M16 5.5a3.2 3.2 0 0 1 0 6.4M17 20a6 6 0 0 0-2.2-4.6",
+  megaphone: "M4 10a1 1 0 0 1 1-1h3l7-4v14l-7-4H5a1 1 0 0 1-1-1zM18 9a4 4 0 0 1 0 6",
+  list: "M9 6h11M9 12h11M9 18h11M4.5 7.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 13.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 19.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4",
+  logout: "M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2M10 12h11M18 9l3 3-3 3",
+};
+
+function Icon({ name, size = 18 }: { name: IconKey; size?: number }) {
+  return (
+    <svg
+      width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      className="shrink-0"
+    >
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+type Tab = { href: string; label: string; icon: IconKey };
 
 const USER_TABS: Tab[] = [
-  { href: "/stock", label: "สต็อก", icon: "📝" },
-  { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
-  { href: "/confirm-receipt", label: "รับของ", icon: "📥" },
-  { href: "/sales", label: "ยอดขาย", icon: "💰" },
-  { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
-  { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "🙋" },
-  { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
-  { href: "/return-form", label: "ใบส่งคืน", icon: "🧾" },
-  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
-  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "🎟️" },
+  { href: "/stock", label: "สต็อก", icon: "clipboard" },
+  { href: "/stock-in", label: "สินค้าเข้า", icon: "truck" },
+  { href: "/confirm-receipt", label: "รับของ", icon: "inbox" },
+  { href: "/sales", label: "ยอดขาย", icon: "banknote" },
+  { href: "/cash-remittance", label: "โอนเงินสด", icon: "bank" },
+  { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "request" },
+  { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
+  { href: "/return-form", label: "ใบส่งคืน", icon: "file" },
+  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
+  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
 const ADMIN_TABS: Tab[] = [
-  { href: "/", label: "หน้าหลัก", icon: "🏠" },
-  { href: "/stock", label: "สต็อก", icon: "📝" },
-  { href: "/stock-in", label: "สินค้าเข้า", icon: "🚚" },
-  { href: "/confirm-receipt", label: "รับของ", icon: "📥" },
-  { href: "/restock", label: "ต้องเติม", icon: "📦" },
-  { href: "/sales", label: "ยอดขาย", icon: "💰" },
-  { href: "/cash-remittance", label: "โอนเงินสด", icon: "🏧" },
-  { href: "/cups", label: "สรุปจำนวน", icon: "🥤" },
-  { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
-  { href: "/expiry", label: "วันหมดอายุ", icon: "📅" },
-  { href: "/return-form", label: "ใบส่งคืน", icon: "🧾" },
-  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "↩️" },
-  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "🎟️" },
+  { href: "/", label: "หน้าหลัก", icon: "home" },
+  { href: "/stock", label: "สต็อก", icon: "clipboard" },
+  { href: "/stock-in", label: "สินค้าเข้า", icon: "truck" },
+  { href: "/confirm-receipt", label: "รับของ", icon: "inbox" },
+  { href: "/restock", label: "ต้องเติม", icon: "package" },
+  { href: "/sales", label: "ยอดขาย", icon: "banknote" },
+  { href: "/cash-remittance", label: "โอนเงินสด", icon: "bank" },
+  { href: "/cups", label: "สรุปจำนวน", icon: "cup" },
+  { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
+  { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
+  { href: "/return-form", label: "ใบส่งคืน", icon: "file" },
+  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
+  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
 const ADMIN_MENU: Tab[] = [
-  { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "🚩" },
-  { href: "/settings", label: "ตั้งค่าสินค้า", icon: "⚙️" },
-  { href: "/users", label: "ผู้ใช้", icon: "👥" },
-  { href: "/notices", label: "ประกาศ", icon: "📢" },
-  { href: "/audit", label: "Audit Log", icon: "📜" },
+  { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
+  { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
+  { href: "/users", label: "ผู้ใช้", icon: "users" },
+  { href: "/notices", label: "ประกาศ", icon: "megaphone" },
+  { href: "/audit", label: "Audit Log", icon: "list" },
 ];
 // role "restock" — เข้าได้แค่ 2 หน้า (เติมของ/สั่งผลิต + คำขอเบิก) ไม่เห็นเมนูอื่นเลย
 const RESTOCK_TABS: Tab[] = [
-  { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "📦" },
-  { href: "/requisitions", label: "คำขอเบิก", icon: "🙋" },
+  { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "package" },
+  { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
 ];
 // เมนู "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว (v1.13)
 // ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้ — พนักงานบางคนยังไม่ได้รับสิทธิ์ กันคำถาม "ทำไมหนูไม่มี"
@@ -206,14 +247,14 @@ function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; o
     <Link
       href={tab.href}
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+      className={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium transition ${
         active
           ? "bg-brand-ink text-white shadow-glass"
           : "text-brand-ink/70 hover:bg-white/70 hover:text-brand-ink"
       }`}
     >
-      <span className="text-lg leading-none">{tab.icon}</span>
-      <span className="flex-1">{tab.label}</span>
+      <Icon name={tab.icon} />
+      <span className="flex-1 truncate">{tab.label}</span>
       {!!badge && (
         <span className={`grid h-5 min-w-[20px] place-items-center rounded-full px-1 text-[11px] font-semibold ${
           active ? "bg-white text-brand-red" : "bg-brand-red text-white"
@@ -249,17 +290,17 @@ function Sidebar() {
       </div>
 
       {/* เมนูยาวเกินจอแล้ว (แอดมิน 13 + จัดการระบบ 5) — ต้องเลื่อนได้ ไม่งั้นกลุ่มล่างกดไม่ถึง */}
-      <div className="mt-7 min-h-0 flex-1 overflow-y-auto">
-        <nav className="flex flex-col gap-1">
-          <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
+      <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+        <nav className="flex flex-col gap-px">
+          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
           {tabs.map((t) => (
             <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={tabBadge(t.href)} />
           ))}
         </nav>
 
         {me?.role === "admin" && (
-          <nav className="mt-5 flex flex-col gap-1">
-            <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
+          <nav className="mt-3.5 flex flex-col gap-px">
+            <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
             {ADMIN_MENU.map((t) => (
               <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
             ))}
@@ -269,9 +310,9 @@ function Sidebar() {
 
       <button
         onClick={logout}
-        className="mt-3 flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-warn transition hover:bg-warn/10"
+        className="mt-2.5 flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium text-warn transition hover:bg-warn/10"
       >
-        <span className="text-lg leading-none">↩︎</span>
+        <Icon name="logout" />
         <span>ออกจากระบบ</span>
       </button>
     </aside>
@@ -305,17 +346,17 @@ function TopBar() {
                       key={m.href}
                       href={m.href}
                       onClick={() => setOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-brand-cream"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] hover:bg-brand-cream"
                     >
-                      <span>{m.icon}</span>
+                      <Icon name={m.icon} size={17} />
                       <span>{m.label}</span>
                     </Link>
                   ))}
                 <button
                   onClick={logout}
-                  className="flex w-full items-center gap-2.5 border-t border-black/5 px-4 py-3 text-left text-sm text-warn hover:bg-warn/10"
+                  className="flex w-full items-center gap-2.5 border-t border-black/5 px-4 py-2.5 text-left text-[13px] text-warn hover:bg-warn/10"
                 >
-                  <span>↩︎</span>
+                  <Icon name="logout" size={17} />
                   <span>ออกจากระบบ</span>
                 </button>
               </div>
@@ -354,8 +395,8 @@ function BottomNav() {
                 on ? "text-brand-red" : "text-brand-ink/55"
               }`}
             >
-              <span className="relative text-lg leading-none">
-                {t.icon}
+              <span className="relative leading-none">
+                <Icon name={t.icon} size={19} />
                 {badge > 0 && (
                   <span className="absolute -right-2 -top-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand-red px-0.5 text-[9px] font-bold text-white">
                     {badge > 9 ? "9+" : badge}
