@@ -8,7 +8,7 @@ export type Me = { id: string; name: string; role: Role; branchScope: BranchScop
 
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
-  | "request" | "calendar" | "file" | "undo" | "ticket" | "flag" | "sliders" | "users"
+  | "request" | "calendar" | "undo" | "ticket" | "flag" | "sliders" | "users"
   | "megaphone" | "list" | "logout";
 
 // ไอคอนเส้นเรียบ วาดเอง 24x24 — ไม่ใช้ emoji (ขนาด/สีต่างกันตามอุปกรณ์ คุมไม่ได้)
@@ -24,7 +24,6 @@ const ICON_PATHS: Record<IconKey, string> = {
   cup: "M6 6h12l-1.2 13a2 2 0 0 1-2 1.8H9.2a2 2 0 0 1-2-1.8zM8.5 10h7",
   request: "M12 3v10M9 6l3-3 3 3M4 14v4a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-4",
   calendar: "M3.5 5h17v16h-17zM3.5 10h17M8 3v4M16 3v4",
-  file: "M6 3h8l4 4v14H6zM14 3v5h4M8.5 13h7M8.5 17h5",
   undo: "M4 9h11a5 5 0 0 1 0 10h-5M8 5 4 9l4 4",
   ticket: "M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4zM14 6v12",
   flag: "M6 21V4M6 5h11l-2.5 3.5L17 12H6",
@@ -57,7 +56,6 @@ const USER_TABS: Tab[] = [
   { href: "/cash-remittance", label: "โอนเงินสด", icon: "bank" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "request" },
   { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
-  { href: "/return-form", label: "ใบส่งคืน", icon: "file" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
   { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
@@ -72,7 +70,6 @@ const ADMIN_TABS: Tab[] = [
   { href: "/cups", label: "สรุปจำนวน", icon: "cup" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
   { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
-  { href: "/return-form", label: "ใบส่งคืน", icon: "file" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
   { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
