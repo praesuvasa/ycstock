@@ -535,6 +535,21 @@ export const memoryStore = {
     return pub;
   },
 
+  // ── ลบผู้ใช้ (v1.15) ──
+  getUserActivity(userId: string): { allowanceUses: number; auditRows: number; workRows: number } {
+    return {
+      allowanceUses: allowanceUses.filter((r) => r.userId === userId).length,
+      auditRows: auditRows.filter((r) => r.userId === userId).length,
+      workRows: requisitions.filter((r) => r.requestedByUserId === userId).length,
+    };
+  },
+  deleteUser(userId: string): { ok: boolean; reason?: string } {
+    const i = users.findIndex((u) => u.id === userId);
+    if (i < 0) return { ok: false, reason: "ไม่พบผู้ใช้" };
+    users.splice(i, 1);
+    return { ok: true };
+  },
+
   // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
   listAllowanceUses(userId: string, month: string): StaffAllowanceUse[] {
     const { from, to } = monthRange(month);

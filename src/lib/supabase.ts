@@ -540,6 +540,33 @@ export const supabaseStore = {
     return data ? userRow(data) : null;
   },
 
+  // ── ลบผู้ใช้ (v1.15) ──
+  // นับร่องรอยของบัญชีก่อนลบ เพื่อให้แอดมินตัดสินใจบนข้อมูลจริง ไม่ใช่กดลบมั่ว
+  // staff_allowance_uses มี FK จริง → ถ้ามีรายการ ลบไม่ได้ทางเทคนิคอยู่แล้ว บอกล่วงหน้าดีกว่าให้ error ดิบเด้ง
+  async getUserActivity(userId: string): Promise<{ allowanceUses: number; auditRows: number; workRows: number }> {
+    const n = async (table: string, col: string) => {
+      const { count } = await sb().from(table).select(col, { count: "exact", head: true }).eq(col, userId);
+      return count ?? 0;
+    };
+    const [allowanceUses, auditRows, ...work] = await Promise.all([
+      n("staff_allowance_uses", "user_id"),
+      n("audit_log", "user_id"),
+      n("requisitions", "requested_by_user_id"),
+      n("restock_receipts", "confirmed_by_user_id"),
+      n("sales_evidence", "uploaded_by_user_id"),
+      n("cash_remittances", "uploaded_by_user_id"),
+      n("expiry_checks", "created_by_user_id"),
+      n("sales_payment_incidents", "created_by_user_id"),
+    ]);
+    return { allowanceUses, auditRows, workRows: work.reduce((a, b) => a + b, 0) };
+  },
+
+  async deleteUser(userId: string): Promise<{ ok: boolean; reason?: string }> {
+    const { error } = await sb().from("users").delete().eq("id", userId);
+    if (error) return { ok: false, reason: error.message };
+    return { ok: true };
+  },
+
   // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
   // ยอดที่ตัดสิทธิ์คือ discount_amount เท่านั้น (ส่วนลดบนบิล) ไม่ใช่ยอดที่จ่ายจริง
   async listAllowanceUses(userId: string, month: string): Promise<StaffAllowanceUse[]> {

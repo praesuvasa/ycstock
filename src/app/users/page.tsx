@@ -85,6 +85,29 @@ export default function UsersPage() {
     }
   }
 
+  // ลบถาวร — ให้พิมพ์ชื่อยืนยัน เพราะกู้คืนไม่ได้ และปุ่มอยู่ติดกับปุ่มอื่นที่กดผิดง่าย
+  async function removeUser(u: User) {
+    const typed = window.prompt(
+      `ลบบัญชี "${u.name}" ถาวร — กู้คืนไม่ได้\n\n` +
+      `ถ้าแค่ให้เขาเข้าระบบไม่ได้ ใช้ "ปิดการใช้งาน" ดีกว่า (ประวัติยังอยู่ครบ)\n\n` +
+      `ยืนยันโดยพิมพ์ชื่อให้ตรง:`
+    );
+    if (typed === null) return;
+    if (typed.trim() !== u.name) { setErr("ชื่อที่พิมพ์ไม่ตรง — ยกเลิกการลบ"); return; }
+    setBusy(u.id);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/users?id=${encodeURIComponent(u.id)}`, { method: "DELETE" });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "ลบไม่สำเร็จ");
+      await load();
+    } catch (e: any) {
+      setErr(String(e?.message ?? e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // ออกรหัสตั้งค่าใหม่ = ตัด PIN เดิมทิ้งทันที เจ้าตัวต้องเข้ามาตั้งใหม่ → ต้องถามก่อน
   async function issueSetupCode(u: User) {
     const ok = window.confirm(
@@ -221,6 +244,14 @@ export default function UsersPage() {
                         ออกรหัสตั้งค่าใหม่
                       </Button>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => removeUser(u)}
+                      disabled={busy === u.id}
+                      className="mt-0.5 self-start text-[11.5px] font-medium text-warn underline underline-offset-2 disabled:opacity-40"
+                    >
+                      ลบบัญชีถาวร
+                    </button>
                   </div>
                 </GlassCard>
               ))}

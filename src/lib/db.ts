@@ -144,6 +144,12 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  // ── ลบผู้ใช้ (v1.15) ──
+  getUserActivity: (userId: string): Promise<{ allowanceUses: number; auditRows: number; workRows: number }> =>
+    useSupabase ? supabaseStore.getUserActivity(userId) : Promise.resolve(memoryStore.getUserActivity(userId)),
+  deleteUser: (userId: string): Promise<{ ok: boolean; reason?: string }> =>
+    useSupabase ? supabaseStore.deleteUser(userId) : Promise.resolve(memoryStore.deleteUser(userId)),
+
   // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
   listAllowanceUses: (userId: string, month: string): Promise<StaffAllowanceUse[]> =>
     useSupabase

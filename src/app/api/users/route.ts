@@ -92,3 +92,48 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: e?.message ?? "update user failed" }, { status: 500 });
   }
 }
+
+// DELETE /api/users?id=u-xxxx → ลบบัญชีถาวร (admin เท่านั้น)
+//
+// ลบจริง ไม่ใช่ซ่อน — ใช้กับบัญชีที่สร้างผิด/ไม่ได้ใช้แล้ว
+// กันไว้ 3 ชั้น: ลบตัวเองไม่ได้ · ลบแอดมินคนสุดท้ายไม่ได้ · มีรายการใช้สิทธิ์ผูกอยู่ลบไม่ได้
+// (staff_allowance_uses มี FK จริง ลบแล้วยอดเงินจะหาไม่เจอว่าเป็นของใคร)
+export async function DELETE(req: Request) {
+  try {
+    const s = await requireAdmin();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id") ?? "";
+    if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
+    if (id === s.userId) return NextResponse.json({ error: "ลบบัญชีตัวเองไม่ได้" }, { status: 400 });
+
+    const users = await db.listUsers();
+    const target = users.find((u) => u.id === id);
+    if (!target) return NextResponse.json({ error: "ไม่พบผู้ใช้" }, { status: 404 });
+
+    // เหลือแอดมินคนเดียวแล้วลบทิ้ง = ไม่มีใครเข้าไปจัดการระบบได้อีกเลย
+    if (target.role === "admin" && users.filter((u) => u.role === "admin" && u.active).length <= 1) {
+      return NextResponse.json({ error: "ลบแอดมินคนสุดท้ายไม่ได้" }, { status: 400 });
+    }
+
+    const act = await db.getUserActivity(id);
+    if (act.allowanceUses > 0) {
+      return NextResponse.json({
+        error: `บัญชีนี้มีประวัติใช้สิทธิ์ซื้อของ ${act.allowanceUses} รายการ ลบไม่ได้ — ใช้ "ปิดการใช้งาน" แทน`,
+      }, { status: 409 });
+    }
+
+    const res = await db.deleteUser(id);
+    if (!res.ok) return NextResponse.json({ error: res.reason ?? "ลบไม่สำเร็จ" }, { status: 409 });
+
+    await writeAudit(s, "delete_user", {
+      entity: id,
+      detail: `ลบบัญชี ${target.name} (${target.role}${target.branchScope !== "all" ? " · " + target.branchScope : ""})` +
+        ` · ร่องรอยที่เหลือในระบบ: audit ${act.auditRows} · งาน ${act.workRows}`,
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    const a = authErrorResponse(e);
+    if (a) return NextResponse.json(a.body, { status: a.status });
+    return NextResponse.json({ error: e?.message ?? "delete user failed" }, { status: 500 });
+  }
+}
