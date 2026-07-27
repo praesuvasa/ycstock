@@ -58,11 +58,31 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
   }
 
   const { data: existing } = await sb().from("stock_daily")
-    .select("carry_pack,carry_g,in_auto_pack")
+    .select("carry_pack,carry_g,in_pack,in_g,in_auto_pack")
     .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
 
   if (existing) {
-    if (existing.in_auto_pack === null || existing.in_auto_pack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
+    // แถวนี้พนักงานกรอก "รับเข้า" เองที่หน้าสต็อก (หรือแก้ทับค่าที่ระบบเติมไว้) → ไม่แตะต่อ
+    //
+    // แต่ถ้ายอดที่เพิ่งยืนยันไม่ตรงกับที่กรอกไว้ ต้องบอกให้คนรู้ (v1.20 — แพรถามเคสนี้เอง)
+    // ระบบไม่รู้ว่าอันไหนถูก จะไปทับให้ก็ไม่ได้ · ถ้าเงียบไว้ ของที่หายไปจะไม่มีใครเห็นเลย
+    if (existing.in_auto_pack === null || existing.in_auto_pack === undefined) {
+      const manualPack = Number(existing.in_pack ?? 0);
+      const manualG = Number(existing.in_g ?? 0);
+      if (manualPack !== sumPack || manualG !== sumG) {
+        const { data: itRow } = await sb().from("items").select("name").eq("id", itemId).maybeSingle();
+        await sb().from("stock_admin_flags").insert({
+          branch_id: branch, date: todayStr, item_id: itemId,
+          item_name: itRow?.name ?? itemId,
+          reason: "receipt_vs_manual",
+          detail:
+            `กรอกเองที่หน้าสต็อก ${manualPack}${manualG ? ` +${manualG}g` : ""}` +
+            ` · ยืนยันรับของ ${sumPack}${sumG ? ` +${sumG}g` : ""}` +
+            ` — ระบบคงยอดที่กรอกเองไว้ ไม่ได้แก้ให้`,
+        });
+      }
+      return;
+    }
     // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะจากรายการอื่นย้ายไปอยู่ transfer_in_g
     // จึงเขียนทับด้วย sumPack ได้ตรง ๆ ไม่ต้องกลัวไปล้างส่วนที่มาจากการแกะเหมือนเดิม
     // ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว

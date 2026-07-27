@@ -200,7 +200,20 @@ function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: str
   const key = sk(todayStr, branch, itemId);
   const existing = stock.get(key);
   if (existing) {
-    if (existing.inAutoPack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
+    // พนักงานกรอกเอง/แก้ทับไปแล้ว → ไม่แตะต่อ · แต่ถ้ายอดไม่ตรงกันต้องเข้าคิวให้แอดมินดู (v1.20)
+    if (existing.inAutoPack === undefined) {
+      if (existing.inPack !== sumPack || existing.inG !== sumG) {
+        pushAdminFlag(
+          branch, todayStr, itemId,
+          ITEMS.find((i) => i.id === itemId)?.name ?? itemId,
+          "receipt_vs_manual",
+          `กรอกเองที่หน้าสต็อก ${existing.inPack}${existing.inG ? ` +${existing.inG}g` : ""}` +
+            ` · ยืนยันรับของ ${sumPack}${sumG ? ` +${sumG}g` : ""}` +
+            ` — ระบบคงยอดที่กรอกเองไว้ ไม่ได้แก้ให้`
+        );
+      }
+      return;
+    }
     // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะย้ายไปอยู่ transferInG
     stock.set(key, { ...existing, inPack: sumPack, inG: sumG, inAutoPack: sumPack, inAutoG: sumG });
   } else {
