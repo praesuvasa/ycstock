@@ -244,27 +244,32 @@ function Sidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/60 bg-white/55 px-4 py-5 backdrop-blur-xl lg:flex print:hidden">
-      <Brand me={me} />
+      <div className="shrink-0">
+        <Brand me={me} />
+      </div>
 
-      <nav className="mt-7 flex flex-col gap-1">
-        <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
-        {tabs.map((t) => (
-          <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={tabBadge(t.href)} />
-        ))}
-      </nav>
-
-      {me?.role === "admin" && (
-        <nav className="mt-5 flex flex-col gap-1">
-          <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
-          {ADMIN_MENU.map((t) => (
-            <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
+      {/* เมนูยาวเกินจอแล้ว (แอดมิน 13 + จัดการระบบ 5) — ต้องเลื่อนได้ ไม่งั้นกลุ่มล่างกดไม่ถึง */}
+      <div className="mt-7 min-h-0 flex-1 overflow-y-auto">
+        <nav className="flex flex-col gap-1">
+          <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
+          {tabs.map((t) => (
+            <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={tabBadge(t.href)} />
           ))}
         </nav>
-      )}
+
+        {me?.role === "admin" && (
+          <nav className="mt-5 flex flex-col gap-1">
+            <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
+            {ADMIN_MENU.map((t) => (
+              <NavItem key={t.href} tab={t} active={isOn(t.href)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
+            ))}
+          </nav>
+        )}
+      </div>
 
       <button
         onClick={logout}
-        className="mt-auto flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-warn transition hover:bg-warn/10"
+        className="mt-3 flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-warn transition hover:bg-warn/10"
       >
         <span className="text-lg leading-none">↩︎</span>
         <span>ออกจากระบบ</span>
@@ -332,7 +337,8 @@ function BottomNav() {
   const tabs = tabsForMe(me);
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden print:hidden">
-      <div className="mx-auto flex max-w-3xl">
+      {/* แท็บเยอะเกินจอมือถือ — เลื่อนแนวนอนแทนการบีบจนกดไม่โดน (min-w กันแตะพลาด) */}
+      <div className="mx-auto flex max-w-3xl overflow-x-auto">
         {tabs.map((t) => {
           const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
           const badge =
@@ -344,7 +350,7 @@ function BottomNav() {
             <Link
               key={t.href}
               href={t.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
+              className={`flex min-w-[68px] flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
                 on ? "text-brand-red" : "text-brand-ink/55"
               }`}
             >
@@ -356,7 +362,7 @@ function BottomNav() {
                   </span>
                 )}
               </span>
-              <span className={on ? "font-semibold" : ""}>{t.label}</span>
+              <span className={`whitespace-nowrap ${on ? "font-semibold" : ""}`}>{t.label}</span>
             </Link>
           );
         })}
