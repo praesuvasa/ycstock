@@ -400,7 +400,8 @@ function MobileNav() {
   const totalBadge = unseenReq + pendingReceipt + expiryDue + (me?.role === "admin" ? adminFlags : 0);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden print:hidden">
+    <>
+      <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden print:hidden">
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <button
           onClick={() => setOpen(true)}
@@ -418,7 +419,10 @@ function MobileNav() {
         </button>
         <Brand me={me} compact />
       </div>
+      </header>
 
+      {/* ลิ้นชักต้องอยู่ "นอก" header — header มี backdrop-blur ซึ่งสร้าง containing block ใหม่
+          ทำให้ position:fixed ข้างในไปยึดกับกรอบ header (สูงแค่ 60px) แทนที่จะเต็มจอ */}
       {open && (
         <>
           <div className="fixed inset-0 z-40 bg-black/25" onClick={() => setOpen(false)} />
@@ -480,6 +484,6 @@ function MobileNav() {
           </aside>
         </>
       )}
-    </header>
+    </>
   );
 }

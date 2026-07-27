@@ -72,6 +72,10 @@ export interface StockRow {
   hasEntry?: boolean;
   // ส่งคืน/เสีย เป็นกรัม (เฉพาะ item leader ของกลุ่มเศษรวม เช่น Strawberry/Blueberry) — หักจาก remainG ไม่ใช่ remainPack
   returnedG?: number;
+  // ── โอนภายใน (v1.17) — ของที่แกะไปรวมกับรายการอื่น ระบบเขียนเอง พนักงานไม่มีช่องกรอก ──
+  // แยกออกจาก used/in เพื่อให้ "ใช้ไป" เหลือแต่ของที่ขายจริง เอาไปวิเคราะห์เมนูได้ตรง
+  transferOut?: number;   // แพ็คที่ถูกแกะออกไปรวมกับรายการอื่น (ต้นทาง)
+  transferInG?: number;   // กรัมที่ได้รับจากการแกะ (ปลายทาง) — เก็บเป็นกรัมเพราะมักไม่เต็มแพ็ค
 }
 
 export interface SalesRow {

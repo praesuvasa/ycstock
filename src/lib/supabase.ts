@@ -58,31 +58,16 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
   }
 
   const { data: existing } = await sb().from("stock_daily")
-    .select("carry_pack,carry_g,in_auto_pack,expiry_in_g")
+    .select("carry_pack,carry_g,in_auto_pack")
     .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
 
   if (existing) {
     if (existing.in_auto_pack === null || existing.in_auto_pack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
-    // "รับเข้า" ของวันนี้อาจมี 2 แหล่ง: รถส่งของ (receipts) + ของที่แกะจากรายการอื่นมารวม (expiry convert)
-    // ถ้าเขียนทับด้วย sumPack เฉย ๆ ส่วนที่มาจากการแกะจะหายเงียบ ๆ ตอนสาขายืนยันรับของทีหลัง
-    let inPack = sumPack;
-    let inG = sumG;
-    const expG = Number(existing.expiry_in_g ?? 0);
-    if (expG > 0) {
-      const { data: itRow } = await sb().from("items").select("grams_per_uom").eq("id", itemId).maybeSingle();
-      const gpu = Number(itRow?.grams_per_uom ?? 0);
-      if (gpu > 0) {
-        const totalG = sumPack * gpu + sumG + expG;
-        inPack = Math.floor(totalG / gpu);
-        inG = totalG % gpu;
-      } else {
-        inG = sumG + expG;
-      }
-    }
-    // อัปเดตเฉพาะ "รับเข้า" — ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว
-    // in_auto_* เก็บเฉพาะส่วนที่มาจากรถส่งของ ไว้เทียบว่าพนักงานแก้ทับหรือยัง
+    // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะจากรายการอื่นย้ายไปอยู่ transfer_in_g
+    // จึงเขียนทับด้วย sumPack ได้ตรง ๆ ไม่ต้องกลัวไปล้างส่วนที่มาจากการแกะเหมือนเดิม
+    // ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว
     const { error: updErr } = await sb().from("stock_daily").update({
-      in_pack: inPack, in_g: inG, in_auto_pack: sumPack, in_auto_g: sumG,
+      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG,
     }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
     if (updErr) throw updErr;
   } else {
@@ -102,6 +87,11 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
     if (insErr) throw insErr;
   }
 }
+
+// แปลงกรัมที่โอนเข้ามาเป็น "แพ็ค" เพื่อเอาไปเข้าสมการ variance ที่คิดเป็นแพ็ค
+// ปัดลง — เศษที่ไม่ครบแพ็คไปโผล่ในช่องเศษกรัมของแถวนั้นอยู่แล้ว
+const gramsToPacks = (g: unknown, gpu: number): number =>
+  gpu > 0 ? Math.floor(Number(g ?? 0) / gpu) : 0;
 
 const userRow = (r: any): User => ({
   id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active,
@@ -196,7 +186,7 @@ export const supabaseStore = {
   async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
-      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed")
+      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g")
       .eq("branch_id", branch).eq("date", date);
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
     // แถวเดิมของวันนี้ ไว้เทียบว่า "แก้ย้อนหลัง" เปลี่ยนค่าอะไรไปบ้าง
@@ -206,6 +196,9 @@ export const supabaseStore = {
     // ยกมาคำนวณสดจาก DB ตอนบันทึกเสมอ — ห้ามเชื่อ carryPack ที่ client ส่งมา เพราะอาจเป็นค่าเก่าที่ค้างอยู่ในหน้าเว็บ
     // ตั้งแต่ก่อนมีการแก้ไขคงเหลือของวันก่อนหน้าไปแล้ว (กันเซฟทับค่าที่แก้ไปแล้วกลับเป็นค่าผิดเดิม)
     const prevMap = await latestStockMapBefore(branch, date);
+    // ต้องใช้แปลง "กรัมที่โอนเข้า" เป็นแพ็คตอนคิด variance
+    const { data: itemGpu } = await sb().from("items").select("id,grams_per_uom");
+    const gramsPerUomOf = new Map<string, number>((itemGpu ?? []).map((i: any) => [i.id, Number(i.grams_per_uom) || 0]));
     const flags: any[] = [];
     let itemNameMap: Map<string, string> | null = null;
     const payload = [];
@@ -267,7 +260,15 @@ export const supabaseStore = {
         carry_pack: carryPack, carry_g: carryG, in_pack: r.inPack, in_g: r.inG,
         used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
         returned_g: r.returnedG ?? 0,
-        note: r.note, variance: variance(carryPack, r.inPack, r.used, r.returned, r.remainPack),
+        note: r.note,
+        // ไม่เขียน transfer_out/transfer_in_g ที่นี่ — ระบบตรวจวันหมดอายุเป็นเจ้าของ 2 ช่องนี้
+        // (หน้าสต็อกไม่มีช่องให้กรอก ถ้าเขียนทับจะล้างยอดที่การแกะบันทึกไว้)
+        // แต่ต้องเอาค่าที่มีอยู่มาคิด variance ด้วย ไม่งั้นวันที่แกะจะขึ้นผลต่างค้างทั้งที่ไม่มีใครผิด
+        variance: variance(
+          carryPack, r.inPack, r.used, r.returned, r.remainPack,
+          gramsToPacks(prevRowMap.get(r.itemId)?.transfer_in_g, gramsPerUomOf.get(r.itemId) ?? 0),
+          prevRowMap.get(r.itemId)?.transfer_out ?? 0
+        ),
         in_auto_pack: inAutoPack, in_auto_g: inAutoG, remain_confirmed: true,
       });
     }
@@ -863,15 +864,17 @@ export const supabaseStore = {
     // รวมยอดต่อ item ที่ต้องไปลงสต็อก
     const wantReturn = new Map<string, number>();
     const wantUsed = new Map<string, number>();
-    const wantInG = new Map<string, number>(); // ปลายทางของการแปลง — สะสมเป็นกรัม แล้วค่อยทดเป็นแพ็ค
+    const wantTransferOut = new Map<string, number>(); // ต้นทางการแปลง (แพ็ค)
+    const wantInG = new Map<string, number>();          // ปลายทางการแปลง (กรัม)
     for (const r of rows) {
       if (r.disposition === "return") {
         wantReturn.set(r.itemId, (wantReturn.get(r.itemId) ?? 0) + r.qty);
       } else if (r.disposition === "sell_front") {
         wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
       } else if (r.disposition === "convert") {
-        // ต้นทางหายไปจากชั้นเหมือนแกะขาย · ปลายทางได้ของเพิ่มเข้ากอง
-        wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
+        // ** ไม่ลง used/in ** — ของไม่ได้ขายออกและไม่ได้มาจากรถส่ง แค่ย้ายกองภายในร้าน
+        // ถ้าเอาไปปนกับ used ยอด "ขายจริง" จะเพี้ยน เอาไปดูว่าเมนูไหนขายดีไม่ได้ (แพรทัก 2026-07-27)
+        wantTransferOut.set(r.itemId, (wantTransferOut.get(r.itemId) ?? 0) + r.qty);
         const rule = convRule.get(r.itemId);
         if (rule) wantInG.set(rule.to, (wantInG.get(rule.to) ?? 0) + r.qty * rule.g);
       }
@@ -879,11 +882,14 @@ export const supabaseStore = {
 
     // ทุก item ที่เคยมีผลตรวจลงสต็อกไว้ ต้องถูกพิจารณาด้วย (เผื่อรอบนี้ถูกยกเลิก → ต้องถอนของเก่าออก)
     const { data: existing } = await sb().from("stock_daily")
-      .select("item_id,used,returned,in_pack,in_g,expiry_used,expiry_returned,expiry_in_g")
+      .select("item_id,used,returned,expiry_used,expiry_returned,transfer_out,transfer_in_g")
       .eq("branch_id", branch).eq("date", checkDate);
-    const touched = new Set<string>([...wantReturn.keys(), ...wantUsed.keys(), ...wantInG.keys()]);
+    const touched = new Set<string>([
+      ...wantReturn.keys(), ...wantUsed.keys(), ...wantInG.keys(), ...wantTransferOut.keys(),
+    ]);
     for (const r of existing ?? []) {
-      if (Number(r.expiry_returned) !== 0 || Number(r.expiry_used) !== 0 || Number(r.expiry_in_g) !== 0) {
+      if (Number(r.expiry_returned) !== 0 || Number(r.expiry_used) !== 0
+        || Number(r.transfer_out) !== 0 || Number(r.transfer_in_g) !== 0) {
         touched.add(r.item_id);
       }
     }
@@ -894,44 +900,38 @@ export const supabaseStore = {
       const cur: any = byItem.get(itemId);
       const newRet = wantReturn.get(itemId) ?? 0;
       const newUse = wantUsed.get(itemId) ?? 0;
-      const newInG = wantInG.get(itemId) ?? 0;
-      // ทดกรัมเป็นแพ็ค+เศษด้วยขนาดแพ็คของปลายทาง (500g × 2 = 1000g = 1 แพ็ค Greek Yogurt 1kg)
-      const gpu = gramsPerPack.get(itemId) ?? 0;
+      const newTransferOut = wantTransferOut.get(itemId) ?? 0;
+      const newTransferInG = wantInG.get(itemId) ?? 0;
       if (cur) {
-        const baseRet = Number(cur.returned) - Number(cur.expiry_returned); // ส่วนที่พนักงานกรอกเอง
+        // returned/used ปนกับยอดที่พนักงานกรอกเอง → ต้องถอนของที่ระบบเคยใส่ออกก่อน (idempotent)
+        const baseRet = Number(cur.returned) - Number(cur.expiry_returned);
         const baseUse = Number(cur.used) - Number(cur.expiry_used);
-        const patch: Record<string, unknown> = {
+        // transfer_* ระบบเขียนเองล้วน ไม่มีช่องให้พนักงานกรอก → เขียนทับได้ตรง ๆ
+        const { error: updErr } = await sb().from("stock_daily").update({
           returned: Math.max(baseRet, 0) + newRet, expiry_returned: newRet,
           used: Math.max(baseUse, 0) + newUse, expiry_used: newUse,
-        };
-        if (newInG > 0 || Number(cur.expiry_in_g) !== 0) {
-          // ถอนของเก่าออกจาก "กรัมรวม" ก่อน แล้วบวกของใหม่ ค่อยทดเป็นแพ็ค+เศษใหม่ทั้งก้อน
-          const baseTotalG = Math.max(
-            Number(cur.in_pack) * (gpu || 1) + Number(cur.in_g) - Number(cur.expiry_in_g), 0
-          );
-          const totalG = baseTotalG + newInG;
-          patch.in_pack = gpu > 0 ? Math.floor(totalG / gpu) : Number(cur.in_pack);
-          patch.in_g = gpu > 0 ? totalG % gpu : totalG;
-          patch.expiry_in_g = newInG;
-        }
-        const { error: updErr } = await sb().from("stock_daily").update(patch)
-          .eq("branch_id", branch).eq("date", checkDate).eq("item_id", itemId);
+          transfer_out: newTransferOut, transfer_in_g: newTransferInG,
+        }).eq("branch_id", branch).eq("date", checkDate).eq("item_id", itemId);
         if (updErr) throw updErr;
-      } else if (newRet > 0 || newUse > 0 || newInG > 0) {
+      } else if (newRet > 0 || newUse > 0 || newTransferOut > 0 || newTransferInG > 0) {
         // ยังไม่มีแถวสต็อกของวันนี้ — สร้างจากยกมา แล้วใส่ผลตรวจลงไป (ยังไม่นับว่าพนักงานยืนยันคงเหลือ)
         const { data: prev } = await sb().from("stock_daily")
           .select("remain_pack,remain_g").eq("branch_id", branch).eq("item_id", itemId).lt("date", checkDate)
           .order("date", { ascending: false }).limit(1).maybeSingle();
-        const carryPack = prev?.remain_pack ?? 0;
-        const carryG = prev?.remain_g ?? 0;
-        const inPack = gpu > 0 ? Math.floor(newInG / gpu) : 0;
-        const inG = gpu > 0 ? newInG % gpu : newInG;
+        const carryPack = Number(prev?.remain_pack ?? 0);
+        const carryG = Number(prev?.remain_g ?? 0);
+        const gpu = gramsPerPack.get(itemId) ?? 0;
+        const inPacks = gpu > 0 ? Math.floor(newTransferInG / gpu) : 0;
         const { error: insErr2 } = await sb().from("stock_daily").insert({
           date: checkDate, branch_id: branch, item_id: itemId,
-          carry_pack: carryPack, carry_g: carryG, in_pack: inPack, in_g: inG,
-          used: newUse, remain_pack: Math.max(carryPack + inPack - newUse - newRet, 0), remain_g: carryG,
+          carry_pack: carryPack, carry_g: carryG, in_pack: 0, in_g: 0,
+          used: newUse,
+          remain_pack: Math.max(carryPack + inPacks - newUse - newRet - newTransferOut, 0),
+          remain_g: carryG + (gpu > 0 ? newTransferInG % gpu : newTransferInG),
           returned: newRet, returned_g: 0, note: "", variance: 0,
-          expiry_returned: newRet, expiry_used: newUse, expiry_in_g: newInG, remain_confirmed: false,
+          expiry_returned: newRet, expiry_used: newUse,
+          transfer_out: newTransferOut, transfer_in_g: newTransferInG,
+          remain_confirmed: false,
         });
         if (insErr2) throw insErr2;
       }
@@ -1408,6 +1408,7 @@ function rowFromDb(s: any): StockRow {
     itemId: s.item_id, carryPack: s.carry_pack, carryG: s.carry_g, inPack: s.in_pack, inG: s.in_g,
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
     returnedG: s.returned_g ?? 0,
+    transferOut: Number(s.transfer_out ?? 0), transferInG: Number(s.transfer_in_g ?? 0),
     note: s.note ?? "", variance: s.variance, hasEntry: !!s.remain_confirmed,
   };
 }

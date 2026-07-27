@@ -16,11 +16,17 @@ export function remainGrams(carryG: unknown, inG: unknown, used: unknown): numbe
   return Math.max(n(carryG) + n(inG) - n(used), 0);
 }
 
-/** Variance = ยกมา + รับเข้า − ขาย − ส่งคืน − คงเหลือ  (ต้อง = 0) */
+/**
+ * Variance = ยกมา + รับเข้า + โอนเข้า − ขาย − ส่งคืน − โอนออก − คงเหลือ  (ต้อง = 0)
+ *
+ * โอนเข้า/โอนออก = ของที่แกะไปรวมกับรายการอื่น (v1.17) ระบบเขียนเอง พนักงานไม่ได้กรอก
+ * ต้องอยู่ในสมการด้วย ไม่งั้นวันที่มีการแกะจะขึ้นผลต่างค้างเท่ากับจำนวนที่แกะ ทั้งที่ไม่มีใครทำผิด
+ */
 export function variance(
-  carry: unknown, inQty: unknown, used: unknown, returned: unknown, remain: unknown
+  carry: unknown, inQty: unknown, used: unknown, returned: unknown, remain: unknown,
+  transferIn: unknown = 0, transferOut: unknown = 0
 ): number {
-  return n(carry) + n(inQty) - n(used) - n(returned) - n(remain);
+  return n(carry) + n(inQty) + n(transferIn) - n(used) - n(returned) - n(transferOut) - n(remain);
 }
 
 /** ต้องเติม = MAX(Par − คงเหลือ, 0) ; par = null (—) → null (ไม่เติม) */

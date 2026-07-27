@@ -30,8 +30,13 @@ function derive(r: StockRow, N: number) {
   return { availTotalG, remainTotalG, usedTotalG, overG: usedTotalG < 0 ? -usedTotalG : 0 };
 }
 
-const varianceOf = (r: StockRow): number =>
-  variance(r.carryPack, r.inPack, r.used, r.returned, r.remainPack);
+// gpu = กรัมต่อแพ็คของรายการนั้น ใช้แปลง "กรัมที่โอนเข้า" เป็นแพ็คก่อนเข้าสมการ
+const varianceOf = (r: StockRow, gpu = 0): number =>
+  variance(
+    r.carryPack, r.inPack, r.used, r.returned, r.remainPack,
+    gpu > 0 ? Math.floor((r.transferInG ?? 0) / gpu) : 0,
+    r.transferOut ?? 0
+  );
 
 const isFilled = (r: StockRow): boolean =>
   r.inPack > 0 || r.inG > 0 || r.remainPack !== r.carryPack || r.remainG !== r.carryG;
@@ -140,6 +145,11 @@ export default function StockPage() {
     if (scoped) setBranch(me!.branchScope as Branch);
   }, [scoped, me]);
   const [meta, setMeta] = React.useState<Meta | null>(null);
+  // กรัมต่อแพ็ค — ใช้แปลง "กรัมที่โอนเข้า" เป็นแพ็คตอนคิดยอดตรง/ไม่ตรง (v1.17)
+  const gpuOf = React.useCallback(
+    (itemId: string) => meta?.items.find((i) => i.id === itemId)?.gramsPerUOM ?? 0,
+    [meta]
+  );
   const [rows, setRows] = React.useState<Record<string, StockRow>>({});
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -316,7 +326,7 @@ export default function StockPage() {
         const d = derive(r, it.gramsPerUOM);
         if (d.usedTotalG < 0) errs.push(`${it.name} — เกิน ${d.overG} ${it.isCup ? "ชิ้น" : "g"}`);
       } else {
-        const v = varianceOf(r);
+        const v = varianceOf(r, it.gramsPerUOM);
         if (v !== 0) errs.push(`${it.name} — ยอดไม่ตรง (ต่าง ${v > 0 ? "+" : ""}${v})`);
       }
     }
@@ -378,7 +388,7 @@ export default function StockPage() {
           next.returnedG = val;
           break;
       }
-      next.variance = varianceOf(next);
+      next.variance = varianceOf(next, gpuOf(itemId));
       return { ...prev, [itemId]: next };
     });
     // พิมพ์ค่าใดๆ ในไอเทมนี้ = ถือว่ายืนยันแล้ว (ไม่ต้องกดปุ่ม "✓ เท่ายกมา" ซ้ำ)
@@ -401,7 +411,7 @@ export default function StockPage() {
       const next: StockRow = { ...cur, remainPack: cur.carryPack };
       if (hasG) next.remainG = cur.carryG;
       next.used = Math.max(next.carryPack + next.inPack - next.returned - next.remainPack, 0);
-      next.variance = varianceOf(next);
+      next.variance = varianceOf(next, gpuOf(itemId));
       return { ...prev, [itemId]: next };
     });
     setConfirmed((prev) => ({ ...prev, [itemId]: true }));
@@ -429,7 +439,7 @@ export default function StockPage() {
         .filter((it) => confirmed[it.id])
         .map((it) => rows[it.id])
         .filter(Boolean)
-        .map((r) => ({ ...r, variance: varianceOf(r) }));
+        .map((r) => ({ ...r, variance: varianceOf(r, gpuOf(r.itemId)) }));
       const post = (force: boolean) => fetch("/api/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -635,7 +645,7 @@ export default function StockPage() {
                   const N = it.gramsPerUOM;
                   const d = derive(row, N);
                   const filled = isFilled(row);
-                  const v = varianceOf(row);
+                  const v = varianceOf(row, it.gramsPerUOM);
                   const su = it.isCup ? "ชิ้น" : "g"; // หน่วยย่อย: ถ้วยนับชิ้น · อื่นเป็นกรัม
                   const grp = it.remainderGroup;
                   const isLeader = !!grp && groupIds.get(grp)?.[0] === it.id;
@@ -658,6 +668,19 @@ export default function StockPage() {
                     : `✓ เท่ายกมา (${row.carryPack} แพ็ค)`;
 
                   const returnedExpanded = returnOpen[it.id] ?? (row.returned > 0 || (row.returnedG ?? 0) > 0);
+                  // บรรทัด "โอนภายใน" — โผล่เฉพาะแถวที่มีการแกะจริงในวันนั้น (v1.17)
+                  // ระบบเขียนเอง อ่านอย่างเดียว · แถวอื่นอีกร้อยกว่ารายการหน้าตาเหมือนเดิม
+                  const xferOut = row.transferOut ?? 0;
+                  const xferInG = row.transferInG ?? 0;
+                  const xferToName = it.expiryConvertToItemId
+                    ? meta.items.find((x) => x.id === it.expiryConvertToItemId)?.name
+                    : undefined;
+                  const xferFromName = xferInG > 0
+                    ? meta.items.find((x) => x.expiryConvertToItemId === it.id)?.name
+                    : undefined;
+                  const xferInLabel = it.gramsPerUOM > 0
+                    ? `${Math.floor(xferInG / it.gramsPerUOM)} ${it.unit}${xferInG % it.gramsPerUOM ? ` +${xferInG % it.gramsPerUOM}g` : ""}`
+                    : `${xferInG}g`;
 
                   return (
                     <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -668,6 +691,23 @@ export default function StockPage() {
                           <Badge>{it.unit}</Badge>
                         </div>
                       </div>
+
+                      {(xferOut > 0 || xferInG > 0) && (
+                        <div className="mb-2 grid gap-1">
+                          {xferOut > 0 && (
+                            <p className="rounded-md bg-brand-blue/15 px-2 py-1 text-[10.5px] leading-tight text-brand-ink/70">
+                              ↗ แกะไปรวมกับ {xferToName ?? "รายการอื่น"} · {xferOut} {it.unit}
+                              <span className="text-brand-ink/45"> (ไม่นับเป็นยอดขาย)</span>
+                            </p>
+                          )}
+                          {xferInG > 0 && (
+                            <p className="rounded-md bg-brand-blue/15 px-2 py-1 text-[10.5px] leading-tight text-brand-ink/70">
+                              ↘ ได้จากการแกะ {xferFromName ?? "รายการอื่น"} · +{xferInLabel}
+                              <span className="text-brand-ink/45"> (ระบบนับให้แล้ว ไม่ต้องกรอกรับเข้า)</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
 
                       {/* เต็ม/แพ็ค (หรือ กล่อง ถ้าเป็นกลุ่มเศษรวม) — field-grid บังคับ 4 คอลัมน์เสมอ */}
                       {(it.hasRemainder || grp) ? (

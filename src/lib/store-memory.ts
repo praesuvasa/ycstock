@@ -42,7 +42,6 @@ interface StockRec extends StockRow {
   expiryReturned?: number;
   expiryUsed?: number;
   // ส่วนของ "รับเข้า" ที่มาจากการแกะรายการอื่นมารวม เก็บเป็นกรัมรวม (ดู migration 0041 ข้อ 4)
-  expiryInG?: number;
 }
 interface SalesRec extends SalesRow { date: string; branch: Branch; }
 interface CupRec extends CupRow { date: string; branch: Branch; }
@@ -198,22 +197,8 @@ function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: str
   const existing = stock.get(key);
   if (existing) {
     if (existing.inAutoPack === undefined) return; // พนักงานแก้ทับไปแล้ว ไม่แตะต่อ
-    // "รับเข้า" อาจมี 2 แหล่ง: รถส่งของ + ของที่แกะจากรายการอื่นมารวม (expiry convert)
-    // ถ้าเขียนทับด้วย sumPack เฉย ๆ ส่วนที่มาจากการแกะจะหายเงียบ ๆ ตอนสาขายืนยันรับของทีหลัง
-    let inPack = sumPack;
-    let inG = sumG;
-    const expG = existing.expiryInG ?? 0;
-    if (expG > 0) {
-      const gpu = Number(ITEMS.find((i) => i.id === itemId)?.gramsPerUOM ?? 0);
-      if (gpu > 0) {
-        const totalG = sumPack * gpu + sumG + expG;
-        inPack = Math.floor(totalG / gpu);
-        inG = totalG % gpu;
-      } else {
-        inG = sumG + expG;
-      }
-    }
-    stock.set(key, { ...existing, inPack, inG, inAutoPack: sumPack, inAutoG: sumG });
+    // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะย้ายไปอยู่ transferInG
+    stock.set(key, { ...existing, inPack: sumPack, inG: sumG, inAutoPack: sumPack, inAutoG: sumG });
   } else {
     const prev = latestBefore(branch, itemId, todayStr);
     const carryPack = prev?.remainPack ?? 0;
@@ -746,25 +731,29 @@ export const memoryStore = {
     const itemById = new Map(ITEMS.map((it) => [it.id, it]));
     const wantReturn = new Map<string, number>();
     const wantUsed = new Map<string, number>();
-    const wantInG = new Map<string, number>(); // ปลายทางของการแปลง — สะสมเป็นกรัม แล้วค่อยทดเป็นแพ็ค
+    const wantTransferOut = new Map<string, number>(); // ต้นทางการแปลง (แพ็ค)
+    const wantInG = new Map<string, number>();          // ปลายทางการแปลง (กรัม)
     for (const r of rows) {
       if (r.disposition === "return") {
         wantReturn.set(r.itemId, (wantReturn.get(r.itemId) ?? 0) + r.qty);
       } else if (r.disposition === "sell_front") {
         wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
       } else if (r.disposition === "convert") {
-        // ต้นทางหายไปจากชั้นเหมือนแกะขาย · ปลายทางได้ของเพิ่มเข้ากอง
-        wantUsed.set(r.itemId, (wantUsed.get(r.itemId) ?? 0) + r.qty);
+        // ไม่ลง used/in — ของไม่ได้ขายและไม่ได้มาจากรถส่ง แค่ย้ายกองภายในร้าน (v1.17)
+        wantTransferOut.set(r.itemId, (wantTransferOut.get(r.itemId) ?? 0) + r.qty);
         const src = itemById.get(r.itemId);
-        const to = src?.expiryConvertToItemId;
+        const to = src?.expiryConvertToItemId ?? null;
         const g = Number(src?.expiryConvertG ?? 0);
         if (to && g > 0) wantInG.set(to, (wantInG.get(to) ?? 0) + r.qty * g);
       }
     }
-    const touched = new Set<string>([...wantReturn.keys(), ...wantUsed.keys(), ...wantInG.keys()]);
+    const touched = new Set<string>([
+      ...wantReturn.keys(), ...wantUsed.keys(), ...wantInG.keys(), ...wantTransferOut.keys(),
+    ]);
     for (const rec of stock.values()) {
       if (rec.branch !== branch || rec.date !== checkDate) continue;
-      if ((rec.expiryReturned ?? 0) !== 0 || (rec.expiryUsed ?? 0) !== 0 || (rec.expiryInG ?? 0) !== 0) {
+      if ((rec.expiryReturned ?? 0) !== 0 || (rec.expiryUsed ?? 0) !== 0
+        || (rec.transferOut ?? 0) !== 0 || (rec.transferInG ?? 0) !== 0) {
         touched.add(rec.itemId);
       }
     }
@@ -774,36 +763,33 @@ export const memoryStore = {
       const cur = stock.get(key);
       const newRet = wantReturn.get(itemId) ?? 0;
       const newUse = wantUsed.get(itemId) ?? 0;
-      const newInG = wantInG.get(itemId) ?? 0;
-      // ทดกรัมเป็นแพ็ค+เศษด้วยขนาดแพ็คของปลายทาง (500g × 2 = 1000g = 1 แพ็ค Greek Yogurt 1kg)
+      const newTransferOut = wantTransferOut.get(itemId) ?? 0;
+      const newTransferInG = wantInG.get(itemId) ?? 0;
       const gpu = Number(itemById.get(itemId)?.gramsPerUOM ?? 0);
       if (cur) {
+        // used/returned ปนกับที่พนักงานกรอกเอง → ถอนของเก่าก่อน · transfer_* ระบบเขียนเองล้วน เขียนทับได้
         const baseRet = Math.max(cur.returned - (cur.expiryReturned ?? 0), 0);
         const baseUse = Math.max(cur.used - (cur.expiryUsed ?? 0), 0);
-        const next: StockRec = {
-          ...cur, returned: baseRet + newRet, used: baseUse + newUse,
+        stock.set(key, {
+          ...cur,
+          returned: baseRet + newRet, used: baseUse + newUse,
           expiryReturned: newRet, expiryUsed: newUse,
-        };
-        if (newInG > 0 || (cur.expiryInG ?? 0) !== 0) {
-          // ถอนของเก่าออกจาก "กรัมรวม" ก่อน แล้วบวกของใหม่ ค่อยทดเป็นแพ็ค+เศษใหม่ทั้งก้อน
-          const baseTotalG = Math.max(cur.inPack * (gpu || 1) + cur.inG - (cur.expiryInG ?? 0), 0);
-          const totalG = baseTotalG + newInG;
-          next.inPack = gpu > 0 ? Math.floor(totalG / gpu) : cur.inPack;
-          next.inG = gpu > 0 ? totalG % gpu : totalG;
-          next.expiryInG = newInG;
-        }
-        stock.set(key, next);
-      } else if (newRet > 0 || newUse > 0 || newInG > 0) {
+          transferOut: newTransferOut, transferInG: newTransferInG,
+        });
+      } else if (newRet > 0 || newUse > 0 || newTransferOut > 0 || newTransferInG > 0) {
         const prev = latestBefore(branch, itemId, checkDate);
         const carryPack = prev?.remainPack ?? 0;
         const carryG = prev?.remainG ?? 0;
-        const inPack = gpu > 0 ? Math.floor(newInG / gpu) : 0;
-        const inG = gpu > 0 ? newInG % gpu : newInG;
+        const inPacks = gpu > 0 ? Math.floor(newTransferInG / gpu) : 0;
         stock.set(key, {
-          date: checkDate, branch, itemId, carryPack, carryG, inPack, inG,
-          used: newUse, remainPack: Math.max(carryPack + inPack - newUse - newRet, 0), remainG: carryG,
+          date: checkDate, branch, itemId, carryPack, carryG, inPack: 0, inG: 0,
+          used: newUse,
+          remainPack: Math.max(carryPack + inPacks - newUse - newRet - newTransferOut, 0),
+          remainG: carryG + (gpu > 0 ? newTransferInG % gpu : newTransferInG),
           returned: newRet, note: "", variance: 0,
-          expiryReturned: newRet, expiryUsed: newUse, expiryInG: newInG, remainConfirmed: false,
+          expiryReturned: newRet, expiryUsed: newUse,
+          transferOut: newTransferOut, transferInG: newTransferInG,
+          remainConfirmed: false,
         });
       }
     }
