@@ -144,6 +144,8 @@ export default function StockPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  // ลายเซ็นเวลาของข้อมูลชุดที่โหลดมา — ส่งกลับตอนบันทึกเพื่อให้เซิร์ฟเวอร์รู้ว่ามีคนแทรกไหม (v1.14)
+  const [baseSavedAt, setBaseSavedAt] = React.useState<string | null>(null);
   // ยืนยันแล้วหรือยัง ต่อไอเทม (reset ทุกครั้งที่เปลี่ยนสาขา/วันที่ = รอบใหม่)
   const [confirmed, setConfirmed] = React.useState<Record<string, boolean>>({});
   // เปิด/ปิด panel "ส่งคืน/เสีย" ต่อไอเทม (default ปิด เว้นแต่มีค่า returned ติดมา)
@@ -175,9 +177,10 @@ export default function StockPage() {
     setReturnOpen({});
     fetch(`/api/stock?branch=${branch}&date=${date}`)
       .then((r) => r.json())
-      .then((data: { rows?: StockRow[]; error?: string }) => {
+      .then((data: { rows?: StockRow[]; error?: string; savedAt?: string | null }) => {
         if (!alive) return;
         if (data.error) { setErr(data.error); return; }
+        setBaseSavedAt(data.savedAt ?? null);
         const map: Record<string, StockRow> = {};
         const conf: Record<string, boolean> = {};
         for (const row of data.rows ?? []) {
@@ -427,13 +430,36 @@ export default function StockPage() {
         .map((it) => rows[it.id])
         .filter(Boolean)
         .map((r) => ({ ...r, variance: varianceOf(r) }));
-      const res = await fetch("/api/stock", {
+      const post = (force: boolean) => fetch("/api/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, rows: payload }),
+        body: JSON.stringify({ branch, date, rows: payload, baseSavedAt, force }),
       });
-      const data = (await res.json()) as { updated?: number; inserted?: number; error?: string };
+      let res = await post(false);
+      let data = (await res.json()) as {
+        updated?: number; inserted?: number; error?: string;
+        conflict?: boolean; savedBy?: string | null; savedAt?: string | null;
+      };
+
+      // มีคนบันทึกแทรกหลังจากเราเปิดหน้านี้ — ให้เลือกเอง ไม่ทับเงียบ ๆ และไม่ทิ้งที่กรอกไว้เอง
+      if (res.status === 409 && data.conflict) {
+        const who = data.savedBy ?? "คนอื่น";
+        const when = data.savedAt ? new Date(data.savedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
+        const overwrite = window.confirm(
+          `${who} บันทึกสต็อกของวันนี้ไปแล้ว${when ? ` เมื่อ ${when} น.` : ""}\n\n` +
+          `กด "ตกลง" = บันทึกทับด้วยตัวเลขที่คุณกรอก (ตัวเลขของ ${who} จะหายไป)\n` +
+          `กด "ยกเลิก" = ไม่บันทึก แล้วโหลดหน้าใหม่เพื่อดูตัวเลขล่าสุดก่อน`
+        );
+        if (!overwrite) {
+          window.alert("ยังไม่ได้บันทึก — กดรีเฟรชหน้าเพื่อดูตัวเลขล่าสุดก่อนกรอกต่อ");
+          return;
+        }
+        res = await post(true);
+        data = await res.json();
+      }
+
       if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      setBaseSavedAt(data.savedAt ?? null); // กันเด้งเตือนซ้ำถ้ากดบันทึกอีกรอบโดยไม่ได้ออกจากหน้า
       setShowSavePrompt(true); // แทน alert เดิม — ชวนไปกรอกยอดขายต่อ
     } catch (e: any) {
       window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);

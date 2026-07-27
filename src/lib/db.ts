@@ -17,8 +17,11 @@ export const db = {
   getStock: (branch: Branch, date: string): Promise<StockRow[]> =>
     useSupabase ? supabaseStore.getStock(branch, date) : Promise.resolve(memoryStore.getStock(branch, date)),
 
-  saveStock: (branch: Branch, date: string, rows: StockRow[]) =>
-    useSupabase ? supabaseStore.saveStock(branch, date, rows) : Promise.resolve(memoryStore.saveStock(branch, date, rows)),
+  saveStock: (branch: Branch, date: string, rows: StockRow[], userName?: string) =>
+    useSupabase ? supabaseStore.saveStock(branch, date, rows, userName) : Promise.resolve(memoryStore.saveStock(branch, date, rows, userName)),
+
+  getStockSavedAt: (branch: Branch, date: string): Promise<{ savedAt: string | null; savedBy: string | null }> =>
+    useSupabase ? supabaseStore.getStockSavedAt(branch, date) : Promise.resolve(memoryStore.getStockSavedAt(branch, date)),
 
   getRestock: (branch: Branch, weekday: Weekday): Promise<{ rows: RestockRow[]; specialActive: boolean }> =>
     useSupabase ? supabaseStore.getRestock(branch, weekday) : Promise.resolve(memoryStore.getRestock(branch, weekday)),

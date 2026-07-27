@@ -258,7 +258,12 @@ export const memoryStore = {
     });
   },
 
-  saveStock(branch: Branch, date: string, rows: StockRow[]) {
+  // dev store ไม่มีหลายเครื่องพร้อมกัน — คืนค่าให้ signature ตรงกับ production เท่านั้น
+  getStockSavedAt(_branch: Branch, _date: string): { savedAt: string | null; savedBy: string | null } {
+    return { savedAt: null, savedBy: null };
+  },
+
+  saveStock(branch: Branch, date: string, rows: StockRow[], _userName?: string) {
     seed();
     let updated = 0, inserted = 0;
     for (const r of rows) {

@@ -20,7 +20,9 @@ export async function GET(req: Request) {
     const date = searchParams.get("date");
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
     const rows = await db.getStock(branch, date);
-    return NextResponse.json({ rows, branch });
+    // savedAt = ลายเซ็นเวลาของข้อมูลชุดที่ส่งไป · หน้าจอต้องส่งกลับมาตอนบันทึก เพื่อให้เช็คได้ว่ามีคนแทรกไหม
+    const { savedAt, savedBy } = await db.getStockSavedAt(branch, date);
+    return NextResponse.json({ rows, branch, savedAt, savedBy });
   } catch (e) {
     return fail(e, "getStock failed");
   }
@@ -29,16 +31,38 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
-    const body = (await req.json()) as { branch?: string; date?: string; rows?: StockRow[] };
+    const body = (await req.json()) as { branch?: string; date?: string; rows?: StockRow[]; baseSavedAt?: string | null; force?: boolean };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
     assertCanEditDate(s, date); // user ≤ 3 วัน · admin ไม่จำกัด
     if (!Array.isArray(body.rows)) return NextResponse.json({ error: "rows จำเป็น" }, { status: 400 });
 
-    const result = await db.saveStock(branch, date, body.rows);
-    await writeAudit(s, "save_stock", { branch, date, detail: `บันทึกสต็อก ${body.rows.length} รายการ` });
-    return NextResponse.json(result);
+    // กันบันทึกทับกัน (v1.14) — ถ้ามีคนบันทึกแทรกหลังจากที่หน้าจอนี้โหลดข้อมูลไป ให้หยุดไว้ก่อน
+    // ไม่ปฏิเสธถาวร แค่ให้คนกดรู้ตัวแล้วเลือกเอง (โหลดใหม่ หรือยืนยันทับ) — เงียบ ๆ ทับคือสิ่งที่แย่ที่สุด
+    //
+    // ข้อจำกัดที่ยอมรับ: ยังมีช่องว่างเสี้ยววินาทีระหว่างเช็คกับเขียน ถ้าสองคนกดพร้อมกันเป๊ะ ๆ ก็ยังทับได้
+    // แต่เคสจริงคือ "เปิดค้างไว้คนละชั่วโมงแล้วต่างคนต่างกด" ซึ่งอันนี้จับได้หมด
+    const current = await db.getStockSavedAt(branch, date);
+    if (!body.force && body.baseSavedAt !== undefined && current.savedAt) {
+      const base = body.baseSavedAt ? Date.parse(body.baseSavedAt) : 0;
+      if (Date.parse(current.savedAt) > base) {
+        return NextResponse.json({
+          conflict: true,
+          savedAt: current.savedAt,
+          savedBy: current.savedBy,
+          error: `${current.savedBy ?? "คนอื่น"} บันทึกสต็อกของวันนี้ไปแล้วหลังจากที่คุณเปิดหน้านี้`,
+        }, { status: 409 });
+      }
+    }
+
+    const result = await db.saveStock(branch, date, body.rows, s.name);
+    await writeAudit(s, "save_stock", {
+      branch, date,
+      detail: `บันทึกสต็อก ${body.rows.length} รายการ${body.force ? " · ยืนยันทับงานของ " + (current.savedBy ?? "คนอื่น") : ""}`,
+    });
+    const after = await db.getStockSavedAt(branch, date);
+    return NextResponse.json({ ...result, savedAt: after.savedAt, savedBy: after.savedBy });
   } catch (e) {
     return fail(e, "saveStock failed");
   }

@@ -53,6 +53,7 @@ type Tab = { href?: string; label: string; icon: IconKey; children?: Tab[] };
 // (รับของ → นับสต็อก → ปิดยอด → ส่งเงิน) ของที่ทำนาน ๆ ครั้งไปอยู่ท้าย
 // หน้าประวัติ 2 อันยุบเป็นกลุ่มเดียว เพราะเป็นของ "ย้อนดู" ไม่ใช่งานประจำวัน
 const USER_TABS: Tab[] = [
+  { href: "/", label: "หน้าหลัก", icon: "home" },
   { href: "/confirm-receipt", label: "ยืนยันรับของ", icon: "inbox" },
   { href: "/stock", label: "เช็คสต็อก", icon: "clipboard" },
   { href: "/sales", label: "รายงานยอดขาย", icon: "banknote" },

@@ -182,7 +182,17 @@ export const supabaseStore = {
     });
   },
 
-  async saveStock(branch: Branch, date: string, rows: StockRow[]) {
+  // "ใครบันทึกล่าสุด เมื่อไหร่" ของสาขา+วันนั้น — ใช้เทียบกันบันทึกทับกัน (v1.14)
+  async getStockSavedAt(branch: Branch, date: string): Promise<{ savedAt: string | null; savedBy: string | null }> {
+    const { data, error } = await sb().from("stock_daily")
+      .select("updated_at,updated_by_name")
+      .eq("branch_id", branch).eq("date", date)
+      .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return { savedAt: data?.updated_at ?? null, savedBy: data?.updated_by_name ?? null };
+  },
+
+  async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
       .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed")
@@ -260,7 +270,8 @@ export const supabaseStore = {
         in_auto_pack: inAutoPack, in_auto_g: inAutoG, remain_confirmed: true,
       });
     }
-    const { error } = await sb().from("stock_daily").upsert(payload, { onConflict: "date,branch_id,item_id" });
+    const stamped = payload.map((r: any) => ({ ...r, updated_at: new Date().toISOString(), updated_by_name: userName ?? null }));
+    const { error } = await sb().from("stock_daily").upsert(stamped, { onConflict: "date,branch_id,item_id" });
     if (error) throw error;
     if (flags.length) {
       const { error: flagErr } = await sb().from("stock_admin_flags").insert(flags);
