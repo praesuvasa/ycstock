@@ -46,6 +46,5 @@ where id = 'it-027';
 -- 7) กฎการแปลง (grams_per_uom ปลายทาง: it-001/it-009 = 1000g · it-033 = 2000g)
 update items set expiry_convert_to_item_id = 'it-001', expiry_convert_g = 500 where id = 'it-010';
 update items set expiry_convert_to_item_id = 'it-009', expiry_convert_g = 500 where id = 'it-011';
--- Granola (M) → Granola (Topping): ตั้ง item ปลายทางไว้ก่อน แต่ยังไม่รู้ว่า 1 กระปุก = กี่กรัม
--- expiry_convert_g ยังเป็น null → หน้าตรวจจะยังไม่โชว์ปุ่มแกะ จนกว่าแพรจะยืนยันน้ำหนักกระปุก
-update items set expiry_convert_to_item_id = 'it-033' where id = 'it-027';
+-- Granola (M) 1 กระปุก = 250g (แพรยืนยัน 2026-07-27) → แกะ 8 กระปุก = 1 แพ็ค Granola (Topping) 2,000g
+update items set expiry_convert_to_item_id = 'it-033', expiry_convert_g = 250 where id = 'it-027';

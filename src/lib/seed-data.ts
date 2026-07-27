@@ -252,11 +252,11 @@ const EXPIRY_WARN_DAYS: Record<string, number> = {
   "Cornflakes Malt (M)": 10, "Granola (M)": 10, "Choc Chip Cookies": 10, "Cranberry Cookies": 10,
 };
 // แกะแล้วไปรวมกับรายการอื่น: [ชื่อปลายทาง, กรัมที่ได้ต่อ 1 หน่วยต้นทาง]
-// Granola (M) ยังไม่รู้ว่า 1 กระปุก = กี่กรัม → ปล่อย null รอแพรยืนยัน
+// Granola (M) 1 กระปุก = 250g (แพรยืนยัน 2026-07-27) → แกะ 8 กระปุก = 1 แพ็ค Granola (Topping) 2,000g
 const EXPIRY_CONVERT: Record<string, [string, number | null]> = {
   "Greek Yogurt 500g": ["Greek Yogurt 1kg", 500],
   "Plain Yogurt 500g": ["Plain Yogurt (ธรรมชาติ)", 500],
-  "Granola (M)": ["Granola (Topping)", null],
+  "Granola (M)": ["Granola (Topping)", 250],
 };
 
 const VARIABLE_YIELD_ITEMS = new Set<string>([
