@@ -247,6 +247,26 @@ export default function StockPage() {
   // ลูกค้าเอาแก้วมาเอง — เก็บเป็น map ตามขนาด กรอกในหมวดถ้วย บันทึกไปพร้อมปุ่มบันทึกสต็อก
   const [ownCups, setOwnCups] = React.useState<Record<string, number>>({});
   const [ownCupOpen, setOwnCupOpen] = React.useState(false);
+
+  // ใบเติมของที่ยังยืนยันรับไม่ครบ — เตือนก่อนเริ่มนับสต็อก (v1.20)
+  // ถ้ายังไม่ยืนยัน ช่อง "รับเข้า" จะว่าง แล้วคงเหลือที่นับได้จะดูเหมือนเกินยกมา = ตัวเลขเพี้ยนทั้งใบ
+  const [pendingSheets, setPendingSheets] = React.useState<{ date: string; pendingCount: number }[]>([]);
+  React.useEffect(() => {
+    fetch(`/api/confirm-receipt/sheets?branch=${branch}`)
+      .then((r) => (r.ok ? r.json() : { sheets: [] }))
+      .then((d) => setPendingSheets(d.sheets ?? []))
+      .catch(() => setPendingSheets([]));
+  }, [branch, started]);
+
+  // แยก "ใบของวันที่กำลังจะนับ" ออกจาก "ใบเก่าค้าง" — ความเร่งด่วนคนละเรื่องกัน
+  // ใบของวันนั้นไม่ยืนยัน = ตัวเลขวันนั้นผิดแน่ ๆ ต้องทำก่อน
+  // ใบเก่าค้าง = ต้องตัดสินใจว่าของมาไหม (ยืนยัน หรือติ๊กไม่ได้รับ) ไม่ใช่แค่กดยืนยันรัว ๆ
+  const pendingToday = pendingSheets
+    .filter((x) => x.date === date)
+    .reduce((sum, x) => sum + x.pendingCount, 0);
+  const oldSheets = pendingSheets.filter((x) => x.date < date && x.pendingCount > 0);
+  const pendingOld = oldSheets.reduce((sum, x) => sum + x.pendingCount, 0);
+  const oldestPendingDate = oldSheets.map((x) => x.date).sort()[0];
   const [showHidden, setShowHidden] = React.useState(false);
   // กดแสดงแล้วเลื่อนไปหาให้เลย — หมวดที่ซ่อนอยู่ท้ายสุดของทุกหมวด ถ้าไม่เลื่อนให้จะหาไม่เจอ
   React.useEffect(() => {
@@ -539,6 +559,43 @@ export default function StockPage() {
           )}
         </div>
       </GlassCard>
+
+      {!started && pendingToday > 0 && (
+        <div className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-3">
+          <p className="text-[13.5px] font-semibold text-warn">
+            กรุณากดยืนยันรับสินค้าเข้าก่อนเช็คสต็อก
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/60">
+            ยังไม่ได้ยืนยัน {pendingToday} รายการของวันนี้ — ถ้ายังไม่ยืนยัน ช่อง &ldquo;รับเข้า&rdquo; จะว่าง
+            แล้วยอดคงเหลือที่นับได้จะดูเหมือนเกินของที่มี
+          </p>
+          <Link
+            href={`/confirm-receipt?branch=${branch}`}
+            className="mt-2.5 block rounded-xl bg-brand-red px-4 py-2.5 text-center text-[13px] font-semibold text-white"
+          >
+            ไปยืนยันรับสินค้า →
+          </Link>
+        </div>
+      )}
+
+      {!started && pendingOld > 0 && (
+        <div className="mb-3 rounded-xl border border-black/10 bg-white/70 px-3.5 py-3">
+          <p className="text-[12.5px] font-medium">
+            มีใบเก่าค้างยืนยันอีก {pendingOld} รายการ
+            {oldestPendingDate ? ` (เก่าสุด ${thaiDate(oldestPendingDate)})` : ""}
+          </p>
+          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
+            ไม่ต้องรีบก่อนนับสต็อกวันนี้ — แต่ถ้ากดยืนยันตอนนี้ ยอดจะไปลงช่อง &ldquo;รับเข้า&rdquo; ของ
+            <b>วันนี้</b> ไม่ใช่วันที่ของถึงจริง · ถ้าของไม่ได้มา ให้ติ๊ก &ldquo;ไม่ได้รับ&rdquo; เพื่อปิดใบ
+          </p>
+          <Link
+            href={`/confirm-receipt?branch=${branch}`}
+            className="mt-2 inline-block text-[12.5px] font-medium text-brand-red underline underline-offset-2"
+          >
+            ไปจัดการใบค้าง
+          </Link>
+        </div>
+      )}
 
       {!started && (
         <GlassCard>
