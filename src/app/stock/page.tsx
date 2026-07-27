@@ -585,8 +585,12 @@ export default function StockPage() {
             {oldestPendingDate ? ` (เก่าสุด ${thaiDate(oldestPendingDate)})` : ""}
           </p>
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-            ไม่ต้องรีบก่อนนับสต็อกวันนี้ — แต่ถ้ากดยืนยันตอนนี้ ยอดจะไปลงช่อง &ldquo;รับเข้า&rdquo; ของ
-            <b>วันนี้</b> ไม่ใช่วันที่ของถึงจริง · ถ้าของไม่ได้มา ให้ติ๊ก &ldquo;ไม่ได้รับ&rdquo; เพื่อปิดใบ
+            ควรเคลียร์ให้จบ เหลือแต่ใบล่าสุด — ถ้าของไม่ได้มาจริง ปิดทั้งใบว่า &ldquo;ไม่ได้รับ&rdquo; ได้เลย
+            แล้วระบบจะแจ้งแอดมินให้เอง
+            <br />
+            <span className="text-brand-ink/45">
+              ยิ่งค้างนานยิ่งเพี้ยน — กดยืนยันวันไหน ยอดจะไปลง &ldquo;รับเข้า&rdquo; ของวันนั้น ไม่ใช่วันที่ของถึงจริง
+            </span>
           </p>
           <Link
             href={`/confirm-receipt?branch=${branch}`}

@@ -10,7 +10,7 @@ import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, Res
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
 import { TodayNextStep } from "@/components/today-next-step";
-import { thaiDate } from "@/lib/fmt";
+import { thaiDate, todayISO } from "@/lib/fmt";
 
 export default function ConfirmReceiptPage() {
   const me = useMe();
@@ -38,6 +38,41 @@ export default function ConfirmReceiptPage() {
   React.useEffect(() => { loadSheets(); }, [loadSheets]);
 
   const [activeDate, setActiveDate] = React.useState<string | null>(null);
+  const [clearing, setClearing] = React.useState(false);
+
+  // ปิดใบเก่าทั้งใบว่า "ไม่ได้รับ" — ใช้ endpoint batch เดิม ระบบจะยิงแจ้งแอดมินให้ทุกรายการ
+  // ต้องถามยืนยันก่อน เพราะปิดแล้วใบหายจากลิสต์ ถ้าที่จริงของมาแล้วต้องไปแก้ที่หน้าสต็อกเอง
+  async function clearSheetNotReceived(date: string) {
+    const ok = window.confirm(
+      `ปิดใบ ${thaiDate(date)} ทั้งใบว่า "ไม่ได้รับของ"?\n\n` +
+      `ใบนี้จะหายจากรายการ และแอดมินจะได้รับแจ้งทุกรายการ\n` +
+      `ถ้าที่จริงของมาแล้ว อย่ากดปุ่มนี้ — ให้ติ๊กรับทีละรายการแทน`
+    );
+    if (!ok) return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/confirm-receipt?branch=${branch}&date=${date}`);
+      const data = await res.json();
+      const pending = ((data.items ?? []) as { itemId: string; receivedQty: number | null }[])
+        .filter((i) => i.receivedQty === null);
+      if (pending.length === 0) { setClearing(false); return; }
+      await fetch("/api/confirm-receipt/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branch, date,
+          entries: pending.map((i) => ({
+            itemId: i.itemId, receivedQty: 0, receivedQtyG: 0, isExtra: false, notReceived: true,
+            note: "ปิดใบเก่าทั้งใบ — ของไม่ได้มา",
+          })),
+        }),
+      });
+      setActiveDate(null);
+      loadSheets();
+    } finally {
+      setClearing(false);
+    }
+  }
   React.useEffect(() => {
     // เลือกใบแรกในลิสอัตโนมัติ (เก่าสุดก่อน) — ถ้าใบที่เลือกอยู่หายไปแล้ว (ยืนยันครบ) ให้รีเซ็ต
     if (activeDate && sheets.some((s) => s.date === activeDate)) return;
@@ -92,6 +127,24 @@ export default function ConfirmReceiptPage() {
               </button>
             ))}
           </div>
+
+          {activeDate && activeDate < todayISO() && (
+            <div className="mb-3 rounded-xl border border-black/10 bg-white/70 px-3.5 py-3">
+              <p className="text-[12.5px] font-medium">ใบนี้เป็นใบเก่า ({thaiDate(activeDate)})</p>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
+                ควรเคลียร์ให้จบ เหลือแต่ใบล่าสุด — ถ้าของไม่ได้มาจริง กดปุ่มด้านล่างปิดทั้งใบได้เลย
+                ระบบจะแจ้งแอดมินให้เอง
+              </p>
+              <button
+                type="button"
+                disabled={clearing}
+                onClick={() => clearSheetNotReceived(activeDate)}
+                className="mt-2 w-full rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-[12.5px] font-semibold text-warn disabled:opacity-50"
+              >
+                {clearing ? "กำลังปิดใบ…" : "ปิดทั้งใบ — ไม่ได้รับของ"}
+              </button>
+            </div>
+          )}
 
           {activeDate && (
             <SheetConfirm
