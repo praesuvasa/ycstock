@@ -41,7 +41,7 @@ export async function middleware(req: NextRequest) {
     const allowed = USER_PAGES.some((p) => pathname === p || pathname.startsWith(p + "/"));
     if (!allowed) {
       const url = req.nextUrl.clone();
-      url.pathname = "/stock";
+      url.pathname = "/"; // พนักงานเข้าหน้าที่ไม่มีสิทธิ์ → กลับหน้าหลัก ไม่ใช่หน้าสต็อก
       return NextResponse.redirect(url);
     }
   }

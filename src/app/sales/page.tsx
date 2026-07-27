@@ -144,6 +144,8 @@ export default function SalesPage() {
   // แล้วสถานะ "ยังไม่บันทึก" ค้างจนปลดล็อกแนบหลักฐานไม่ได้
   const [savedIncidents, setSavedIncidents] = React.useState<PaymentIncident[]>([]);
   const [savingIncidents, setSavingIncidents] = React.useState(false);
+  // กล่องเคสยุบไว้เป็นดีฟอลต์ · กางเองเมื่อวันนั้นมีเคสบันทึกไว้แล้ว จะได้ไม่ต้องไล่กดหา
+  const [incidentOpen, setIncidentOpen] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -156,11 +158,13 @@ export default function SalesPage() {
       const loaded = (data.incidents ?? []) as PaymentIncident[];
       setIncidents(loaded);
       setSavedIncidents(loaded);
+      setIncidentOpen(loaded.length > 0); // วันนั้นมีเคสอยู่แล้ว → กางให้เลย ไม่ต้องไล่กดหา
     } catch (e: any) {
       setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
       setForm(EMPTY);
       setIncidents([]);
       setSavedIncidents([]);
+      setIncidentOpen(false);
     } finally {
       setLoading(false);
     }
@@ -303,15 +307,45 @@ export default function SalesPage() {
           <NumberField label="PromptPay / QR" value={form.qr} onChange={set("qr")} />
           <NumberField label="EDC บัตร" value={form.edc} onChange={set("edc")} />
         </div>
-        {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) */}
+        {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) — ยุบไว้เป็นดีฟอลต์ (แพรขอ 2026-07-27)
+            เพราะเป็นเคสนาน ๆ ที กางค้างไว้ทุกวันทำให้หน้าจอรก และพนักงานสับสนว่าต้องกรอกด้วยไหม */}
         <div className="mt-3 rounded-xl border border-black/10 bg-black/[.02] px-3 py-2.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-[12.5px] font-medium">รับเงินไม่ตรงบิล</p>
-              <p className="text-[11px] leading-relaxed text-brand-ink/50">
-                ลูกค้าโอนเกิน/ขาด — กรอกยอดข้างบนตาม POS ตามปกติ ระบบจะปรับให้เอง
-              </p>
-            </div>
+          <button
+            type="button"
+            onClick={() => setIncidentOpen((o) => !o)}
+            className="flex w-full items-center justify-between gap-2 text-left"
+            aria-expanded={incidentOpen}
+          >
+            <span className="min-w-0">
+              <span className="block text-[12.5px] font-medium">
+                รับเงินไม่ตรงบิล
+                {incidents.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-brand-red px-1.5 text-[10px] font-semibold text-white">
+                    {incidents.length}
+                  </span>
+                )}
+              </span>
+              {!incidentOpen && (
+                <span className="block text-[11px] leading-relaxed text-brand-ink/45">
+                  กดเมื่อมีเคสลูกค้าโอนเกิน/ขาด
+                </span>
+              )}
+            </span>
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+              className={`shrink-0 text-brand-ink/40 transition-transform ${incidentOpen ? "rotate-180" : ""}`}
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          {incidentOpen && (
+          <>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="min-w-0 text-[11px] leading-relaxed text-brand-ink/50">
+              ทุกเคสที่โอนขาด/เกิน คำนวณจากยอด QR — ถ้าช่อง QR ว่าง ค่าจะเพี้ยน
+            </p>
             <button
               type="button"
               disabled={!posReady}
@@ -426,6 +460,8 @@ export default function SalesPage() {
                 </p>
               )}
             </div>
+          )}
+          </>
           )}
         </div>
 

@@ -30,7 +30,9 @@ function LoginForm() {
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || data.error) { setErr(data.error ?? "เข้าสู่ระบบไม่สำเร็จ"); return; }
       const from = params.get("from");
-      router.replace(from && from.startsWith("/") ? from : "/stock");
+      // ล็อกอินเสร็จให้ไปหน้าหลักเสมอ (แพรขอ 2026-07-27) — ยกเว้นถูกเด้งมาจากหน้าอื่น
+      // (?from=...) ซึ่งควรพากลับไปหน้าที่ตั้งใจจะเปิดจริง ๆ
+      router.replace(from && from.startsWith("/") ? from : "/");
       router.refresh();
     } catch (e: any) {
       setErr(String(e?.message ?? e));
