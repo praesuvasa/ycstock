@@ -673,10 +673,10 @@ export default function StockPage() {
                   const xferOut = row.transferOut ?? 0;
                   const xferInG = row.transferInG ?? 0;
                   const xferToName = it.expiryConvertToItemId
-                    ? meta.items.find((x) => x.id === it.expiryConvertToItemId)?.name
+                    ? meta?.items.find((x) => x.id === it.expiryConvertToItemId)?.name
                     : undefined;
                   const xferFromName = xferInG > 0
-                    ? meta.items.find((x) => x.expiryConvertToItemId === it.id)?.name
+                    ? meta?.items.find((x) => x.expiryConvertToItemId === it.id)?.name
                     : undefined;
                   const xferInLabel = it.gramsPerUOM > 0
                     ? `${Math.floor(xferInG / it.gramsPerUOM)} ${it.unit}${xferInG % it.gramsPerUOM ? ` +${xferInG % it.gramsPerUOM}g` : ""}`
