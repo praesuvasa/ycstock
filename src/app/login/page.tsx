@@ -1,6 +1,6 @@
 "use client";
 import React from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   return (
@@ -12,7 +12,6 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
-  const params = useSearchParams();
   const [pin, setPin] = React.useState("");
   const [err, setErr] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -29,10 +28,10 @@ function LoginForm() {
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
       if (!res.ok || data.error) { setErr(data.error ?? "เข้าสู่ระบบไม่สำเร็จ"); return; }
-      const from = params.get("from");
-      // ล็อกอินเสร็จให้ไปหน้าหลักเสมอ (แพรขอ 2026-07-27) — ยกเว้นถูกเด้งมาจากหน้าอื่น
-      // (?from=...) ซึ่งควรพากลับไปหน้าที่ตั้งใจจะเปิดจริง ๆ
-      router.replace(from && from.startsWith("/") ? from : "/");
+      // ล็อกอินเสร็จไปหน้าหลักเสมอ ไม่มีข้อยกเว้น (แพรยืนยัน 2026-07-27)
+      // เดิมถ้าถูกเด้งมาจากหน้าอื่นจะพากลับไปหน้านั้น แต่พนักงานควรเห็น "วันนี้ต้องทำอะไร"
+      // ก่อนเริ่มงานทุกครั้ง — เจอหน้ากลางทางแล้วงงว่ามาอยู่ตรงนี้ได้ยังไง
+      router.replace("/");
       router.refresh();
     } catch (e: any) {
       setErr(String(e?.message ?? e));

@@ -18,7 +18,7 @@ export async function middleware(req: NextRequest) {
     if (isApi) return NextResponse.json({ error: "ยังไม่ได้ล็อกอิน" }, { status: 401 });
     const url = req.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("from", pathname);
+    url.search = ""; // ไม่ต้องส่ง ?from= แล้ว — ล็อกอินเสร็จไปหน้าหลักเสมอ
     return NextResponse.redirect(url);
   }
 
