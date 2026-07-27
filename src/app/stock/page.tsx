@@ -248,6 +248,11 @@ export default function StockPage() {
   const [ownCups, setOwnCups] = React.useState<Record<string, number>>({});
   const [ownCupOpen, setOwnCupOpen] = React.useState(false);
 
+  // ด่านยืนยันวันที่/สาขา ก่อนเข้าหน้ากรอกจริง (แพรขอ 2026-07-26)
+  // เดิมเปิดหน้ามาก็โชว์ข้อมูลวันนี้เลย ทำให้เผลอกรอกผิดวัน/ผิดสาขาโดยไม่ทันดู
+  // ** ต้องประกาศก่อน effect ที่ใช้ started เป็น dependency ด้านล่าง ** (const มี TDZ)
+  const [started, setStarted] = React.useState(false);
+
   // ใบเติมของที่ยังยืนยันรับไม่ครบ — เตือนก่อนเริ่มนับสต็อก (v1.20)
   // ถ้ายังไม่ยืนยัน ช่อง "รับเข้า" จะว่าง แล้วคงเหลือที่นับได้จะดูเหมือนเกินยกมา = ตัวเลขเพี้ยนทั้งใบ
   const [pendingSheets, setPendingSheets] = React.useState<{ date: string; pendingCount: number }[]>([]);
@@ -279,9 +284,6 @@ export default function StockPage() {
   }, [showHidden]);
   // กลุ่มย่อยที่พับไว้ (เช่น ถุงมือ) — key = "หมวด|ชื่อกลุ่ม" กันชนกันข้ามหมวด
   const [openSub, setOpenSub] = React.useState<Record<string, boolean>>({});
-  // ด่านยืนยันวันที่/สาขา ก่อนเข้าหน้ากรอกจริง (แพรขอ 2026-07-26)
-  // เดิมเปิดหน้ามาก็โชว์ข้อมูลวันนี้เลย ทำให้เผลอกรอกผิดวัน/ผิดสาขาโดยไม่ทันดู
-  const [started, setStarted] = React.useState(false);
   const hiddenGroups = React.useMemo(() => {
     if (!meta) return [] as { category: string; items: Item[] }[];
     const shown = meta.items
