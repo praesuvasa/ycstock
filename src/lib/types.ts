@@ -92,6 +92,25 @@ export interface CupRow {
   in: number;
   remain: number;
   sold: number;
+  // v1.18 — ลูกค้าเอาแก้วมาเอง: POS นับว่าขาย แต่ถ้วยในร้านไม่ได้ถูกใช้
+  // หักออกจากฝั่ง "ขายจริง" ตอนเทียบ ไม่งั้นจะขึ้นว่าถ้วยขาดทั้งที่ไม่มีใครทำหาย
+  ownCup?: number;
+}
+
+// ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
+// anonymous = true → ไม่เก็บชื่อ/ไอดีลงฐานข้อมูลเลย ไม่ใช่แค่ซ่อนตอนแสดงผล
+export type FeedbackTopic = "system" | "work" | "team" | "place" | "other";
+
+export interface StaffFeedback {
+  id?: number;
+  userName?: string | null;
+  branch?: Branch | null;
+  anonymous: boolean;
+  topic: FeedbackTopic;
+  message: string;
+  wantedAction: string;
+  seenAt?: string | null;
+  createdAt?: string;
 }
 
 export interface RestockRow {

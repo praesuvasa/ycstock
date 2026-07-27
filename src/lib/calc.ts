@@ -73,11 +73,16 @@ export interface CupReconResult {
   balanced: boolean;   // รายขนาดตรงหมด
 }
 
-/** Reconcile ถ้วยเสิร์ฟ: ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ ; เทียบกับ ขายจริง */
+/**
+ * Reconcile ถ้วยเสิร์ฟ: ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ ; เทียบกับ "ขายที่ต้องใช้ถ้วยร้าน"
+ *
+ * v1.18 — หักบิลที่ลูกค้าเอาแก้วมาเองออกจากยอดขายก่อนเทียบ
+ * เพราะบิลพวกนั้น POS นับว่าขาย แต่ไม่ได้กินถ้วยของร้าน ถ้าไม่หักจะขึ้นว่าถ้วยขาดทุกครั้ง
+ */
 export function cupReconcile(rows: CupRow[]): CupReconResult {
   const perSize = rows.map((r) => {
     const used = Math.max(n(r.start) + n(r.in) - n(r.remain), 0);
-    const sold = n(r.sold);
+    const sold = Math.max(n(r.sold) - n(r.ownCup), 0);
     return { size: r.size, used, sold, diff: used - sold };
   });
   const totalUsed = perSize.reduce((s, r) => s + r.used, 0);

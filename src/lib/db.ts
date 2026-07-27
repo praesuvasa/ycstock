@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
+import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -144,6 +144,19 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
+  createFeedback: (input: {
+    userId: string; userName: string; branch: Branch | null;
+    anonymous: boolean; topic: string; message: string; wantedAction: string;
+  }): Promise<void> =>
+    useSupabase ? supabaseStore.createFeedback(input) : Promise.resolve(memoryStore.createFeedback(input)),
+  listFeedback: (limit?: number): Promise<StaffFeedback[]> =>
+    useSupabase ? supabaseStore.listFeedback(limit) : Promise.resolve(memoryStore.listFeedback(limit)),
+  countUnseenFeedback: (): Promise<number> =>
+    useSupabase ? supabaseStore.countUnseenFeedback() : Promise.resolve(memoryStore.countUnseenFeedback()),
+  markAllFeedbackSeen: (byName: string): Promise<void> =>
+    useSupabase ? supabaseStore.markAllFeedbackSeen(byName) : Promise.resolve(memoryStore.markAllFeedbackSeen(byName)),
+
   // ── ลบผู้ใช้ (v1.15) ──
   getUserActivity: (userId: string): Promise<{ allowanceUses: number; auditRows: number; workRows: number }> =>
     useSupabase ? supabaseStore.getUserActivity(userId) : Promise.resolve(memoryStore.getUserActivity(userId)),

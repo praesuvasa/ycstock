@@ -9,7 +9,7 @@ export type Me = { id: string; name: string; role: Role; branchScope: BranchScop
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
   | "request" | "calendar" | "undo" | "ticket" | "flag" | "sliders" | "users"
-  | "megaphone" | "list" | "lock" | "logout";
+  | "megaphone" | "list" | "lock" | "chat" | "logout";
 
 // ไอคอนเส้นเรียบ วาดเอง 24x24 — ไม่ใช้ emoji (ขนาด/สีต่างกันตามอุปกรณ์ คุมไม่ได้)
 // และไม่ดึงไลบรารีไอคอนเข้ามาเพื่อ 19 อัน (bundle โตเกินจำเป็น)
@@ -32,6 +32,7 @@ const ICON_PATHS: Record<IconKey, string> = {
   megaphone: "M4 10a1 1 0 0 1 1-1h3l7-4v14l-7-4H5a1 1 0 0 1-1-1zM18 9a4 4 0 0 1 0 6",
   list: "M9 6h11M9 12h11M9 18h11M4.5 7.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 13.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 19.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4",
   lock: "M6 11h12v10H6zM9 11V7.5a3 3 0 0 1 6 0V11M12 15v2",
+  chat: "M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H9l-5 4z",
   logout: "M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2M10 12h11M18 9l3 3-3 3",
 };
 
@@ -102,6 +103,7 @@ const tabsForMe = (me: Me | null): Tab[] =>
 const accountMenuFor = (me: Me | null): Tab[] => [
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
+  { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },
 ];
 
 

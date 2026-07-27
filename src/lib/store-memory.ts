@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, StaffAllowanceUse, AllowanceSummary } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
@@ -73,6 +73,10 @@ const expiryChecks = new Map<string, ExpiryCheckRow[]>();
 
 // สิทธิ์ซื้อของในร้าน (v1.13) — 1 แถว = 1 บิลที่ใช้สิทธิ์
 const allowanceUses: StaffAllowanceUse[] = [];
+
+// ความคิดเห็น/ข้อเสนอแนะ (v1.18)
+const feedbackRows: StaffFeedback[] = [];
+let feedbackSeq = 1;
 let allowanceSeq = 1;
 
 // ── ยืนยันรับของ (v1.9) ──
@@ -410,7 +414,7 @@ export const memoryStore = {
       const inQ = s ? s.inPack * conv + s.inG : 0;
       const remain = s ? s.remainPack * conv + s.remainG : 0;
       const rec = cups.get(ck(date, branch, size));
-      return { size, start, in: inQ, remain, sold: rec?.sold ?? 0 };
+      return { size, start, in: inQ, remain, sold: rec?.sold ?? 0, ownCup: rec?.ownCup ?? 0 };
     });
   },
 
@@ -518,6 +522,30 @@ export const memoryStore = {
     if (patch.allowanceMonthly !== undefined) u.allowanceMonthly = patch.allowanceMonthly;
     const { passcodeHash, ...pub } = u;
     return pub;
+  },
+
+  // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
+  createFeedback(input: {
+    userId: string; userName: string; branch: Branch | null;
+    anonymous: boolean; topic: string; message: string; wantedAction: string;
+  }): void {
+    feedbackRows.unshift({
+      id: feedbackSeq++,
+      userName: input.anonymous ? null : input.userName,
+      branch: input.branch, anonymous: input.anonymous,
+      topic: input.topic as StaffFeedback["topic"],
+      message: input.message, wantedAction: input.wantedAction,
+      seenAt: null, createdAt: new Date().toISOString(),
+    });
+  },
+  listFeedback(limit = 200): StaffFeedback[] {
+    return feedbackRows.slice(0, limit).map((r) => ({ ...r }));
+  },
+  countUnseenFeedback(): number {
+    return feedbackRows.filter((r) => !r.seenAt).length;
+  },
+  markAllFeedbackSeen(_byName: string): void {
+    for (const r of feedbackRows) if (!r.seenAt) r.seenAt = new Date().toISOString();
   },
 
   // ── ลบผู้ใช้ (v1.15) ──

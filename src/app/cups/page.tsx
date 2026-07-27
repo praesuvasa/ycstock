@@ -114,7 +114,7 @@ export default function CupsPage() {
 
   React.useEffect(() => { load(); }, [load]);
 
-  const setField = (size: CupSize, key: "start" | "in" | "remain" | "sold", v: string) => {
+  const setField = (size: CupSize, key: "start" | "in" | "remain" | "sold" | "ownCup", v: string) => {
     const x = parseFloat(v);
     const val = Number.isFinite(x) ? x : 0;
     setRows((prev) => prev.map((r) => (r.size === size ? { ...r, [key]: val } : r)));
@@ -267,19 +267,21 @@ export default function CupsPage() {
       </GlassCard>
 
       <p className="mb-3 px-1 text-[12px] text-brand-ink/55">
-        📦 ตั้งต้น/รับเข้า/คงเหลือ ดึงจากหน้าสต็อก (แพ็ค×50 + เศษ) อัตโนมัติ · กรอกแค่ <b>ขายจริง</b><br />
-        ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ · diff = ใช้จริง − ขาย
+        📦 ตั้งต้น/รับเข้า/คงเหลือ ดึงจากหน้าสต็อก (แพ็ค×50 + เศษ) อัตโนมัติ · กรอก <b>ขายจริง</b> กับ <b>แก้วลูกค้า</b><br />
+        ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ · diff = ใช้จริง − (ขาย − แก้วลูกค้า)<br />
+        <span className="text-brand-ink/45">แก้วลูกค้า = บิลที่ลูกค้าเอาแก้วมาเอง — POS นับว่าขาย แต่ไม่ได้ใช้ถ้วยร้าน ต้องหักออกก่อนเทียบ</span>
       </p>
 
       {/* แถวรายขนาด — ตารางกระชับ (แทนการ์ดใหญ่เดิม) */}
       <div className="overflow-hidden rounded-xl border border-black/5">
-        <div className="grid grid-cols-[76px_36px_36px_36px_40px_52px_56px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[9px] font-medium text-brand-ink/50">
+        <div className="grid grid-cols-[68px_32px_32px_32px_38px_46px_46px_50px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[9px] font-medium text-brand-ink/50">
           <span>ขนาด</span>
           <span className="text-right">ตั้งต้น</span>
           <span className="text-right">รับเข้า</span>
           <span className="text-right">เหลือ</span>
           <span className="text-right">ใช้จริง</span>
           <span className="text-right">ขาย</span>
+          <span className="text-right">แก้วลูกค้า</span>
           <span className="text-right">diff</span>
         </div>
         {rows.map((r, i) => {
@@ -289,7 +291,7 @@ export default function CupsPage() {
           return (
             <div
               key={r.size}
-              className={`grid grid-cols-[76px_36px_36px_36px_40px_52px_56px] items-center gap-1 px-2 py-1.5 text-[11px] ${
+              className={`grid grid-cols-[68px_32px_32px_32px_38px_46px_46px_50px] items-center gap-1 px-2 py-1.5 text-[11px] ${
                 i % 2 ? "bg-white/30" : "bg-white/50"
               }`}
             >
@@ -303,6 +305,11 @@ export default function CupsPage() {
                 onChange={(e) => setField(r.size, "sold", e.target.value)}
                 className="field bg-brand-blue/15 px-1 py-1 text-right text-[11.5px] font-semibold text-sky-800"
               />
+              <input
+                inputMode="numeric" value={r.ownCup ?? 0}
+                onChange={(e) => setField(r.size, "ownCup", e.target.value)}
+                className="field bg-brand-orange/15 px-1 py-1 text-right text-[11.5px] font-semibold text-orange-800"
+              />
               <span className={`text-right font-bold tabular-nums ${diff === 0 ? "text-ok" : "text-warn"}`}>
                 {diff > 0 ? `+${diff}` : diff}
               </span>
@@ -315,7 +322,7 @@ export default function CupsPage() {
       <GlassCard className="mt-3">
         <div className="mb-3 grid grid-cols-3 gap-2">
           <Stat label="ใช้จริงรวม" value={summary.totalUsed} />
-          <Stat label="ขายรวม" value={summary.totalSold} />
+          <Stat label="ขายที่ใช้ถ้วยร้าน" value={summary.totalSold} />
           <Stat
             label="ต่างรวม"
             value={summary.totalDiff > 0 ? `+${summary.totalDiff}` : summary.totalDiff}

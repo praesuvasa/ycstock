@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -393,8 +393,9 @@ export const supabaseStore = {
     // ตั้งต้น/รับเข้า/คงเหลือ ดึงจากยอดถ้วยในหน้าสต็อก · sold กรอกเองที่หน้า reconcile
     const meta = await this.getMeta();
     const stockById = new Map((await this.getStock(branch, date)).map((s) => [s.itemId, s]));
-    const { data } = await sb().from("cup_reconcile").select("size,sold_qty").eq("branch_id", branch).eq("date", date);
+    const { data } = await sb().from("cup_reconcile").select("size,sold_qty,own_cup").eq("branch_id", branch).eq("date", date);
     const soldMap = new Map((data ?? []).map((r: any) => [r.size as CupSize, Number(r.sold_qty)]));
+    const ownMap = new Map((data ?? []).map((r: any) => [r.size as CupSize, Number(r.own_cup ?? 0)]));
     return sizes.map((size) => {
       const it = meta.items.find((i) => i.isCup && i.cupSize === size);
       const s = it ? stockById.get(it.id) : undefined;
@@ -402,7 +403,7 @@ export const supabaseStore = {
       const start = s ? s.carryPack * conv + s.carryG : 0;
       const inQ = s ? s.inPack * conv + s.inG : 0;
       const remain = s ? s.remainPack * conv + s.remainG : 0;
-      return { size, start, in: inQ, remain, sold: soldMap.get(size) ?? 0 };
+      return { size, start, in: inQ, remain, sold: soldMap.get(size) ?? 0, ownCup: ownMap.get(size) ?? 0 };
     });
   },
 
@@ -410,6 +411,7 @@ export const supabaseStore = {
     const payload = rows.map((r) => ({
       date, branch_id: branch, size: r.size,
       start_qty: r.start, in_qty: r.in, remain_qty: r.remain, sold_qty: r.sold,
+      own_cup: r.ownCup ?? 0,
     }));
     const { error } = await sb().from("cup_reconcile").upsert(payload, { onConflict: "date,branch_id,size" });
     if (error) throw error;
@@ -539,6 +541,47 @@ export const supabaseStore = {
     const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").maybeSingle();
     if (error) throw error;
     return data ? userRow(data) : null;
+  },
+
+  // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
+  // anonymous = true → ไม่เก็บ user_id/user_name ลงฐานเลย ไม่ใช่แค่ซ่อนตอนแสดงผล
+  // ถ้าเก็บไว้แล้วบอกว่าไม่ระบุชื่อ = หลอกกัน และวันหนึ่งจะมีคนเปิดดูได้
+  async createFeedback(input: {
+    userId: string; userName: string; branch: Branch | null;
+    anonymous: boolean; topic: string; message: string; wantedAction: string;
+  }): Promise<void> {
+    const { error } = await sb().from("staff_feedback").insert({
+      user_id: input.anonymous ? null : input.userId,
+      user_name: input.anonymous ? null : input.userName,
+      // สาขาเก็บไว้แม้ไม่ระบุชื่อ เพราะจำเป็นต่อการแก้ปัญหา และสาขามี 3-5 คน ยังไม่ชี้ตัวใคร
+      branch_id: input.branch,
+      anonymous: input.anonymous, topic: input.topic,
+      message: input.message, wanted_action: input.wantedAction,
+    });
+    if (error) throw error;
+  },
+
+  async listFeedback(limit = 200): Promise<StaffFeedback[]> {
+    const { data, error } = await sb().from("staff_feedback")
+      .select("id,user_name,branch_id,anonymous,topic,message,wanted_action,seen_at,created_at")
+      .order("created_at", { ascending: false }).limit(limit);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id, userName: r.user_name, branch: r.branch_id ?? null,
+      anonymous: !!r.anonymous, topic: r.topic, message: r.message,
+      wantedAction: r.wanted_action ?? "", seenAt: r.seen_at, createdAt: r.created_at,
+    }));
+  },
+
+  async countUnseenFeedback(): Promise<number> {
+    const { count } = await sb().from("staff_feedback")
+      .select("id", { count: "exact", head: true }).is("seen_at", null);
+    return count ?? 0;
+  },
+
+  async markAllFeedbackSeen(byName: string): Promise<void> {
+    await sb().from("staff_feedback")
+      .update({ seen_at: new Date().toISOString(), seen_by: byName }).is("seen_at", null);
   },
 
   // ── ลบผู้ใช้ (v1.15) ──
