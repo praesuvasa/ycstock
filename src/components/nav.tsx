@@ -67,6 +67,14 @@ export function usePendingReceipt(): number {
   return React.useContext(PendingReceiptCtx);
 }
 
+// สาขาที่ยังไม่ได้ตรวจวันหมดอายุ (v1.12) — ขึ้นเฉพาะวันอังคาร/ศุกร์ ที่เป็นรอบตรวจ
+// พนักงาน = 0/1 (สาขาตัวเอง) · แอดมิน = จำนวนสาขาที่ยังไม่บันทึก
+export const EXPIRY_SAVED_EVENT = "yc:expiry-saved";
+const ExpiryDueCtx = React.createContext<number>(0);
+export function useExpiryDue(): number {
+  return React.useContext(ExpiryDueCtx);
+}
+
 // จำนวนรายการรอตรวจสอบของแอดมิน (v1.9) — โชว์ badge ที่เมนู "รายการรอตรวจสอบ" (admin only)
 const AdminFlagsCtx = React.createContext<number>(0);
 export function useAdminFlagsCount(): number {
@@ -94,6 +102,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   const [unseenReq, setUnseenReq] = React.useState(0);
   const [pendingReceipt, setPendingReceipt] = React.useState(0);
   const [adminFlags, setAdminFlags] = React.useState(0);
+  const [expiryDue, setExpiryDue] = React.useState(0);
   const path = usePathname();
   React.useEffect(() => {
     fetch("/api/me")
@@ -129,6 +138,22 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, [path, me?.role]);
 
+  // สาขาที่ยังไม่ได้ตรวจวันหมดอายุ — role restock ไม่เกี่ยวกับงานนี้ (เห็นแค่ 2 หน้า) จึงไม่ต้องยิง
+  const refreshExpiryDue = React.useCallback(() => {
+    if (!me || me.role === "restock") return;
+    fetch("/api/expiry-checks/pending-count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setExpiryDue(d.count ?? 0))
+      .catch(() => {});
+  }, [me]);
+  React.useEffect(() => { refreshExpiryDue(); }, [path, refreshExpiryDue]);
+  // หน้าตรวจยิง event นี้หลังบันทึกสำเร็จ — ไม่งั้น badge จะค้างอยู่จนกว่าจะเปลี่ยนหน้า
+  // ทำให้พนักงานนึกว่ายังบันทึกไม่ติดแล้วกดซ้ำ
+  React.useEffect(() => {
+    window.addEventListener(EXPIRY_SAVED_EVENT, refreshExpiryDue);
+    return () => window.removeEventListener(EXPIRY_SAVED_EVENT, refreshExpiryDue);
+  }, [refreshExpiryDue]);
+
   if (path === "/login") return <>{children}</>;
 
   return (
@@ -136,6 +161,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       <UnseenReqCtx.Provider value={unseenReq}>
         <PendingReceiptCtx.Provider value={pendingReceipt}>
           <AdminFlagsCtx.Provider value={adminFlags}>
+            <ExpiryDueCtx.Provider value={expiryDue}>
             <Sidebar />
             <TopBar />
             <main className="lg:pl-64 print:pl-0">
@@ -144,6 +170,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
               </div>
             </main>
             <BottomNav />
+            </ExpiryDueCtx.Provider>
           </AdminFlagsCtx.Provider>
         </PendingReceiptCtx.Provider>
       </UnseenReqCtx.Provider>
@@ -198,12 +225,16 @@ function Sidebar() {
   const unseenReq = React.useContext(UnseenReqCtx);
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const adminFlags = React.useContext(AdminFlagsCtx);
+  const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
   const logout = useLogout();
   const tabs = tabsForRole(me?.role);
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
   const tabBadge = (href: string) =>
-    href === "/requisitions" ? unseenReq : href === "/confirm-receipt" ? pendingReceipt : undefined;
+    href === "/requisitions" ? unseenReq
+      : href === "/confirm-receipt" ? pendingReceipt
+      : href === "/expiry" ? expiryDue
+      : undefined;
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-white/60 bg-white/55 px-4 py-5 backdrop-blur-xl lg:flex print:hidden">
@@ -290,6 +321,7 @@ function BottomNav() {
   const me = React.useContext(MeCtx);
   const unseenReq = React.useContext(UnseenReqCtx);
   const pendingReceipt = React.useContext(PendingReceiptCtx);
+  const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
   const tabs = tabsForRole(me?.role);
   return (
@@ -297,7 +329,11 @@ function BottomNav() {
       <div className="mx-auto flex max-w-3xl">
         {tabs.map((t) => {
           const on = t.href === "/" ? path === "/" : path.startsWith(t.href);
-          const badge = t.href === "/requisitions" ? unseenReq : t.href === "/confirm-receipt" ? pendingReceipt : 0;
+          const badge =
+            t.href === "/requisitions" ? unseenReq
+              : t.href === "/confirm-receipt" ? pendingReceipt
+              : t.href === "/expiry" ? expiryDue
+              : 0;
           return (
             <Link
               key={t.href}

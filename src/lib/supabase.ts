@@ -643,6 +643,14 @@ export const supabaseStore = {
     }));
   },
 
+  // สาขาไหน "บันทึกผลตรวจของวันนั้นแล้ว" — ใช้ทำ badge เตือนวันอังคาร/ศุกร์
+  async getBranchesWithExpiryCheck(checkDate: string): Promise<Branch[]> {
+    const { data, error } = await sb().from("expiry_checks")
+      .select("branch_id").eq("check_date", checkDate);
+    if (error) throw error;
+    return [...new Set((data ?? []).map((r: any) => r.branch_id as Branch))];
+  },
+
   // บันทึกทับทั้งชุดต่อ (สาขา,วันตรวจ) แล้วเขียนผลลง stock_daily ให้เอง
   //
   // ⚠️ ต้อง idempotent — บันทึกซ้ำต้องไม่บวกทบ ใช้คอลัมน์ expiry_returned/expiry_used เป็นตัวจำว่า

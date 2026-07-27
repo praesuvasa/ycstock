@@ -137,6 +137,11 @@ export const db = {
       ? supabaseStore.getExpiryChecks(branch, checkDate)
       : Promise.resolve(memoryStore.getExpiryChecks(branch, checkDate)),
 
+  getBranchesWithExpiryCheck: (checkDate: string): Promise<Branch[]> =>
+    useSupabase()
+      ? supabaseStore.getBranchesWithExpiryCheck(checkDate)
+      : Promise.resolve(memoryStore.getBranchesWithExpiryCheck(checkDate)),
+
   saveExpiryChecks: (branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string): Promise<void> =>
     useSupabase
       ? supabaseStore.saveExpiryChecks(branch, checkDate, rows, userId, userName)

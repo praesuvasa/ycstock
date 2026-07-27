@@ -7,7 +7,7 @@
 // ปลายทางมี 2 ทาง: แกะขายหน้าร้าน (ลง ขาย/ใช้) · ส่งคืนครัวกลาง (ลง ส่งคืน/เสีย) — ของทิ้งก็ส่งคืน ไม่ทิ้งเอง
 import React from "react";
 import type { Branch, Item, Meta, ExpiryCheckRow, ExpiryDisposition } from "@/lib/types";
-import { useMe } from "@/components/nav";
+import { useMe, EXPIRY_SAVED_EVENT } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge, Button, SaveBar, Stat } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import { weekdayFromDate, isExpiryCheckDue, expiryStatus, daysUntil, effectiveWarnDays } from "@/lib/calc";
@@ -148,6 +148,7 @@ export default function ExpiryPage() {
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
+      window.dispatchEvent(new Event(EXPIRY_SAVED_EVENT)); // ให้ badge ที่เมนูหายทันที
       window.alert(`บันทึกผลตรวจแล้ว ✓\nส่งคืน ${countReturn} ชุด · แกะออกจากชั้น ${countSell} ชุด`);
       load();
     } catch (e: any) {

@@ -625,6 +625,16 @@ export const memoryStore = {
   getExpiryChecks(branch: Branch, checkDate: string): ExpiryCheckRow[] {
     return (expiryChecks.get(`${branch}|${checkDate}`) ?? []).map((r, i) => ({ ...r, id: i + 1 }));
   },
+  // สาขาไหน "บันทึกผลตรวจของวันนั้นแล้ว" — ใช้ทำ badge เตือนวันอังคาร/ศุกร์
+  getBranchesWithExpiryCheck(checkDate: string): Branch[] {
+    const out = new Set<Branch>();
+    for (const [k, rows] of expiryChecks) {
+      const [b, d] = k.split("|");
+      if (d === checkDate && rows.length > 0) out.add(b as Branch);
+    }
+    return [...out];
+  },
+
   // บันทึกทับทั้งชุด แล้วเขียนผลลงสต็อกแบบ idempotent (ถอนของเก่าก่อนใส่ใหม่ — ไม่บวกทบ)
   saveExpiryChecks(
     branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string
