@@ -7,7 +7,7 @@ import { writeAudit } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 
 const isDate = (v: string | null | undefined): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const VALID_DISPOSITION = new Set(["sell_front", "return"]);
+const VALID_DISPOSITION = new Set(["sell_front", "return", "convert"]);
 
 function fail(e: unknown, msg: string) {
   const a = authErrorResponse(e);

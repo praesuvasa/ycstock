@@ -121,9 +121,30 @@ export function sumIncidentAdjustments(incidents: PaymentIncident[]): IncidentAd
 export const EXPIRY_CHECK_DAYS: Weekday[] = ["tue", "fri"];
 export const isExpiryCheckDue = (weekday: Weekday): boolean => EXPIRY_CHECK_DAYS.includes(weekday);
 
-// ช่วงห่างรอบตรวจสูงสุด 4 วัน (ศุกร์→อังคาร) — ตั้งเตือนน้อยกว่านี้จะมีของหมดอายุ "ระหว่างรอบ"
-// โดยไม่เคยขึ้นเตือนสักครั้ง จึงบังคับขั้นต่ำไว้ที่ 5
-export const EXPIRY_MIN_WARN_DAYS = 5;
+const WEEKDAY_INDEX: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** อีกกี่วันถึงรอบตรวจถัดไป (อังคาร→ศุกร์ = 3 · ศุกร์→อังคาร = 4) */
+export function daysToNextExpiryCheck(weekday: Weekday): number {
+  const from = WEEKDAY_INDEX.indexOf(weekday);
+  let best = 7;
+  for (const d of EXPIRY_CHECK_DAYS) {
+    const gap = (WEEKDAY_INDEX.indexOf(d) - from + 7) % 7;
+    if (gap > 0 && gap < best) best = gap;
+  }
+  return best;
+}
+
+/**
+ * จำนวนวันเตือนที่ใช้จริง = มากกว่าระหว่าง "ค่าที่ตั้งไว้" กับ "ระยะถึงรอบตรวจถัดไป"
+ *
+ * เหตุผล: ถ้าเตือนสั้นกว่าช่วงห่างรอบ จะมีของหมดอายุ "ระหว่างรอบ" โดยไม่เคยขึ้นเตือนสักครั้ง
+ * เช่น ตั้งเตือน 3 วัน · ตรวจวันศุกร์ · ของหมดอายุวันอังคาร (อีก 4 วัน) → ศุกร์ไม่เตือน
+ * แล้วขายต่อทั้งเสาร์–จันทร์ กว่าจะเจอก็อังคารซึ่งหมดอายุพอดี
+ * ยกขั้นต่ำเป็น 4 เฉพาะรอบวันศุกร์จึงปิดช่องโหว่นี้โดยไม่ต้องบังคับให้ทุกวันเตือนยาวเท่ากัน
+ */
+export function effectiveWarnDays(warnDays: number, checkWeekday: Weekday): number {
+  return Math.max(warnDays, daysToNextExpiryCheck(checkWeekday));
+}
 
 export type ExpiryStatus = "ok" | "near" | "expired";
 
@@ -138,5 +159,5 @@ export function daysUntil(expiryDate: string, fromDate: string): number {
 export function expiryStatus(expiryDate: string, checkDate: string, warnDays: number): ExpiryStatus {
   const left = daysUntil(expiryDate, checkDate);
   if (left < 0) return "expired";
-  return left <= Math.max(warnDays, EXPIRY_MIN_WARN_DAYS) ? "near" : "ok";
+  return left <= effectiveWarnDays(warnDays, weekdayFromDate(checkDate)) ? "near" : "ok";
 }

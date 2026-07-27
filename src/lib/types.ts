@@ -30,7 +30,13 @@ export interface Item {
   variableYield: boolean;
   // ── ตรวจวันหมดอายุ (v1.12) — รอบตรวจ อังคาร+ศุกร์ ──
   expiryCheck?: boolean;      // ต้องเดินตรวจวันหมดอายุไหม
-  expiryWarnDays?: number;    // เตือนล่วงหน้ากี่วัน (ขั้นต่ำ 5 — ช่วงห่างรอบตรวจสูงสุด 4 วัน)
+  // เตือนล่วงหน้ากี่วัน · ฝั่งโค้ดยกขั้นต่ำให้เท่ากับระยะถึงรอบตรวจถัดไปเสมอ (ดู effectiveWarnDays)
+  expiryWarnDays?: number;
+  expiryAllowSellFront?: boolean; // อนุญาตให้แกะขายหน้าร้าน/แปลงเข้ารายการอื่น
+  expiryAllowReturn?: boolean;    // อนุญาตให้ส่งคืนครัวกลาง
+  // แกะแล้วไม่ได้ขายเป็นตัวมันเอง แต่ไปรวมกับอีกรายการ (Greek Yogurt 500g → ตักจาก Greek Yogurt 1kg)
+  expiryConvertToItemId?: string | null;
+  expiryConvertG?: number | null;  // กรัมที่เข้าไปเพิ่มให้ปลายทาง ต่อ 1 หน่วยต้นทาง
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)
@@ -113,7 +119,9 @@ export interface RestockSelectionEntry {
 
 // ── ตรวจวันหมดอายุ (v1.12) ──
 // 1 แถว = 1 ชุดวันหมดอายุ ของ 1 รายการ · 1 รายการมีได้หลายชุด (ของบนชั้นปนหลายวัน)
-export type ExpiryDisposition = "sell_front" | "return";
+// sell_front = แกะขายหน้าร้าน (ลง used) · return = ส่งคืนครัวกลาง (ลง returned)
+// convert = แกะไปรวมกับรายการอื่น (ต้นทางลง used · ปลายทางลง in ตาม expiryConvertG)
+export type ExpiryDisposition = "sell_front" | "return" | "convert";
 
 export interface ExpiryCheckRow {
   id?: number;

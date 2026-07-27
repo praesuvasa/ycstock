@@ -247,12 +247,28 @@ const EXPIRY_CHECK_ITEMS = new Set<string>([
   "ถุงสตรอเบอรี่", "ถุงบลูเบอรี่", "ถุงธรรมชาติ", "ถุงลิ้นจี่", "ถุงยูส", "ถุงพีช",
 ]);
 
+// ค่าที่แพรกรอกมา 2026-07-27 — ค่าจริงบน production อยู่ที่ items (migration 0041)
+const EXPIRY_WARN_DAYS: Record<string, number> = {
+  "Cornflakes Malt (M)": 10, "Granola (M)": 10, "Choc Chip Cookies": 10, "Cranberry Cookies": 10,
+};
+// แกะแล้วไปรวมกับรายการอื่น: [ชื่อปลายทาง, กรัมที่ได้ต่อ 1 หน่วยต้นทาง]
+// Granola (M) ยังไม่รู้ว่า 1 กระปุก = กี่กรัม → ปล่อย null รอแพรยืนยัน
+const EXPIRY_CONVERT: Record<string, [string, number | null]> = {
+  "Greek Yogurt 500g": ["Greek Yogurt 1kg", 500],
+  "Plain Yogurt 500g": ["Plain Yogurt (ธรรมชาติ)", 500],
+  "Granola (M)": ["Granola (Topping)", null],
+};
+
 const VARIABLE_YIELD_ITEMS = new Set<string>([
   "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
   "น้ำ Ice cream / Soft Serve", // เพิ่ม 2026-07-21 แพรยืนยัน
 ]);
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
+const idOf = (name: string) => {
+  const i = RAW.findIndex((r) => r[0] === name);
+  return i < 0 ? null : slug(i);
+};
 
 export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
   const qty = UOM1_QTY[name];
@@ -275,7 +291,11 @@ export const ITEMS: Item[] = RAW.map(([name, category, unit], i) => {
     showRemainderOnRestock: SHOW_REMAINDER_ON_RESTOCK.has(name),
     variableYield: VARIABLE_YIELD_ITEMS.has(name),
     expiryCheck: EXPIRY_CHECK_ITEMS.has(name),
-    expiryWarnDays: 5,
+    expiryWarnDays: EXPIRY_WARN_DAYS[name] ?? 5,
+    expiryAllowSellFront: !!EXPIRY_CONVERT[name],
+    expiryAllowReturn: !EXPIRY_CONVERT[name] || name === "Granola (M)",
+    expiryConvertToItemId: EXPIRY_CONVERT[name] ? idOf(EXPIRY_CONVERT[name][0]) : null,
+    expiryConvertG: EXPIRY_CONVERT[name]?.[1] ?? null,
   };
 });
 

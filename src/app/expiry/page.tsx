@@ -10,7 +10,7 @@ import type { Branch, Item, Meta, ExpiryCheckRow, ExpiryDisposition } from "@/li
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge, Button, SaveBar, Stat } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
-import { weekdayFromDate, isExpiryCheckDue, expiryStatus, daysUntil, EXPIRY_MIN_WARN_DAYS } from "@/lib/calc";
+import { weekdayFromDate, isExpiryCheckDue, expiryStatus, daysUntil, effectiveWarnDays } from "@/lib/calc";
 
 // แถวบนหน้าจอ = 1 ชุดวันหมดอายุ · ให้ key ท้องถิ่นไว้ track ตอนแก้/ลบ (ยังไม่มี id จาก DB ตอนเพิ่งเพิ่ม)
 interface Draft extends ExpiryCheckRow {
@@ -87,14 +87,33 @@ export default function ExpiryPage() {
   const removeRow = (key: string) => setDrafts((prev) => prev.filter((d) => d.key !== key));
 
   const statusOf = (d: Draft, it: Item) =>
-    d.expiryDate ? expiryStatus(d.expiryDate, date, it.expiryWarnDays ?? EXPIRY_MIN_WARN_DAYS) : null;
+    d.expiryDate ? expiryStatus(d.expiryDate, date, it.expiryWarnDays ?? 5) : null;
+
+  const nameById = React.useMemo(
+    () => new Map((meta?.items ?? []).map((i) => [i.id, i.name])),
+    [meta]
+  );
+
+  // ปลายทางที่อนุญาตต่อรายการ — โชว์เฉพาะปุ่มที่ทำได้จริง พนักงานจึงเลือกผิดไม่ได้ตั้งแต่แรก
+  // (แพรกำหนด 2026-07-27: Yogurt 500g แกะรวมอย่างเดียว · ถุง/Cereals ส่งคืนอย่างเดียว)
+  const optionsFor = React.useCallback((it: Item): { v: ExpiryDisposition; label: string }[] => {
+    const out: { v: ExpiryDisposition; label: string }[] = [];
+    const convertTo = it.expiryConvertToItemId ?? null;
+    const convertReady = !!convertTo && Number(it.expiryConvertG ?? 0) > 0;
+    if (it.expiryAllowSellFront !== false) {
+      if (convertReady) out.push({ v: "convert", label: `แกะรวมกับ ${nameById.get(convertTo!) ?? "รายการอื่น"}` });
+      else if (!convertTo) out.push({ v: "sell_front", label: "แกะขายหน้าร้าน" });
+    }
+    if (it.expiryAllowReturn !== false) out.push({ v: "return", label: "ส่งคืนครัวกลาง" });
+    return out;
+  }, [nameById]);
 
   const filled = React.useMemo(
     () => drafts.filter((d) => d.expiryDate && d.qty > 0),
     [drafts]
   );
   const countReturn = filled.filter((d) => d.disposition === "return").length;
-  const countSell = filled.filter((d) => d.disposition === "sell_front").length;
+  const countSell = filled.filter((d) => d.disposition === "sell_front" || d.disposition === "convert").length;
   const itemsChecked = new Set(filled.map((d) => d.itemId)).size;
 
   // ชุดที่ถึงเกณฑ์เตือนแล้วแต่ยังไม่เลือกปลายทาง — กันบันทึกทิ้งไว้ครึ่ง ๆ กลาง ๆ
@@ -129,7 +148,7 @@ export default function ExpiryPage() {
       });
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
-      window.alert(`บันทึกผลตรวจแล้ว ✓\nส่งคืน ${countReturn} ชุด · แกะขายหน้าร้าน ${countSell} ชุด`);
+      window.alert(`บันทึกผลตรวจแล้ว ✓\nส่งคืน ${countReturn} ชุด · แกะออกจากชั้น ${countSell} ชุด`);
       load();
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
@@ -189,12 +208,13 @@ export default function ExpiryPage() {
               <div className="grid gap-2">
                 {g.items.map((it) => {
                   const rows = rowsOf(it.id);
+                  const opts = optionsFor(it);
                   return (
                     <div key={it.id} className="rounded-lg bg-black/[.02] px-2.5 py-2">
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{it.name}</span>
                         <span className="shrink-0 text-[10.5px] text-brand-ink/40">
-                          เตือนล่วงหน้า {it.expiryWarnDays ?? EXPIRY_MIN_WARN_DAYS} วัน
+                          เตือนล่วงหน้า {effectiveWarnDays(it.expiryWarnDays ?? 5, weekday)} วัน
                         </span>
                       </div>
 
@@ -248,14 +268,17 @@ export default function ExpiryPage() {
                               </div>
                             )}
 
-                            {needDecision && (
+                            {needDecision && opts.length === 0 && (
+                              <p className="mt-1.5 rounded-lg bg-warn/10 px-2 py-1.5 text-[10.5px] leading-relaxed text-warn">
+                                รายการนี้ยังไม่ได้ตั้งปลายทางไว้ — แจ้งแอดมินก่อนจัดการของชุดนี้
+                              </p>
+                            )}
+
+                            {needDecision && opts.length > 0 && (
                               <div className="mt-1.5">
                                 <p className="mb-1 text-[10.5px] text-brand-ink/50">ทำอย่างไรกับของชุดนี้</p>
                                 <div className="flex gap-1.5">
-                                  {([
-                                    { v: "sell_front", label: "แกะขายหน้าร้าน" },
-                                    { v: "return", label: "ส่งคืนครัวกลาง" },
-                                  ] as { v: ExpiryDisposition; label: string }[]).map((opt) => (
+                                  {opts.map((opt) => (
                                     <button
                                       key={opt.v}
                                       type="button"
@@ -296,14 +319,15 @@ export default function ExpiryPage() {
         <SaveBar>
           <div className="mb-2 grid grid-cols-3 gap-2">
             <Stat label="ส่งคืน" value={`${countReturn}`} tone={countReturn > 0 ? "warn" : "default"} />
-            <Stat label="แกะขายหน้าร้าน" value={`${countSell}`} tone={countSell > 0 ? "ok" : "default"} />
+            <Stat label="แกะออกจากชั้น" value={`${countSell}`} tone={countSell > 0 ? "ok" : "default"} />
             <Stat label="ตรวจแล้ว" value={`${itemsChecked}/${items.length}`} />
           </div>
           <Button onClick={save} disabled={saving || loading}>
             {saving ? "กำลังบันทึก…" : "บันทึกผลตรวจ"}
           </Button>
           <p className="mt-1.5 text-center text-[10.5px] leading-relaxed text-brand-ink/45">
-            ของที่เลือก &ldquo;ส่งคืน&rdquo; จะลงช่องส่งคืนในหน้าสต็อกให้เอง · &ldquo;แกะขายหน้าร้าน&rdquo; ลงช่องขาย/ใช้ — ไม่ต้องกรอกซ้ำ
+            ทุกปลายทางลงหน้าสต็อกให้เอง — ส่งคืนเข้าช่องส่งคืน · แกะออกจากชั้นเข้าช่องขาย/ใช้
+            · แกะรวมยังไปบวก &ldquo;รับเข้า&rdquo; ให้รายการปลายทางด้วย ไม่ต้องกรอกซ้ำที่ไหน
           </p>
         </SaveBar>
       )}
