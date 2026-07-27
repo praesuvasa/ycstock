@@ -33,8 +33,9 @@ update items set expiry_warn_days = 10
 where id in ('it-026','it-027','it-028','it-113');
 
 -- 6) ปลายทางที่อนุญาต
---    Yogurt 500g — แกะไปรวมกับตัว 1kg อย่างเดียว ไม่ส่งคืน
-update items set expiry_allow_sell_front = true, expiry_allow_return = false
+--    Yogurt 500g — แกะไปรวมกับตัว 1kg ได้ และส่งคืนได้ด้วย
+--    (แพรแก้ 2026-07-27: เดิมตั้งไว้แกะอย่างเดียว แต่มีเคสเหลือเยอะเกินกว่าหน้าร้านจะขายทัน)
+update items set expiry_allow_sell_front = true, expiry_allow_return = true
 where id in ('it-010','it-011');
 --    โยเกิร์ตถุง + Cornflakes + คุกกี้ 2 ตัว — ส่งคืนอย่างเดียว
 update items set expiry_allow_sell_front = false, expiry_allow_return = true

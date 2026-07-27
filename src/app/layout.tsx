@@ -3,7 +3,7 @@ import "./globals.css";
 import { NavShell } from "@/components/nav";
 
 export const metadata: Metadata = {
-  title: "YC Stock — ระบบจัดการสต็อก Yogurt Culture",
+  title: "YC Stock — ระบบจัดการหน้าร้าน Yogurt Culture",
   description: "กรอกสต็อกสิ้นวัน · เติมของ · ยอดขาย · reconcile ถ้วย",
 };
 

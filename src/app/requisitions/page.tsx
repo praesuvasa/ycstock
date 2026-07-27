@@ -244,7 +244,7 @@ export default function RequisitionsPage() {
 
             <div className="rounded-xl border border-warn/30 bg-warn/[.06] px-3 py-2.5">
               <p className="text-[11px] leading-relaxed text-warn/90">
-                ⚠️ ถ้ารายการเบิกไม่พร้อมจัดส่ง จะจัดส่งให้ในรอบถัดไปเมื่อมีสินค้า
+                ⚠️ รายการที่เบิก (บางรายการ) อาจจัดส่งไม่ตรงรอบ จะจัดส่งเมื่อมีสินค้าพร้อม
               </p>
             </div>
 

@@ -138,12 +138,10 @@ export function useAdminFlagsCount(): number {
   return React.useContext(AdminFlagsCtx);
 }
 
-const ROLE_LABEL_TH: Record<Role, string> = { admin: "แอดมิน", user: "พนักงาน", restock: "จนท. Restock" };
+// บรรทัดล่างโลโก้ = "ชื่อคน · สาขา" (แพรขอ 2026-07-27) — เดิมขึ้นแค่ตำแหน่ง ซึ่งพนักงานไม่ได้อยากรู้
+// พนักงานอยากเห็นว่า "ฉันล็อกอินเป็นใคร สาขาไหน" มากกว่า โดยเฉพาะตอนใช้เครื่องร่วมกัน
 const scopeLabel = (me: Me | null): string =>
-  !me ? "ระบบจัดการสต็อก"
-    : me.role === "admin" && me.branchScope === "all" ? "ผู้ดูแลระบบ · ทุกสาขา"
-    : me.branchScope !== "all" ? `${ROLE_LABEL_TH[me.role]} · สาขา ${me.branchScope}`
-    : `${ROLE_LABEL_TH[me.role]} · ทุกสาขา`;
+  !me ? "" : me.branchScope === "all" ? `${me.name} · ทุกสาขา` : `${me.name} · สาขา ${me.branchScope}`;
 
 function useLogout() {
   const router = useRouter();
@@ -220,13 +218,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
           <AdminFlagsCtx.Provider value={adminFlags}>
             <ExpiryDueCtx.Provider value={expiryDue}>
             <Sidebar />
-            <TopBar />
+            <MobileNav />
             <main className="lg:pl-64 print:pl-0">
-              <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-28 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
+              <div className="mx-auto w-full max-w-3xl px-4 py-5 pb-10 lg:max-w-4xl lg:px-8 lg:py-8 lg:pb-12 print:max-w-none print:p-0">
                 {children}
               </div>
             </main>
-            <BottomNav />
             </ExpiryDueCtx.Provider>
           </AdminFlagsCtx.Provider>
         </PendingReceiptCtx.Provider>
@@ -245,7 +242,7 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
         className={compact ? "h-7 w-auto" : "h-9 w-auto"}
       />
       <div className="leading-tight">
-        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบจัดการสต็อก</div>
+        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบจัดการหน้าร้าน</div>
         <div className="text-[11px] text-brand-ink/50">{scopeLabel(me)}</div>
       </div>
     </div>
@@ -369,147 +366,120 @@ function Sidebar() {
   );
 }
 
-/* ── Mobile: top bar + เมนู ☰ (<lg) ── */
-function TopBar() {
-  const me = React.useContext(MeCtx);
-  const logout = useLogout();
-  const [open, setOpen] = React.useState(false);
-  return (
-    <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden print:hidden">
-      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
-        <Brand me={me} compact />
-        <div className="relative ml-auto">
-          <button
-            onClick={() => setOpen((o) => !o)}
-            aria-label="เมนู"
-            className="grid h-10 w-10 place-items-center rounded-xl border border-white/60 bg-white/60 text-lg"
-          >
-            ☰
-          </button>
-          {open && (
-            <>
-              <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-glass backdrop-blur-xl">
-                {/* ทุก role เปลี่ยนรหัสตัวเองได้ — ไม่ใช่เมนูเฉพาะแอดมิน */}
-                {me?.role !== "admin" && (
-                  <Link
-                    href="/set-pin"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] hover:bg-brand-cream"
-                  >
-                    <Icon name="lock" size={17} />
-                    <span>เปลี่ยนรหัสของฉัน</span>
-                  </Link>
-                )}
-                {me?.role === "admin" &&
-                  ADMIN_MENU.map((m) => (
-                    <Link
-                      key={m.href}
-                      href={m.href!}
-                      onClick={() => setOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] hover:bg-brand-cream"
-                    >
-                      <Icon name={m.icon} size={17} />
-                      <span>{m.label}</span>
-                    </Link>
-                  ))}
-                <button
-                  onClick={logout}
-                  className="flex w-full items-center gap-2.5 border-t border-black/5 px-4 py-2.5 text-left text-[13px] text-warn hover:bg-warn/10"
-                >
-                  <Icon name="logout" size={17} />
-                  <span>ออกจากระบบ</span>
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-}
-
-/* ── Mobile: bottom tab nav (<lg) ── */
-function BottomNav() {
+/* ── Mobile: top bar + ลิ้นชักเมนูซ้าย (<lg) ── */
+//
+// เลิกใช้แถบแท็บด้านล่างแล้ว (v1.16) — พอเมนูโตเป็น 8-13 อัน ตัวหนังสือซ้อนกันจนอ่านไม่ออก
+// ต่อให้เลื่อนแนวนอนได้ก็ยังหาของยาก · ย้ายมาเป็นลิ้นชักเปิดจากปุ่ม ☰ มุมซ้ายบนแทน
+// ทุกอย่างอยู่ในนี้ที่เดียว: เมนูหลัก · กลุ่มประวัติ (กดกาง) · จัดการระบบ (แอดมิน) · เปลี่ยนรหัส · ออกจากระบบ
+function MobileNav() {
   const me = React.useContext(MeCtx);
   const unseenReq = React.useContext(UnseenReqCtx);
   const pendingReceipt = React.useContext(PendingReceiptCtx);
+  const adminFlags = React.useContext(AdminFlagsCtx);
   const expiryDue = React.useContext(ExpiryDueCtx);
   const path = usePathname();
+  const logout = useLogout();
+  const [open, setOpen] = React.useState(false);
   const tabs = tabsForMe(me);
-  // กลุ่มที่กางอยู่ (มือถือกางในแถบล่างไม่ได้ ต้องเด้งขึ้นมาเหนือแถบแทน)
-  const [openGroup, setOpenGroup] = React.useState<string | null>(null);
-  React.useEffect(() => { setOpenGroup(null); }, [path]);
+
+  // ปิดลิ้นชักเองเมื่อเปลี่ยนหน้า · ล็อกไม่ให้หน้าข้างหลังเลื่อนตอนลิ้นชักเปิด
+  React.useEffect(() => { setOpen(false); }, [path]);
+  React.useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
 
   const isOn = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
-  const badgeOf = (href?: string) =>
+  const tabBadge = (href?: string) =>
     href === "/requisitions" ? unseenReq
       : href === "/confirm-receipt" ? pendingReceipt
       : href === "/expiry" ? expiryDue
-      : 0;
+      : undefined;
 
-  const cls = (on: boolean) =>
-    `flex min-w-[68px] flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] transition ${
-      on ? "text-brand-red" : "text-brand-ink/55"
-    }`;
+  // รวมจำนวนที่ค้างทั้งหมดมาแปะที่ปุ่ม ☰ — ไม่งั้นเมนูปิดอยู่แล้วไม่มีอะไรบอกว่ามีงานค้าง
+  const totalBadge = unseenReq + pendingReceipt + expiryDue + (me?.role === "admin" ? adminFlags : 0);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/50 bg-white/75 backdrop-blur-xl lg:hidden print:hidden">
-      {openGroup && (
+    <header className="sticky top-0 z-30 border-b border-white/50 bg-white/55 backdrop-blur-xl lg:hidden print:hidden">
+      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="เปิดเมนู"
+          className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/60 bg-white/60"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+          {totalBadge > 0 && (
+            <span className="absolute -right-1 -top-1 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand-red px-0.5 text-[9px] font-bold text-white">
+              {totalBadge > 9 ? "9+" : totalBadge}
+            </span>
+          )}
+        </button>
+        <Brand me={me} compact />
+      </div>
+
+      {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpenGroup(null)} />
-          <div className="absolute bottom-full left-0 right-0 z-40 border-t border-white/60 bg-white/95 backdrop-blur-xl">
-            {(tabs.find((t) => t.label === openGroup)?.children ?? []).map((c) => (
-              <Link
-                key={c.href}
-                href={c.href ?? "#"}
-                onClick={() => setOpenGroup(null)}
-                className={`flex items-center gap-2.5 px-4 py-3 text-[13px] ${
-                  c.href && isOn(c.href) ? "text-brand-red" : "text-brand-ink"
-                }`}
+          <div className="fixed inset-0 z-40 bg-black/25" onClick={() => setOpen(false)} />
+          <aside className="fixed inset-y-0 left-0 z-50 flex w-[80vw] max-w-[300px] flex-col border-r border-white/60 bg-white/95 backdrop-blur-xl">
+            <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3.5">
+              <Brand me={me} compact />
+              <button
+                onClick={() => setOpen(false)}
+                aria-label="ปิดเมนู"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-brand-ink/50"
               >
-                <Icon name={c.icon} size={17} />
-                <span>{c.label}</span>
-              </Link>
-            ))}
-          </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+              <nav className="flex flex-col gap-px">
+                {tabs.map((t) =>
+                  t.children
+                    ? <NavGroup key={t.label} tab={t} isOn={isOn} onNavigate={() => setOpen(false)} />
+                    : <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={tabBadge(t.href)} onClick={() => setOpen(false)} />
+                )}
+              </nav>
+
+              {me?.role === "admin" && (
+                <nav className="mt-3.5 flex flex-col gap-px">
+                  <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
+                  {ADMIN_MENU.map((t) => (
+                    <NavItem
+                      key={t.href} tab={t} active={isOn(t.href!)}
+                      badge={t.href === "/admin-flags" ? adminFlags : undefined}
+                      onClick={() => setOpen(false)}
+                    />
+                  ))}
+                </nav>
+              )}
+
+              {me?.role !== "admin" && (
+                <nav className="mt-3.5 flex flex-col gap-px">
+                  <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">บัญชีของฉัน</div>
+                  <NavItem
+                    tab={{ href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" }}
+                    active={isOn("/set-pin")}
+                    onClick={() => setOpen(false)}
+                  />
+                </nav>
+              )}
+            </div>
+
+            <button
+              onClick={logout}
+              className="m-3 mt-0 flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[9px] text-[13px] font-medium text-warn transition hover:bg-warn/10"
+            >
+              <Icon name="logout" />
+              <span>ออกจากระบบ</span>
+            </button>
+          </aside>
         </>
       )}
-
-      {/* แท็บเยอะเกินจอมือถือ — เลื่อนแนวนอนแทนการบีบจนกดไม่โดน (min-w กันแตะพลาด) */}
-      <div className="mx-auto flex max-w-3xl overflow-x-auto">
-        {tabs.map((t) => {
-          if (t.children) {
-            const on = t.children.some((c) => c.href && isOn(c.href));
-            return (
-              <button
-                key={t.label}
-                type="button"
-                onClick={() => setOpenGroup((g) => (g === t.label ? null : t.label))}
-                className={cls(on || openGroup === t.label)}
-              >
-                <span className="relative leading-none"><Icon name={t.icon} size={19} /></span>
-                <span className={`whitespace-nowrap ${on ? "font-semibold" : ""}`}>{t.label}</span>
-              </button>
-            );
-          }
-          const on = isOn(t.href!);
-          const badge = badgeOf(t.href);
-          return (
-            <Link key={t.href} href={t.href!} className={cls(on)}>
-              <span className="relative leading-none">
-                <Icon name={t.icon} size={19} />
-                {badge > 0 && (
-                  <span className="absolute -right-2 -top-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-brand-red px-0.5 text-[9px] font-bold text-white">
-                    {badge > 9 ? "9+" : badge}
-                  </span>
-                )}
-              </span>
-              <span className={`whitespace-nowrap ${on ? "font-semibold" : ""}`}>{t.label}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    </header>
   );
 }

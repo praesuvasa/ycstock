@@ -21,6 +21,12 @@ const newDraft = (itemId: string): Draft => ({
   key: `d${++seq}`, itemId, expiryDate: "", qty: 0, disposition: null, note: "",
 });
 
+// โน้ตต่อหมวด — อธิบายเฉพาะหมวดที่กติกาต่างจากปกติ ไม่ใส่ทุกหมวดให้รก
+const CATEGORY_NOTE: Record<string, string> = {
+  "Yogurt 500g/Box":
+    "ถ้าแกะไปใช้หน้าร้าน ระบบจะคำนวณของเข้าให้เองอัตโนมัติ — ไม่ต้องไปกรอกรับเข้าที่หน้าสต็อก",
+};
+
 const STATUS_STYLE = {
   expired: { label: "หมดอายุแล้ว", tone: "warn" as const, bar: "border-l-brand-red" },
   near: { label: "ใกล้หมดอายุ", tone: "orange" as const, bar: "border-l-brand-orange" },
@@ -184,7 +190,7 @@ export default function ExpiryPage() {
 
       <div className="mb-3 rounded-lg border border-black/10 bg-black/[.02] px-3 py-2.5 text-[12px] leading-relaxed text-brand-ink/60">
         เดินดูของบนชั้น แล้วกรอก <b>วันหมดอายุที่ใกล้ที่สุดที่เจอ</b> พร้อมจำนวนของวันนั้น —
-        นับของจริงทุกครั้ง ไม่ต้องอิงตัวเลขรอบก่อน (ลูกค้าหยิบไม่เรียงวันหมดอายุ)
+        นับของจริงทุกครั้ง ไม่ต้องอิงตัวเลขรอบก่อน
       </div>
 
       {err && (
@@ -205,7 +211,12 @@ export default function ExpiryPage() {
         <div className="grid gap-3">
           {groups.map((g) => (
             <GlassCard key={g.category}>
-              <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">{g.category}</p>
+              <p className="mb-1 text-[11px] uppercase tracking-wide text-brand-ink/45">{g.category}</p>
+              {CATEGORY_NOTE[g.category] && (
+                <p className="mb-2 rounded-lg bg-black/[.03] px-2.5 py-1.5 text-[11px] leading-relaxed text-brand-ink/55">
+                  {CATEGORY_NOTE[g.category]}
+                </p>
+              )}
               <div className="grid gap-2">
                 {g.items.map((it) => {
                   const rows = rowsOf(it.id);
@@ -233,28 +244,28 @@ export default function ExpiryPage() {
                             key={d.key}
                             className={`mb-1.5 rounded-lg border-l-[3px] bg-white/70 px-2 py-1.5 ${style?.bar ?? "border-l-black/10"}`}
                           >
-                            <div className="flex items-end gap-1.5">
-                              <label className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="text-[9.5px] text-brand-ink/45">วันหมดอายุ</span>
-                                <input
-                                  type="date" value={d.expiryDate}
-                                  onChange={(e) => patch(d.key, { expiryDate: e.target.value })}
-                                  className="field px-1.5 py-1 text-[12px]"
-                                />
-                              </label>
-                              <label className="flex w-14 shrink-0 flex-col gap-0.5">
-                                <span className="text-[9.5px] text-brand-ink/45">จำนวน</span>
+                            <label className="flex flex-col gap-0.5">
+                              <span className="text-[9.5px] text-brand-ink/45">วันหมดอายุ</span>
+                              <input
+                                type="date" value={d.expiryDate}
+                                onChange={(e) => patch(d.key, { expiryDate: e.target.value })}
+                                className="field w-full px-2 py-1.5 text-[13px]"
+                              />
+                            </label>
+                            <div className="mt-1 flex items-end gap-2">
+                              <label className="flex flex-1 flex-col gap-0.5">
+                                <span className="text-[9.5px] text-brand-ink/45">จำนวน ({it.unit})</span>
                                 <input
                                   inputMode="numeric" value={d.qty || ""}
                                   onChange={(e) => patch(d.key, { qty: Number(e.target.value) || 0 })}
-                                  className="field px-1 py-1 text-center text-[12px]"
+                                  className="field w-full px-2 py-1.5 text-center text-[13px]"
                                 />
                               </label>
                               <button
                                 type="button" onClick={() => removeRow(d.key)}
-                                className="shrink-0 pb-1 text-[10.5px] font-medium text-warn underline underline-offset-2"
+                                className="shrink-0 pb-2 text-[11px] font-medium text-warn underline underline-offset-2"
                               >
-                                ลบ
+                                ลบชุดนี้
                               </button>
                             </div>
 

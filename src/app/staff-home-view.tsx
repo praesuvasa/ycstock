@@ -5,8 +5,18 @@
 // A ยืนยันรับของแล้ว B เปิดมาก็เห็นว่าติ๊กแล้ว ไม่ต้องทำซ้ำ
 import React from "react";
 import Link from "next/link";
-import { GlassCard, PageTitle, Badge } from "@/components/ui";
-import { baht, thaiDate } from "@/lib/fmt";
+import { GlassCard, Badge } from "@/components/ui";
+import { thaiDate } from "@/lib/fmt";
+import { useMe } from "@/components/nav";
+
+// คำทักทายตามเวลาเข้างาน — ร้านเปิดเช้าถึงค่ำ ทักคำเดียวทั้งวันจะแปลกตอนกะดึก
+function greetingNow(): string {
+  const h = new Date().getHours();
+  if (h < 11) return "สวัสดีตอนเช้า";
+  if (h < 15) return "สวัสดีตอนบ่าย";
+  if (h < 18) return "สวัสดีตอนเย็น";
+  return "สวัสดีตอนค่ำ";
+}
 
 interface HomeTask {
   key: string;
@@ -20,18 +30,21 @@ interface HomeResp {
   date: string;
   tasks: HomeTask[];
   remaining: number;
-  salesYesterday: number;
   error?: string;
 }
 
 const MARK: Record<HomeTask["status"], { cls: string; label: string; text: string }> = {
-  done: { cls: "bg-ok/15 text-ok border-ok/25", label: "✓", text: "เสร็จแล้ว" },
+  done: { cls: "bg-ok text-white border-ok", label: "✓", text: "มีคนทำไปแล้ว" },
   due: { cls: "bg-warn/15 text-warn border-warn/30", label: "!", text: "ต้องทำวันนี้" },
   todo: { cls: "border-black/15 text-brand-ink/35", label: "", text: "ยังไม่ได้ทำ" },
 };
 
 export function StaffHome() {
+  const me = useMe();
   const [data, setData] = React.useState<HomeResp | null>(null);
+  // คำนวณตอน mount ครั้งเดียว — ไม่งั้น server กับ browser เรนเดอร์คนละเวลาแล้ว hydration พัง
+  const [greeting, setGreeting] = React.useState("สวัสดี");
+  React.useEffect(() => { setGreeting(greetingNow()); }, []);
   const [err, setErr] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
@@ -56,7 +69,6 @@ export function StaffHome() {
   if (err) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-4">
-        <PageTitle title="หน้าหลัก" />
         <GlassCard><p className="py-6 text-center text-sm text-brand-red">{err}</p></GlassCard>
       </div>
     );
@@ -69,21 +81,30 @@ export function StaffHome() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-20">
-      <PageTitle title="หน้าหลัก" right={<Badge tone="blue">สาขา {data.branch}</Badge>} />
+      <div className="mb-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="text-[19px] font-semibold leading-tight">
+            {greeting}{me?.name ? ` ${me.name}` : ""}
+          </p>
+          <Badge tone="blue">สาขา {data.branch}</Badge>
+        </div>
+        <p className="mt-0.5 text-[15px] font-medium text-brand-ink/70">{thaiDate(data.date)}</p>
+      </div>
 
       <GlassCard className="mb-3">
-        <p className="text-[11px] text-brand-ink/50">{thaiDate(data.date)}</p>
         {allDone ? (
-          <p className="mt-1 text-[19px] font-semibold leading-tight text-ok">งานวันนี้ครบแล้ว</p>
+          <p className="text-[19px] font-semibold leading-tight text-ok">งานวันนี้ครบแล้ว</p>
         ) : (
-          <p className="mt-1 text-[19px] font-semibold leading-tight">
+          <p className="text-[19px] font-semibold leading-tight">
             เหลืออีก <span className="text-brand-red">{data.remaining}</span> อย่างที่ยังไม่ได้ทำ
           </p>
         )}
         <p className="mt-0.5 text-[11.5px] text-brand-ink/50">
-          เช็คลิสต์นี้เป็นของทั้งสาขา — เพื่อนทำไปแล้วจะขึ้นติ๊กให้เอง
+          รายการที่ต้องทำเป็นของทั้งสาขา — เพื่อนทำไปแล้วจะขึ้นติ๊กเขียวให้เอง
         </p>
       </GlassCard>
+
+      <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">รายการที่ต้องทำวันนี้</p>
 
       <div className="mb-3 grid gap-2">
         {data.tasks.map((t) => {
@@ -108,11 +129,6 @@ export function StaffHome() {
           );
         })}
       </div>
-
-      <GlassCard>
-        <p className="text-[11px] text-brand-ink/50">ยอดขายเมื่อวาน</p>
-        <p className="text-[26px] font-semibold leading-tight tabular-nums">{baht(data.salesYesterday)}</p>
-      </GlassCard>
     </div>
   );
 }

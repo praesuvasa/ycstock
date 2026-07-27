@@ -101,7 +101,7 @@ export default function CashRemittancePage() {
 
   return (
     <div>
-      <PageTitle title="การโอนเงินสด" />
+      <PageTitle title="การจัดการเงินสด" />
 
       <GlassCard className="mb-3">
         <BranchPicker value={branch} onChange={setBranch} locked={scoped} />

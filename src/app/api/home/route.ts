@@ -29,13 +29,11 @@ export async function GET() {
     }
     const branch = s.branchScope as Branch;
     const date = todayISO();
-    const yesterday = new Date(Date.parse(`${date}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
 
-    const [pendingReceipt, stockRows, salesToday, salesYesterday, expiryDone] = await Promise.all([
+    const [pendingReceipt, stockRows, salesToday, expiryDone] = await Promise.all([
       db.getPendingReceiptCount(branch),
       db.getStock(branch, date),
       db.getSales(branch, date),
-      db.getSales(branch, yesterday),
       db.getBranchesWithExpiryCheck(date),
     ]);
 
@@ -72,7 +70,6 @@ export async function GET() {
       branch, date,
       tasks,
       remaining: tasks.filter((t) => t.status !== "done").length,
-      salesYesterday: sum(salesYesterday),
     });
   } catch (e) {
     const a = authErrorResponse(e);
