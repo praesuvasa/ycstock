@@ -4,6 +4,7 @@ import type { Branch, SalesRow, SalesEvidence, EvidenceType, MatchStatus, Paymen
 import { incidentAdjustment, sumIncidentAdjustments } from "@/lib/calc";
 import { baht, todayISO } from "@/lib/fmt";
 import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge } from "@/components/ui";
+import { TodayNextStep } from "@/components/today-next-step";
 import { useMe } from "@/components/nav";
 import { resizeImageToBase64 } from "@/lib/image-client";
 
@@ -144,6 +145,7 @@ export default function SalesPage() {
   // แล้วสถานะ "ยังไม่บันทึก" ค้างจนปลดล็อกแนบหลักฐานไม่ได้
   const [savedIncidents, setSavedIncidents] = React.useState<PaymentIncident[]>([]);
   const [savingIncidents, setSavingIncidents] = React.useState(false);
+  const [savedOnce, setSavedOnce] = React.useState(false);
   // กล่องเคสยุบไว้เป็นดีฟอลต์ · กางเองเมื่อวันนั้นมีเคสบันทึกไว้แล้ว จะได้ไม่ต้องไล่กดหา
   const [incidentOpen, setIncidentOpen] = React.useState(false);
 
@@ -258,6 +260,7 @@ export default function SalesPage() {
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       setSavedIncidents(incidents); // ปุ่มนี้บันทึกเคสให้ด้วย — sync สถานะ ไม่ให้ค้างว่า "ยังไม่บันทึก"
+      setSavedOnce(true);
       alert("บันทึกยอดขายเรียบร้อย ✓");
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
@@ -523,6 +526,8 @@ export default function SalesPage() {
           <Stat label="รวมทั้งวัน" value={baht(total)} tone="ok" />
         </div>
       </GlassCard>
+
+      <TodayNextStep show={savedOnce} hideTask="sales" />
 
       <SaveBar>
         <Button onClick={save} disabled={saving || loading}>

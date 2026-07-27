@@ -9,6 +9,7 @@ import Link from "next/link";
 import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, RestockReceiptBatchEntry } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
+import { TodayNextStep } from "@/components/today-next-step";
 import { thaiDate } from "@/lib/fmt";
 
 export default function ConfirmReceiptPage() {
@@ -68,6 +69,7 @@ export default function ConfirmReceiptPage() {
               </Link>
             </p>
           </div>
+          <TodayNextStep show hideTask="receipt" />
         </GlassCard>
       ) : (
         <>

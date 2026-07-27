@@ -7,7 +7,6 @@
 // ถึงจะนับว่า "ยืนยันแล้ว" — ปุ่มบันทึกจะ disabled จริงจนกว่าจะยืนยันครบทุกรายการ (คนละเงื่อนไขกับ errorCount/variance เดิม)
 import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
 import { remainPieces, variance, isCheckDue, weekdayFromDate } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
@@ -15,6 +14,7 @@ import {
   GlassCard, Badge, Button, BranchPicker, Accordion, Stat, SaveBar, PageTitle,
 } from "@/components/ui";
 import { useMe } from "@/components/nav";
+import { TodayNextStep } from "@/components/today-next-step";
 
 const toNum = (raw: string): number => {
   const x = parseFloat(raw);
@@ -133,7 +133,6 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
 
 export default function StockPage() {
   const me = useMe();
-  const router = useRouter();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
@@ -930,19 +929,15 @@ export default function StockPage() {
           >
             <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-full bg-ok/15 text-lg text-ok">✓</div>
             <p className="text-center text-[15px] font-semibold">บันทึกสต็อกวันนี้แล้ว</p>
-            <p className="mb-4 text-center text-[13px] text-brand-ink/60">กรอกยอดขายวันนี้เลยไหม?</p>
-            <div className="flex flex-col gap-2">
-              <Button onClick={() => router.push(`/sales?branch=${branch}&date=${date}`)}>
-                ไปกรอกยอดขาย →
-              </Button>
-              <button
-                type="button"
-                onClick={() => setShowSavePrompt(false)}
-                className="rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55"
-              >
-                ปิด (กรอกทีหลัง)
-              </button>
-            </div>
+            {/* แทนที่ปุ่มลัดตายตัวเดิม — บอกตามจริงว่าวันนี้เหลืออะไรอีกไหม (v1.19) */}
+            <TodayNextStep show={showSavePrompt} hideTask="stock" />
+            <button
+              type="button"
+              onClick={() => setShowSavePrompt(false)}
+              className="mt-2 w-full rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55"
+            >
+              ปิด
+            </button>
           </div>
         </div>
       )}

@@ -8,6 +8,7 @@
 import React from "react";
 import type { Branch, Item, Meta, ExpiryCheckRow, ExpiryDisposition } from "@/lib/types";
 import { useMe, EXPIRY_SAVED_EVENT } from "@/components/nav";
+import { TodayNextStep } from "@/components/today-next-step";
 import { GlassCard, BranchPicker, PageTitle, Badge, Button, SaveBar, Stat } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import { weekdayFromDate, isExpiryCheckDue, expiryStatus, daysUntil, effectiveWarnDays } from "@/lib/calc";
@@ -50,6 +51,7 @@ export default function ExpiryPage() {
   const [drafts, setDrafts] = React.useState<Draft[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
+  const [savedOnce, setSavedOnce] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
@@ -155,6 +157,7 @@ export default function ExpiryPage() {
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       window.dispatchEvent(new Event(EXPIRY_SAVED_EVENT)); // ให้ badge ที่เมนูหายทันที
+      setSavedOnce(true);
       window.alert(`บันทึกผลตรวจแล้ว ✓\nส่งคืน ${countReturn} ชุด · แกะออกจากชั้น ${countSell} ชุด`);
       load();
     } catch (e: any) {
@@ -326,6 +329,8 @@ export default function ExpiryPage() {
           ))}
         </div>
       )}
+
+      <TodayNextStep show={savedOnce} hideTask="expiry" />
 
       {!loading && items.length > 0 && (
         <SaveBar>
