@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -144,6 +144,12 @@ export const db = {
 
   getRestockNote: (branch: Branch, date: string): Promise<string> =>
     useSupabase ? supabaseStore.getRestockNote(branch, date) : Promise.resolve(memoryStore.getRestockNote(branch, date)),
+  // ── ลูกค้าเอาแก้วมาเอง (v1.18) ──
+  getOwnCups: (branch: Branch, date: string): Promise<{ size: CupSize; ownCup: number }[]> =>
+    useSupabase ? supabaseStore.getOwnCups(branch, date) : Promise.resolve(memoryStore.getOwnCups(branch, date)),
+  saveOwnCups: (branch: Branch, date: string, rows: { size: CupSize; ownCup: number }[]) =>
+    useSupabase ? supabaseStore.saveOwnCups(branch, date, rows) : Promise.resolve(memoryStore.saveOwnCups(branch, date, rows)),
+
   // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
   createFeedback: (input: {
     userId: string; userName: string; branch: Branch | null;

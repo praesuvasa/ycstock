@@ -134,6 +134,12 @@ export function useExpiryDue(): number {
   return React.useContext(ExpiryDueCtx);
 }
 
+// จำนวนความคิดเห็นที่แอดมินยังไม่ได้อ่าน (v1.19) — โชว์ badge ที่เมนู "ความคิดเห็นและข้อเสนอแนะ"
+const FeedbackCtx = React.createContext<number>(0);
+export function useUnseenFeedback(): number {
+  return React.useContext(FeedbackCtx);
+}
+
 // จำนวนรายการรอตรวจสอบของแอดมิน (v1.9) — โชว์ badge ที่เมนู "รายการรอตรวจสอบ" (admin only)
 const AdminFlagsCtx = React.createContext<number>(0);
 export function useAdminFlagsCount(): number {
@@ -160,6 +166,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   const [pendingReceipt, setPendingReceipt] = React.useState(0);
   const [adminFlags, setAdminFlags] = React.useState(0);
   const [expiryDue, setExpiryDue] = React.useState(0);
+  const [unseenFeedback, setUnseenFeedback] = React.useState(0);
   const path = usePathname();
   React.useEffect(() => {
     fetch("/api/me")
@@ -211,6 +218,15 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(EXPIRY_SAVED_EVENT, refreshExpiryDue);
   }, [refreshExpiryDue]);
 
+  // ความคิดเห็นที่ยังไม่ได้อ่าน — เคลียร์เองเมื่อแอดมินเปิดหน้านั้น (API mark seen ให้ตอน GET)
+  React.useEffect(() => {
+    if (me?.role !== "admin") return;
+    fetch("/api/feedback/unseen-count")
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((d) => setUnseenFeedback(d.count ?? 0))
+      .catch(() => {});
+  }, [path, me?.role]);
+
   if (path === "/login") return <>{children}</>;
 
   return (
@@ -219,6 +235,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         <PendingReceiptCtx.Provider value={pendingReceipt}>
           <AdminFlagsCtx.Provider value={adminFlags}>
             <ExpiryDueCtx.Provider value={expiryDue}>
+            <FeedbackCtx.Provider value={unseenFeedback}>
             <Sidebar />
             <MobileNav />
             <main className="lg:pl-64 print:pl-0">
@@ -226,6 +243,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 {children}
               </div>
             </main>
+            </FeedbackCtx.Provider>
             </ExpiryDueCtx.Provider>
           </AdminFlagsCtx.Provider>
         </PendingReceiptCtx.Provider>
@@ -320,6 +338,7 @@ function Sidebar() {
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const adminFlags = React.useContext(AdminFlagsCtx);
   const expiryDue = React.useContext(ExpiryDueCtx);
+  const unseenFeedback = React.useContext(FeedbackCtx);
   const path = usePathname();
   const logout = useLogout();
   const tabs = tabsForMe(me);
@@ -350,7 +369,10 @@ function Sidebar() {
         <nav className="mt-3.5 flex flex-col gap-px">
           <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
           {accountMenuFor(me).map((t) => (
-            <NavItem key={t.href} tab={t} active={isOn(t.href!)} />
+            <NavItem
+              key={t.href} tab={t} active={isOn(t.href!)}
+              badge={t.href === "/feedback" ? unseenFeedback : undefined}
+            />
           ))}
         </nav>
 
@@ -386,6 +408,7 @@ function MobileNav() {
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const adminFlags = React.useContext(AdminFlagsCtx);
   const expiryDue = React.useContext(ExpiryDueCtx);
+  const unseenFeedback = React.useContext(FeedbackCtx);
   const path = usePathname();
   const logout = useLogout();
   const [open, setOpen] = React.useState(false);
@@ -406,7 +429,8 @@ function MobileNav() {
       : undefined;
 
   // รวมจำนวนที่ค้างทั้งหมดมาแปะที่ปุ่ม ☰ — ไม่งั้นเมนูปิดอยู่แล้วไม่มีอะไรบอกว่ามีงานค้าง
-  const totalBadge = unseenReq + pendingReceipt + expiryDue + (me?.role === "admin" ? adminFlags : 0);
+  const totalBadge =
+    unseenReq + pendingReceipt + expiryDue + (me?.role === "admin" ? adminFlags + unseenFeedback : 0);
 
   return (
     <>
@@ -474,7 +498,11 @@ function MobileNav() {
               <nav className="mt-3.5 flex flex-col gap-px">
                 <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
                 {accountMenuFor(me).map((t) => (
-                  <NavItem key={t.href} tab={t} active={isOn(t.href!)} onClick={() => setOpen(false)} />
+                  <NavItem
+                    key={t.href} tab={t} active={isOn(t.href!)}
+                    badge={t.href === "/feedback" ? unseenFeedback : undefined}
+                    onClick={() => setOpen(false)}
+                  />
                 ))}
               </nav>
             </div>

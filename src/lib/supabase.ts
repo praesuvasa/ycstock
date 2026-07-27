@@ -543,6 +543,24 @@ export const supabaseStore = {
     return data ? userRow(data) : null;
   },
 
+  // ── ลูกค้าเอาแก้วมาเอง (v1.18) — พนักงานกรอกที่หน้าสต็อก ตอนนับถ้วยสิ้นวัน ──
+  // เก็บใน cup_reconcile ตารางเดียวกับยอดขายถ้วย เพราะเป็นข้อมูลชุดเดียวกัน (สาขา,วัน,ขนาด)
+  async getOwnCups(branch: Branch, date: string): Promise<{ size: CupSize; ownCup: number }[]> {
+    const { data } = await sb().from("cup_reconcile").select("size,own_cup")
+      .eq("branch_id", branch).eq("date", date);
+    return (data ?? []).map((r: any) => ({ size: r.size as CupSize, ownCup: Number(r.own_cup ?? 0) }));
+  },
+
+  // upsert เฉพาะคอลัมน์ own_cup — คอลัมน์อื่นมี default ครบ แถวใหม่จึงเกิดได้เอง
+  // และตอนชนคีย์เดิมจะไม่ไปแตะ sold_qty ที่แอดมินกรอกไว้ที่หน้าสรุปจำนวน
+  async saveOwnCups(branch: Branch, date: string, rows: { size: CupSize; ownCup: number }[]) {
+    if (rows.length === 0) return { ok: true };
+    const payload = rows.map((r) => ({ date, branch_id: branch, size: r.size, own_cup: r.ownCup }));
+    const { error } = await sb().from("cup_reconcile").upsert(payload, { onConflict: "date,branch_id,size" });
+    if (error) throw error;
+    return { ok: true };
+  },
+
   // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
   // anonymous = true → ไม่เก็บ user_id/user_name ลงฐานเลย ไม่ใช่แค่ซ่อนตอนแสดงผล
   // ถ้าเก็บไว้แล้วบอกว่าไม่ระบุชื่อ = หลอกกัน และวันหนึ่งจะมีคนเปิดดูได้

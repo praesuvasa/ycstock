@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
-import type { StockRow } from "@/lib/types";
+import type { StockRow, CupSize } from "@/lib/types";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 
@@ -22,7 +22,8 @@ export async function GET(req: Request) {
     const rows = await db.getStock(branch, date);
     // savedAt = ลายเซ็นเวลาของข้อมูลชุดที่ส่งไป · หน้าจอต้องส่งกลับมาตอนบันทึก เพื่อให้เช็คได้ว่ามีคนแทรกไหม
     const { savedAt, savedBy } = await db.getStockSavedAt(branch, date);
-    return NextResponse.json({ rows, branch, savedAt, savedBy });
+    const ownCups = await db.getOwnCups(branch, date);
+    return NextResponse.json({ rows, branch, savedAt, savedBy, ownCups });
   } catch (e) {
     return fail(e, "getStock failed");
   }
@@ -31,7 +32,10 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
-    const body = (await req.json()) as { branch?: string; date?: string; rows?: StockRow[]; baseSavedAt?: string | null; force?: boolean };
+    const body = (await req.json()) as {
+      branch?: string; date?: string; rows?: StockRow[]; baseSavedAt?: string | null; force?: boolean;
+      ownCups?: { size: CupSize; ownCup: number }[];
+    };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
@@ -54,6 +58,12 @@ export async function POST(req: Request) {
           error: `${current.savedBy ?? "คนอื่น"} บันทึกสต็อกของวันนี้ไปแล้วหลังจากที่คุณเปิดหน้านี้`,
         }, { status: 409 });
       }
+    }
+
+    // ลูกค้าเอาแก้วมาเอง — พนักงานกรอกในหมวดถ้วยที่หน้าสต็อก บันทึกไปพร้อมกันเลย
+    // (คนละตารางกับ stock_daily แต่เป็นข้อมูลของ "วันเดียวกัน" ที่กรอกในจังหวะเดียวกัน)
+    if (Array.isArray(body.ownCups) && body.ownCups.length > 0) {
+      await db.saveOwnCups(branch, date, body.ownCups);
     }
 
     const result = await db.saveStock(branch, date, body.rows, s.name);

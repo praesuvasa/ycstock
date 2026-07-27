@@ -52,6 +52,14 @@ const subGroupOf = (it: Item): string | null =>
 // เพดานช่อง "แพ็คเต็ม" ของรายการที่ชั่งกิโล/นับเศษ + ผลไม้ (แพรยืนยัน 2026-07-26)
 // ของกลุ่มนี้ Par สูงสุด 6 แพ็ค — พิมพ์เกิน 15 คือผิดแน่นอน ไม่ใช่ของเข้าเยอะจริง
 const PACK_CAP = 15;
+
+// ขนาดถ้วยที่ใช้กรอก "ลูกค้าเอาแก้วมาเอง" — ต้องตรงกับ CupSize ในระบบเทียบยอดถ้วย
+const CUP_SIZES: { size: string; label: string }[] = [
+  { size: "P", label: "P (5oz)" },
+  { size: "S", label: "S (9oz)" },
+  { size: "BOWL", label: "Bowl" },
+  { size: "14OZ", label: "14oz" },
+];
 const isPackCapped = (it: Item | undefined): boolean => !!it && (it.hasRemainder || !!it.remainderGroup);
 
 // ── local compact UI (เฉพาะหน้านี้ — ห้ามแก้ shared ui kit signature) ──────────
@@ -186,10 +194,14 @@ export default function StockPage() {
     setReturnOpen({});
     fetch(`/api/stock?branch=${branch}&date=${date}`)
       .then((r) => r.json())
-      .then((data: { rows?: StockRow[]; error?: string; savedAt?: string | null }) => {
+      .then((data: {
+        rows?: StockRow[]; error?: string; savedAt?: string | null;
+        ownCups?: { size: string; ownCup: number }[];
+      }) => {
         if (!alive) return;
         if (data.error) { setErr(data.error); return; }
         setBaseSavedAt(data.savedAt ?? null);
+        setOwnCups(Object.fromEntries((data.ownCups ?? []).map((c) => [c.size, c.ownCup])));
         const map: Record<string, StockRow> = {};
         const conf: Record<string, boolean> = {};
         for (const row of data.rows ?? []) {
@@ -230,6 +242,8 @@ export default function StockPage() {
 
   // รายการที่ไม่ถึงรอบเช็ควันนี้ (checkFrequency=monThu แต่วันนี้ไม่ใช่จันทร์/พฤหัส) — ซ่อนไว้เป็นค่าเริ่มต้น
   // แต่ของอาจเข้าสาขาวันไหนก็ได้ (ไม่ผูกกับรอบเช็ค) เลยต้องมีทางกดดู/กรอกได้เผื่อมีของเข้าวันที่ไม่ตรงรอบ
+  // ลูกค้าเอาแก้วมาเอง — เก็บเป็น map ตามขนาด กรอกในหมวดถ้วย บันทึกไปพร้อมปุ่มบันทึกสต็อก
+  const [ownCups, setOwnCups] = React.useState<Record<string, number>>({});
   const [showHidden, setShowHidden] = React.useState(false);
   // กดแสดงแล้วเลื่อนไปหาให้เลย — หมวดที่ซ่อนอยู่ท้ายสุดของทุกหมวด ถ้าไม่เลื่อนให้จะหาไม่เจอ
   React.useEffect(() => {
@@ -451,7 +465,10 @@ export default function StockPage() {
       const post = (force: boolean) => fetch("/api/stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, rows: payload, baseSavedAt, force }),
+        body: JSON.stringify({
+          branch, date, rows: payload, baseSavedAt, force,
+          ownCups: CUP_SIZES.map((cs) => ({ size: cs.size, ownCup: ownCups[cs.size] ?? 0 })),
+        }),
       });
       let res = await post(false);
       let data = (await res.json()) as {
@@ -903,12 +920,39 @@ export default function StockPage() {
                 })}
                 {/* บรรทัดรวมแก้วอยู่ "ล่างสุด" ของหมวด (แพรขอ 2026-07-26) — เดิมอยู่บนสุดแล้วมองข้ามง่ายเพราะต้องเลื่อนกลับขึ้นไปดู */}
                 {cupSum && cupSum.count > 0 && (
-                  <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
-                    <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
-                    <span className="text-xl font-bold tabular-nums">
-                      {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
-                    </span>
-                  </div>
+                  <>
+                    {/* ลูกค้าเอาแก้วมาเอง (v1.18) — POS นับว่าขาย แต่ถ้วยร้านไม่ได้ถูกใช้
+                        ต้องให้พนักงานกรอกที่นี่ เพราะคนหน้าร้านเป็นคนเดียวที่รู้ · ปกติเว้นว่าง = 0 */}
+                    <div className="rounded-lg border border-brand-orange/30 bg-white/60 px-2.5 py-2">
+                      <p className="mb-1.5 text-[11px] font-medium text-brand-ink/70">
+                        ลูกค้าเอาแก้วมาเอง (ถ้ามี)
+                        <span className="ml-1 font-normal text-brand-ink/45">— บิลที่ไม่ได้ใช้ถ้วยของร้าน</span>
+                      </p>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {CUP_SIZES.map((cs) => (
+                          <label key={cs.size} className="flex flex-col gap-0.5">
+                            <span className="text-[9px] text-brand-ink/45">{cs.label}</span>
+                            <input
+                              inputMode="numeric"
+                              value={ownCups[cs.size] || ""}
+                              onChange={(e) =>
+                                setOwnCups((p) => ({ ...p, [cs.size]: Number(e.target.value) || 0 }))
+                              }
+                              placeholder="0"
+                              className="field px-1 py-1 text-center text-[12px]"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
+                      <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
+                      <span className="text-xl font-bold tabular-nums">
+                        {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
+                      </span>
+                    </div>
+                  </>
                 )}
               </div>
             </Accordion>

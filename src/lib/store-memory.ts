@@ -524,6 +524,23 @@ export const memoryStore = {
     return pub;
   },
 
+  // ── ลูกค้าเอาแก้วมาเอง (v1.18) ──
+  getOwnCups(branch: Branch, date: string): { size: CupSize; ownCup: number }[] {
+    const sizes: CupSize[] = ["P", "S", "BOWL", "14OZ"];
+    return sizes.map((size) => ({ size, ownCup: cups.get(ck(date, branch, size))?.ownCup ?? 0 }));
+  },
+  saveOwnCups(branch: Branch, date: string, rows: { size: CupSize; ownCup: number }[]) {
+    for (const r of rows) {
+      const key = ck(date, branch, r.size);
+      const cur = cups.get(key);
+      cups.set(key, {
+        ...(cur ?? { size: r.size, start: 0, in: 0, remain: 0, sold: 0, date, branch }),
+        ownCup: r.ownCup,
+      } as any);
+    }
+    return { ok: true };
+  },
+
   // ── ความคิดเห็น/ข้อเสนอแนะจากพนักงาน (v1.18) ──
   createFeedback(input: {
     userId: string; userName: string; branch: Branch | null;
