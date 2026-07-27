@@ -201,7 +201,9 @@ export default function StockPage() {
         if (!alive) return;
         if (data.error) { setErr(data.error); return; }
         setBaseSavedAt(data.savedAt ?? null);
-        setOwnCups(Object.fromEntries((data.ownCups ?? []).map((c) => [c.size, c.ownCup])));
+        const oc = Object.fromEntries((data.ownCups ?? []).map((c) => [c.size, c.ownCup]));
+        setOwnCups(oc);
+        setOwnCupOpen(Object.values(oc).some((v) => Number(v) > 0));
         const map: Record<string, StockRow> = {};
         const conf: Record<string, boolean> = {};
         for (const row of data.rows ?? []) {
@@ -244,6 +246,7 @@ export default function StockPage() {
   // แต่ของอาจเข้าสาขาวันไหนก็ได้ (ไม่ผูกกับรอบเช็ค) เลยต้องมีทางกดดู/กรอกได้เผื่อมีของเข้าวันที่ไม่ตรงรอบ
   // ลูกค้าเอาแก้วมาเอง — เก็บเป็น map ตามขนาด กรอกในหมวดถ้วย บันทึกไปพร้อมปุ่มบันทึกสต็อก
   const [ownCups, setOwnCups] = React.useState<Record<string, number>>({});
+  const [ownCupOpen, setOwnCupOpen] = React.useState(false);
   const [showHidden, setShowHidden] = React.useState(false);
   // กดแสดงแล้วเลื่อนไปหาให้เลย — หมวดที่ซ่อนอยู่ท้ายสุดของทุกหมวด ถ้าไม่เลื่อนให้จะหาไม่เจอ
   React.useEffect(() => {
@@ -923,28 +926,49 @@ export default function StockPage() {
                   <>
                     {/* ลูกค้าเอาแก้วมาเอง (v1.18) — POS นับว่าขาย แต่ถ้วยร้านไม่ได้ถูกใช้
                         ต้องให้พนักงานกรอกที่นี่ เพราะคนหน้าร้านเป็นคนเดียวที่รู้ · ปกติเว้นว่าง = 0 */}
-                    <div className="rounded-lg border border-brand-orange/30 bg-white/60 px-2.5 py-2">
-                      <p className="mb-1.5 text-[11px] font-medium text-brand-ink/70">
-                        ลูกค้าเอาแก้วมาเอง (ถ้ามี)
-                        <span className="ml-1 font-normal text-brand-ink/45">— บิลที่ไม่ได้ใช้ถ้วยของร้าน</span>
-                      </p>
-                      <div className="grid grid-cols-4 gap-1.5">
-                        {CUP_SIZES.map((cs) => (
-                          <label key={cs.size} className="flex flex-col gap-0.5">
-                            <span className="text-[9px] text-brand-ink/45">{cs.label}</span>
-                            <input
-                              inputMode="numeric"
-                              value={ownCups[cs.size] || ""}
-                              onChange={(e) =>
-                                setOwnCups((p) => ({ ...p, [cs.size]: Number(e.target.value) || 0 }))
-                              }
-                              placeholder="0"
-                              className="field px-1 py-1 text-center text-[12px]"
-                            />
-                          </label>
-                        ))}
+                    {/* ยุบไว้เป็นดีฟอลต์ (แพรขอ) — เป็นเคสนาน ๆ ที ถ้ากางค้างทุกวันจะรกและ
+                        พนักงานสับสนว่าเป็นช่องที่ต้องกรอกทุกวันหรือเปล่า · กางเองถ้ามีตัวเลขค้างอยู่ */}
+                    {ownCupOpen ? (
+                      <div className="rounded-lg border border-brand-orange/30 bg-white/60 px-2.5 py-2">
+                        <div className="mb-1.5 flex items-start justify-between gap-2">
+                          <p className="text-[11px] font-medium text-brand-ink/70">
+                            ลูกค้าเอาแก้วมาเอง
+                            <span className="ml-1 font-normal text-brand-ink/45">— บิลที่ไม่ได้ใช้ถ้วยของร้าน</span>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setOwnCupOpen(false)}
+                            className="shrink-0 text-[10.5px] font-medium text-brand-ink/45 underline underline-offset-2"
+                          >
+                            ซ่อน
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {CUP_SIZES.map((cs) => (
+                            <label key={cs.size} className="flex flex-col gap-0.5">
+                              <span className="text-[9px] text-brand-ink/45">{cs.label}</span>
+                              <input
+                                inputMode="numeric"
+                                value={ownCups[cs.size] || ""}
+                                onChange={(e) =>
+                                  setOwnCups((p) => ({ ...p, [cs.size]: Number(e.target.value) || 0 }))
+                                }
+                                placeholder="0"
+                                className="field px-1 py-1 text-center text-[12px]"
+                              />
+                            </label>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setOwnCupOpen(true)}
+                        className="rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-1.5 text-left text-[11px] font-medium text-brand-ink/55"
+                      >
+                        + ลูกค้าเอาแก้วมาเอง (กดถ้ามี)
+                      </button>
+                    )}
 
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
                       <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
