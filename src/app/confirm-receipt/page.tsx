@@ -50,6 +50,9 @@ export default function ConfirmReceiptPage() {
 
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
         กรุณาตรวจสอบรายการและจำนวนให้ถูกต้องก่อนกดยืนยันรับสินค้า
+        <span className="mt-1 block font-medium text-brand-ink/70">
+          รายการที่ยืนยันแล้ว จะถูกใส่ในช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกให้อัตโนมัติ — ไม่ต้องกรอกซ้ำ
+        </span>
       </div>
 
       <GlassCard className="mb-3">
