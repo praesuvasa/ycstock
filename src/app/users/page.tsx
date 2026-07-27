@@ -244,14 +244,17 @@ export default function UsersPage() {
                         ออกรหัสตั้งค่าใหม่
                       </Button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => removeUser(u)}
-                      disabled={busy === u.id}
-                      className="mt-0.5 self-start text-[11.5px] font-medium text-warn underline underline-offset-2 disabled:opacity-40"
-                    >
-                      ลบบัญชีถาวร
-                    </button>
+                    {/* บัญชีแอดมินไม่มีปุ่มลบเลย — ซ่อนดีกว่าโชว์แล้วกดไม่ได้ (กันคำถามว่าทำไมกดไม่ได้) */}
+                    {u.role !== "admin" && (
+                      <button
+                        type="button"
+                        onClick={() => removeUser(u)}
+                        disabled={busy === u.id}
+                        className="mt-0.5 self-start text-[11.5px] font-medium text-warn underline underline-offset-2 disabled:opacity-40"
+                      >
+                        ลบบัญชีถาวร
+                      </button>
+                    )}
                   </div>
                 </GlassCard>
               ))}
