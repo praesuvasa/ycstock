@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 // หน้าที่ user (พนักงาน) เข้าได้ · restock (จนท. Restock) เข้าได้แค่ /restock · ที่เหลือ admin-only
-const USER_PAGES = ["/", "/stock", "/stock-in", "/sales", "/cash-remittance", "/requisitions", "/confirm-receipt", "/returns", "/expiry", "/allowance"];
+const USER_PAGES = ["/", "/stock", "/stock-in", "/sales", "/cash-remittance", "/requisitions", "/confirm-receipt", "/returns", "/expiry", "/allowance", "/set-pin"];
 const RESTOCK_PAGES = ["/restock", "/requisitions"];
 const PUBLIC = ["/login", "/api/login"];
 
@@ -19,6 +19,20 @@ export async function middleware(req: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("from", pathname);
     return NextResponse.redirect(url);
+  }
+
+  // เข้าด้วย "รหัสตั้งค่าครั้งแรก" — ต้องตั้ง PIN ของตัวเองก่อน ใช้หน้าอื่นไม่ได้เลย (v1.15)
+  // ยกเว้น /api/set-pin (ต้องเรียกได้) กับ /api/me (nav โหลดชื่อคนมาโชว์)
+  if (session.mustSetPasscode) {
+    const allowedWhilePending = pathname === "/set-pin" || pathname === "/api/set-pin" || pathname === "/api/me" || pathname === "/api/logout";
+    if (!allowedWhilePending) {
+      if (isApi) return NextResponse.json({ error: "ต้องตั้งรหัสของคุณก่อน" }, { status: 403 });
+      const url = req.nextUrl.clone();
+      url.pathname = "/set-pin";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
   }
 
   // coarse gate: user/restock เข้าได้แค่หน้าที่กำหนด (ด่านละเอียดอยู่ที่ BFF)

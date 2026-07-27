@@ -24,7 +24,8 @@ export default function UsersPage() {
 
   // ฟอร์มเพิ่ม
   const [name, setName] = React.useState("");
-  const [passcode, setPasscode] = React.useState("");
+  // รหัสตั้งค่าที่เพิ่งออกให้ — โชว์ครั้งเดียวตรงนี้ ดูย้อนหลังไม่ได้ (DB เก็บแค่ hash)
+  const [issued, setIssued] = React.useState<{ name: string; code: string } | null>(null);
   const [role, setRole] = React.useState<Role>("user");
   const [scope, setScope] = React.useState<BranchScope>("all");
 
@@ -63,18 +64,19 @@ export default function UsersPage() {
   }
 
   async function create() {
-    if (!name.trim() || !passcode.trim()) { setErr("กรอกชื่อ + รหัส (PIN)"); return; }
+    if (!name.trim()) { setErr("กรอกชื่อ"); return; }
     setBusy("__new");
     setErr(null);
     try {
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), passcode: passcode.trim(), role, branchScope: scope }),
+        body: JSON.stringify({ name: name.trim(), role, branchScope: scope }),
       });
-      const data = (await res.json()) as { ok?: boolean; error?: string };
+      const data = (await res.json()) as { ok?: boolean; error?: string; setupCode?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "สร้างไม่สำเร็จ");
-      setName(""); setPasscode(""); setRole("user"); setScope("all");
+      if (data.setupCode) setIssued({ name: name.trim(), code: data.setupCode });
+      setName(""); setRole("user"); setScope("all");
       await load();
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -83,9 +85,30 @@ export default function UsersPage() {
     }
   }
 
-  function resetPin(u: User) {
-    const pin = window.prompt("รหัสใหม่ (PIN) สำหรับ " + u.name);
-    if (pin && pin.trim()) patch(u.id, { passcode: pin.trim() });
+  // ออกรหัสตั้งค่าใหม่ = ตัด PIN เดิมทิ้งทันที เจ้าตัวต้องเข้ามาตั้งใหม่ → ต้องถามก่อน
+  async function issueSetupCode(u: User) {
+    const ok = window.confirm(
+      `ออกรหัสตั้งค่าใหม่ให้ ${u.name}?\n\nรหัสเดิมของเขาจะใช้เข้าระบบไม่ได้ทันที ` +
+      `และต้องเอารหัสใหม่ไปตั้งรหัสเองก่อนถึงจะใช้งานต่อได้`
+    );
+    if (!ok) return;
+    setBusy(u.id);
+    setErr(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: u.id, issueSetupCode: true }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; setupCode?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "ออกรหัสไม่สำเร็จ");
+      if (data.setupCode) setIssued({ name: u.name, code: data.setupCode });
+      await load();
+    } catch (e: any) {
+      setErr(String(e?.message ?? e));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -96,6 +119,22 @@ export default function UsersPage() {
         <GlassCard><p className="text-sm text-warn">เฉพาะ Admin เท่านั้น</p></GlassCard>
       ) : (
         <>
+          {issued && (
+            <GlassCard className="mb-3">
+              <p className="text-[12px] text-brand-ink/60">รหัสตั้งค่าของ <b>{issued.name}</b></p>
+              <p className="my-1 text-[32px] font-semibold tracking-[.25em] tabular-nums">{issued.code}</p>
+              <p className="text-[11.5px] leading-relaxed text-warn">
+                ส่งให้เจ้าตัวเดี๋ยวนี้ — ปิดหน้านี้แล้วดูย้อนหลังไม่ได้ (ระบบเก็บเป็นค่าเข้ารหัส)
+                <br />ใช้เข้าระบบได้ครั้งเดียว หมดอายุใน 48 ชั่วโมง
+              </p>
+              <button
+                type="button" onClick={() => setIssued(null)}
+                className="mt-2 text-[12px] font-medium text-brand-red underline underline-offset-2"
+              >
+                ส่งให้เรียบร้อยแล้ว — ปิด
+              </button>
+            </GlassCard>
+          )}
           {/* ฟอร์มเพิ่มผู้ใช้ */}
           <GlassCard className="mb-3">
             <div className="mb-2 text-sm font-semibold">เพิ่มผู้ใช้</div>
@@ -105,11 +144,10 @@ export default function UsersPage() {
                 <input className="field text-left" placeholder="ชื่อพนักงาน"
                   value={name} onChange={(e) => setName(e.target.value)} />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-brand-ink/50">รหัส (PIN)</span>
-                <input className="field text-left" inputMode="numeric" placeholder="เช่น 1234"
-                  value={passcode} onChange={(e) => setPasscode(e.target.value)} />
-              </label>
+              <p className="rounded-lg bg-black/[.03] px-2.5 py-2 text-[11.5px] leading-relaxed text-brand-ink/60">
+                ไม่ต้องตั้งรหัสให้ — ระบบจะออก <b>รหัสตั้งค่า</b> 6 หลักให้ส่งต่อ
+                แล้วเจ้าตัวเข้าครั้งแรกเพื่อตั้งรหัสของตัวเอง (คุณจะไม่รู้รหัสจริงของเขา)
+              </p>
               <div>
                 <span className="mb-1 block text-[11px] text-brand-ink/50">สิทธิ์</span>
                 <Segmented options={ROLE_OPTS} value={role} onChange={setRole} />
@@ -142,6 +180,7 @@ export default function UsersPage() {
                         {ROLE_LABEL_TH[u.role]}
                       </Badge>
                       <Badge tone={u.active ? "ok" : "warn"}>{u.active ? "ใช้งาน" : "ปิด"}</Badge>
+                      {u.mustSetPasscode && <Badge tone="orange">ยังไม่ได้ตั้งรหัส</Badge>}
                     </div>
                   </div>
 
@@ -178,8 +217,8 @@ export default function UsersPage() {
                       <Button variant="ghost" onClick={() => patch(u.id, { active: !u.active })} disabled={busy === u.id}>
                         {u.active ? "ปิดการใช้งาน" : "เปิดใช้งาน"}
                       </Button>
-                      <Button variant="ghost" onClick={() => resetPin(u)} disabled={busy === u.id}>
-                        รีเซ็ตรหัส
+                      <Button variant="ghost" onClick={() => issueSetupCode(u)} disabled={busy === u.id}>
+                        ออกรหัสตั้งค่าใหม่
                       </Button>
                     </div>
                   </div>

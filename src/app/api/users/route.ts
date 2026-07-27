@@ -22,24 +22,23 @@ export async function GET() {
   }
 }
 
-// POST /api/users { name, role, branchScope, passcode } → { ok, user }
+// POST /api/users { name, role, branchScope } → { ok, user, setupCode }  (ไม่รับ PIN แล้ว — v1.15)
 export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
     const body = await req.json();
     const name = typeof body?.name === "string" ? body.name.trim() : "";
-    const passcode = typeof body?.passcode === "string" ? body.passcode.trim() : "";
     const role = body?.role as Role;
     const branchScope = body?.branchScope as BranchScope;
 
     if (!name) return NextResponse.json({ error: "ต้องระบุชื่อ" }, { status: 400 });
-    if (!passcode) return NextResponse.json({ error: "ต้องระบุรหัส (PIN)" }, { status: 400 });
     if (!ROLES.includes(role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
     if (!SCOPES.includes(branchScope)) return NextResponse.json({ error: `สาขาไม่ถูกต้อง (${SCOPES.join("|")})` }, { status: 400 });
 
-    const user = await db.createUser({ name, role, branchScope, passcode, createdBy: s.userId });
-    await writeAudit(s, "create_user", { entity: user.id, detail: "สร้าง " + name + " (" + role + ")" });
-    return NextResponse.json({ ok: true, user });
+    // แอดมินไม่ตั้ง PIN ให้อีกต่อไป (v1.15) — คืน "รหัสตั้งค่า" ให้ส่งต่อ แล้วเจ้าตัวไปตั้ง PIN เอง
+    const user = await db.createUser({ name, role, branchScope, createdBy: s.userId });
+    await writeAudit(s, "create_user", { entity: user.id, detail: "สร้าง " + name + " (" + role + ") + ออกรหัสตั้งค่า" });
+    return NextResponse.json({ ok: true, user, setupCode: user.setupCode });
   } catch (e: any) {
     const a = authErrorResponse(e);
     if (a) return NextResponse.json(a.body, { status: a.status });
@@ -55,7 +54,7 @@ export async function PATCH(req: Request) {
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
 
-    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number } = {};
+    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number } = {};
     if (typeof body.name === "string") patch.name = body.name.trim();
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
@@ -72,14 +71,19 @@ export async function PATCH(req: Request) {
       if (!Number.isFinite(m) || m < 0) return NextResponse.json({ error: "วงเงินไม่ถูกต้อง" }, { status: 400 });
       patch.allowanceMonthly = m;
     }
-    if (typeof body.passcode === "string" && body.passcode.trim()) patch.passcode = body.passcode.trim();
+    // แอดมินตั้ง PIN ให้ไม่ได้แล้ว — ทำได้แค่ออก "รหัสตั้งค่าใหม่" ให้เจ้าตัวไปตั้งเอง (v1.15)
+    if (body.issueSetupCode === true) {
+      const code = await db.issueSetupCode(id);
+      if (!code) return NextResponse.json({ error: "ไม่พบผู้ใช้" }, { status: 404 });
+      await writeAudit(s, "issue_setup_code", { entity: id, detail: "ออกรหัสตั้งค่าใหม่ (รหัสเดิมใช้ไม่ได้ทันที)" });
+      return NextResponse.json({ ok: true, setupCode: code });
+    }
 
     const user = await db.updateUser(id, patch);
     if (!user) return NextResponse.json({ error: "ไม่พบผู้ใช้" }, { status: 404 });
 
-    const changed = Object.keys(patch).filter((k) => k !== "passcode");
-    const detail = "แก้ " + user.name + (patch.passcode ? " · รีเซ็ตรหัส" : "") +
-      (changed.length ? " (" + changed.join(", ") + ")" : "");
+    const changed = Object.keys(patch);
+    const detail = "แก้ " + user.name + (changed.length ? " (" + changed.join(", ") + ")" : "");
     await writeAudit(s, "update_user", { entity: id, detail });
     return NextResponse.json({ ok: true, user });
   } catch (e: any) {

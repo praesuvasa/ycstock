@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
+import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -52,13 +52,23 @@ export const db = {
     useSupabase ? supabaseStore.getDashboard(date) : Promise.resolve(memoryStore.getDashboard(date)),
 
   // ── auth / users / audit ──
-  getUserByPasscode: (pin: string) =>
+  getUserByPasscode: (pin: string): Promise<{ user: User; mustSetPasscode: boolean } | null> =>
     useSupabase ? supabaseStore.getUserByPasscode(pin) : Promise.resolve(memoryStore.getUserByPasscode(pin)),
+
+  // ── ตั้ง/ออกรหัสเอง (v1.15) ──
+  issueSetupCode: (userId: string): Promise<string | null> =>
+    useSupabase ? supabaseStore.issueSetupCode(userId) : Promise.resolve(memoryStore.issueSetupCode(userId)),
+  setOwnPasscode: (userId: string, newPin: string): Promise<{ ok: boolean; reason?: "duplicate" }> =>
+    useSupabase ? supabaseStore.setOwnPasscode(userId, newPin) : Promise.resolve(memoryStore.setOwnPasscode(userId, newPin)),
+  recordLoginAttempt: (ip: string, ok: boolean): Promise<void> =>
+    useSupabase ? supabaseStore.recordLoginAttempt(ip, ok) : Promise.resolve(memoryStore.recordLoginAttempt(ip, ok)),
+  countRecentFailedLogins: (ip: string, minutes: number): Promise<number> =>
+    useSupabase ? supabaseStore.countRecentFailedLogins(ip, minutes) : Promise.resolve(memoryStore.countRecentFailedLogins(ip, minutes)),
   listUsers: () =>
     useSupabase ? supabaseStore.listUsers() : Promise.resolve(memoryStore.listUsers()),
-  createUser: (input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }) =>
+  createUser: (input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }) =>
     useSupabase ? supabaseStore.createUser(input) : Promise.resolve(memoryStore.createUser(input)),
-  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number }) =>
+  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number }) =>
     useSupabase ? supabaseStore.updateUser(id, patch) : Promise.resolve(memoryStore.updateUser(id, patch)),
   writeAudit: (e: Omit<AuditEntry, "id" | "ts">) =>
     useSupabase ? supabaseStore.writeAudit(e) : Promise.resolve(memoryStore.writeAudit(e)),

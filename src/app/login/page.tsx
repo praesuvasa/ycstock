@@ -51,11 +51,11 @@ function LoginForm() {
         </div>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-brand-ink/55">รหัสผ่าน (PIN)</span>
+          <span className="text-[12px] text-brand-ink/55">รหัสเข้าระบบ</span>
           <input
             type="password" inputMode="numeric" autoFocus value={pin}
             onChange={(e) => setPin(e.target.value)}
-            placeholder="••••" className="field text-center text-xl tracking-[.3em]"
+            placeholder="••••••" className="field text-center text-xl tracking-[.3em]"
           />
         </label>
 
@@ -65,7 +65,10 @@ function LoginForm() {
           className="mt-5 w-full rounded-xl bg-brand-red px-4 py-3 font-semibold text-white shadow-glass transition active:scale-[.98] disabled:opacity-50">
           {loading ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
         </button>
-        <p className="mt-4 text-center text-[11px] text-brand-ink/40">ใช้รหัสส่วนตัวของคุณ · ลืมรหัสติดต่อผู้ดูแล</p>
+        <p className="mt-4 text-center text-[11px] leading-relaxed text-brand-ink/40">
+          ใช้รหัสส่วนตัวของคุณ · เข้าครั้งแรกใช้รหัสตั้งค่าที่ได้รับ แล้วระบบจะให้ตั้งรหัสเอง
+          <br />ลืมรหัส — แจ้งผู้ดูแลออกรหัสตั้งค่าใหม่ให้
+        </p>
       </form>
     </div>
   );

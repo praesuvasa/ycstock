@@ -9,7 +9,7 @@ export type Me = { id: string; name: string; role: Role; branchScope: BranchScop
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
   | "request" | "calendar" | "undo" | "ticket" | "flag" | "sliders" | "users"
-  | "megaphone" | "list" | "logout";
+  | "megaphone" | "list" | "lock" | "logout";
 
 // ไอคอนเส้นเรียบ วาดเอง 24x24 — ไม่ใช้ emoji (ขนาด/สีต่างกันตามอุปกรณ์ คุมไม่ได้)
 // และไม่ดึงไลบรารีไอคอนเข้ามาเพื่อ 19 อัน (bundle โตเกินจำเป็น)
@@ -31,6 +31,7 @@ const ICON_PATHS: Record<IconKey, string> = {
   users: "M9 11.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4M3 20a6 6 0 0 1 12 0M16 5.5a3.2 3.2 0 0 1 0 6.4M17 20a6 6 0 0 0-2.2-4.6",
   megaphone: "M4 10a1 1 0 0 1 1-1h3l7-4v14l-7-4H5a1 1 0 0 1-1-1zM18 9a4 4 0 0 1 0 6",
   list: "M9 6h11M9 12h11M9 18h11M4.5 7.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 13.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4M4.5 19.2a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4",
+  lock: "M6 11h12v10H6zM9 11V7.5a3 3 0 0 1 6 0V11M12 15v2",
   logout: "M15 17v2a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v2M10 12h11M18 9l3 3-3 3",
 };
 
@@ -84,6 +85,7 @@ const ADMIN_TABS: Tab[] = [
   { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
 const ADMIN_MENU: Tab[] = [
+  { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
   { href: "/users", label: "ผู้ใช้", icon: "users" },
@@ -388,6 +390,17 @@ function TopBar() {
             <>
               <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
               <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-2xl border border-white/60 bg-white/95 shadow-glass backdrop-blur-xl">
+                {/* ทุก role เปลี่ยนรหัสตัวเองได้ — ไม่ใช่เมนูเฉพาะแอดมิน */}
+                {me?.role !== "admin" && (
+                  <Link
+                    href="/set-pin"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] hover:bg-brand-cream"
+                  >
+                    <Icon name="lock" size={17} />
+                    <span>เปลี่ยนรหัสของฉัน</span>
+                  </Link>
+                )}
                 {me?.role === "admin" &&
                   ADMIN_MENU.map((m) => (
                     <Link

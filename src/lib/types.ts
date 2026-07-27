@@ -190,6 +190,8 @@ export interface User {
   // ── สิทธิ์ซื้อของในร้าน (v1.13) ──
   allowanceEnabled?: boolean;  // false = ยังไม่ได้รับสิทธิ์ → ไม่เห็นเมนูนี้เลย
   allowanceMonthly?: number;   // วงเงินต่อเดือน (default 400)
+  // v1.15 — true = มีแต่ "รหัสตั้งค่า" ยังไม่ได้ตั้ง PIN ของตัวเอง (หน้าผู้ใช้โชว์ป้ายเตือน)
+  mustSetPasscode?: boolean;
 }
 
 // ── สิทธิ์ซื้อของในร้าน (v1.13) — วงเงินส่วนลด 400 บาท/คน/เดือน คิดที่ราคาขายเต็ม ──
@@ -227,6 +229,9 @@ export interface Session {
   role: Role;
   branchScope: BranchScope;
   exp: number; // epoch ms
+  // v1.15 — เข้าด้วย "รหัสตั้งค่าครั้งแรก" ยังไม่ได้ตั้ง PIN ของตัวเอง
+  // middleware จะบังคับไปหน้า /set-pin จนกว่าจะตั้งเสร็จ (ใช้หน้าอื่นไม่ได้เลย)
+  mustSetPasscode?: boolean;
 }
 
 // ── ขอเบิกสินค้า (v1.3) — พนักงานสาขาขอของเกิน Par หรือของนอกลิสต์ ไม่มีสถานะติดตาม แค่ list ให้ restock/admin กวาดดู ──

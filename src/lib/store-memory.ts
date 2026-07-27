@@ -4,10 +4,14 @@ import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Use
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
-import { verifyPasscode, hashPasscode } from "./auth";
+import { verifyPasscode, hashPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
 
 // ── users + audit (memory) ──
-interface UserRec extends User { passcodeHash: string; }
+interface UserRec extends User {
+  passcodeHash: string | null;            // null = ยังไม่ได้ตั้ง PIN (มีแต่รหัสตั้งค่า)
+  setupCodeHash?: string | null;
+  setupCodeExpiresAt?: number | null;     // epoch ms
+}
 const users: UserRec[] = [
   { id: "u-admin", name: "แพร (Admin)", role: "admin", branchScope: "all", active: true,
     passcodeHash: "e5a917c2ddfbda72c4473e37bb1fc5b9:69412f814f7f4838e05f09fa2ba1e4cd02a51be249c2efc25f50f0289afb37f8" }, // PIN 2538
@@ -457,26 +461,68 @@ export const memoryStore = {
   },
 
   // ── auth / users ──
-  getUserByPasscode(pin: string): User | null {
-    const u = users.find((x) => x.active && verifyPasscode(pin, x.passcodeHash));
+  getUserByPasscode(pin: string): { user: User; mustSetPasscode: boolean } | null {
+    const byPin = users.find((x) => x.active && verifyPasscode(pin, x.passcodeHash));
+    if (byPin) {
+      const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = byPin;
+      return { user: pub, mustSetPasscode: false };
+    }
+    const now = Date.now();
+    const bySetup = users.find(
+      (x) => x.active && x.setupCodeExpiresAt && x.setupCodeExpiresAt > now && verifyPasscode(pin, x.setupCodeHash)
+    );
+    if (!bySetup) return null;
+    const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = bySetup;
+    return { user: pub, mustSetPasscode: true };
+  },
+
+  // ── ตั้ง/ออกรหัสเอง (v1.15) ──
+  issueSetupCode(userId: string): string | null {
+    const u = users.find((x) => x.id === userId);
     if (!u) return null;
-    const { passcodeHash, ...pub } = u;
-    return pub;
+    const code = generateSetupCode();
+    u.setupCodeHash = hashPasscode(code);
+    u.setupCodeExpiresAt = Date.now() + SETUP_CODE_TTL_HOURS * 3600_000;
+    u.mustSetPasscode = true;
+    u.passcodeHash = null; // ตัด PIN เก่าทิ้งทันที ไม่งั้นคนที่รู้รหัสเดิมยังเข้าได้
+    return code;
   },
+  setOwnPasscode(userId: string, newPin: string): { ok: boolean; reason?: "duplicate" } {
+    const now = Date.now();
+    const dup = users.some(
+      (x) => x.id !== userId &&
+        (verifyPasscode(newPin, x.passcodeHash) ||
+          (!!x.setupCodeExpiresAt && x.setupCodeExpiresAt > now && verifyPasscode(newPin, x.setupCodeHash)))
+    );
+    if (dup) return { ok: false, reason: "duplicate" };
+    const u = users.find((x) => x.id === userId);
+    if (!u) return { ok: false };
+    u.passcodeHash = hashPasscode(newPin);
+    u.mustSetPasscode = false;
+    u.setupCodeHash = null;
+    u.setupCodeExpiresAt = null;
+    return { ok: true };
+  },
+  // dev store ไม่ต้องหน่วง (เครื่องเดียว ไม่มีใครมายิงเดา) — มีไว้ให้ signature ตรงกับ production
+  recordLoginAttempt(_ip: string, _ok: boolean): void {},
+  countRecentFailedLogins(_ip: string, _minutes: number): number { return 0; },
   listUsers(): User[] {
-    return users.map(({ passcodeHash, ...pub }) => pub);
+    return users.map(({ passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub }) => pub);
   },
-  createUser(input: { name: string; role: Role; branchScope: BranchScope; passcode: string; createdBy: string }): User {
+  createUser(input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }): User & { setupCode: string } {
+    const setupCode = generateSetupCode();
     const u: UserRec = {
       id: "u-" + Math.abs(Date.now() % 1_000_000).toString(36) + users.length,
       name: input.name, role: input.role, branchScope: input.branchScope, active: true,
-      passcodeHash: hashPasscode(input.passcode),
+      passcodeHash: null, mustSetPasscode: true,
+      setupCodeHash: hashPasscode(setupCode),
+      setupCodeExpiresAt: Date.now() + SETUP_CODE_TTL_HOURS * 3600_000,
     };
     users.push(u);
-    const { passcodeHash, ...pub } = u;
-    return pub;
+    const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = u;
+    return { ...pub, setupCode };
   },
-  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; passcode?: string; allowanceEnabled?: boolean; allowanceMonthly?: number }): User | null {
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number }): User | null {
     const u = users.find((x) => x.id === id);
     if (!u) return null;
     if (patch.name !== undefined) u.name = patch.name;
@@ -485,7 +531,6 @@ export const memoryStore = {
     if (patch.active !== undefined) u.active = patch.active;
     if (patch.allowanceEnabled !== undefined) u.allowanceEnabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) u.allowanceMonthly = patch.allowanceMonthly;
-    if (patch.passcode) u.passcodeHash = hashPasscode(patch.passcode);
     const { passcodeHash, ...pub } = u;
     return pub;
   },
