@@ -61,7 +61,6 @@ const USER_TABS: Tab[] = [
   { href: "/cash-remittance", label: "เงินสด", icon: "bank" },
   { href: "/expiry", label: "ตรวจสอบวันหมดอายุ", icon: "calendar" },
   { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "request" },
-  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
   {
     label: "ประวัติ", icon: "list",
     children: [
@@ -82,10 +81,8 @@ const ADMIN_TABS: Tab[] = [
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
   { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
   { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
-  { href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" },
 ];
 const ADMIN_MENU: Tab[] = [
-  { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
   { href: "/users", label: "ผู้ใช้", icon: "users" },
@@ -97,12 +94,15 @@ const RESTOCK_TABS: Tab[] = [
   { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "package" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
 ];
-// เมนู "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว (v1.13)
-// ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้ — พนักงานบางคนยังไม่ได้รับสิทธิ์ กันคำถาม "ทำไมหนูไม่มี"
-const tabsForMe = (me: Me | null): Tab[] => {
-  const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
-  return me?.allowanceEnabled ? base : base.filter((t) => t.href !== "/allowance");
-};
+const tabsForMe = (me: Me | null): Tab[] =>
+  me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
+
+// กลุ่ม "ข้อมูลของฉัน" — ของส่วนตัวรายคน แยกจากเมนูงานประจำวัน (แพรจัด 2026-07-27)
+// "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว — ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้
+const accountMenuFor = (me: Me | null): Tab[] => [
+  { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
+  ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
+];
 
 
 // context ให้ทุกส่วน (nav + หน้า) แชร์ me (โหลดครั้งเดียว)
@@ -239,10 +239,10 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
       <img
         src="/logo-yc.png"
         alt="Yogurt Culture"
-        className={compact ? "h-7 w-auto" : "h-9 w-auto"}
+        className={compact ? "h-9 w-auto" : "h-11 w-auto"}
       />
       <div className="leading-tight">
-        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบจัดการหน้าร้าน</div>
+        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบหน้าร้าน</div>
         <div className="text-[11px] text-brand-ink/50">{scopeLabel(me)}</div>
       </div>
     </div>
@@ -343,6 +343,13 @@ function Sidebar() {
               ? <NavGroup key={t.label} tab={t} isOn={isOn} />
               : <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={tabBadge(t.href!)} />
           )}
+        </nav>
+
+        <nav className="mt-3.5 flex flex-col gap-px">
+          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
+          {accountMenuFor(me).map((t) => (
+            <NavItem key={t.href} tab={t} active={isOn(t.href!)} />
+          ))}
         </nav>
 
         {me?.role === "admin" && (
@@ -462,16 +469,12 @@ function MobileNav() {
                 </nav>
               )}
 
-              {me?.role !== "admin" && (
-                <nav className="mt-3.5 flex flex-col gap-px">
-                  <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">บัญชีของฉัน</div>
-                  <NavItem
-                    tab={{ href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" }}
-                    active={isOn("/set-pin")}
-                    onClick={() => setOpen(false)}
-                  />
-                </nav>
-              )}
+              <nav className="mt-3.5 flex flex-col gap-px">
+                <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
+                {accountMenuFor(me).map((t) => (
+                  <NavItem key={t.href} tab={t} active={isOn(t.href!)} onClick={() => setOpen(false)} />
+                ))}
+              </nav>
             </div>
 
             <button

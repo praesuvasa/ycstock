@@ -9,15 +9,6 @@ import { GlassCard, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
 import { useMe } from "@/components/nav";
 
-// คำทักทายตามเวลาเข้างาน — ร้านเปิดเช้าถึงค่ำ ทักคำเดียวทั้งวันจะแปลกตอนกะดึก
-function greetingNow(): string {
-  const h = new Date().getHours();
-  if (h < 11) return "สวัสดีตอนเช้า";
-  if (h < 15) return "สวัสดีตอนบ่าย";
-  if (h < 18) return "สวัสดีตอนเย็น";
-  return "สวัสดีตอนค่ำ";
-}
-
 interface HomeTask {
   key: string;
   label: string;
@@ -42,9 +33,6 @@ const MARK: Record<HomeTask["status"], { cls: string; label: string; text: strin
 export function StaffHome() {
   const me = useMe();
   const [data, setData] = React.useState<HomeResp | null>(null);
-  // คำนวณตอน mount ครั้งเดียว — ไม่งั้น server กับ browser เรนเดอร์คนละเวลาแล้ว hydration พัง
-  const [greeting, setGreeting] = React.useState("สวัสดี");
-  React.useEffect(() => { setGreeting(greetingNow()); }, []);
   const [err, setErr] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
@@ -83,12 +71,10 @@ export function StaffHome() {
     <div className="mx-auto max-w-2xl px-4 py-4 pb-20">
       <div className="mb-3">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="text-[19px] font-semibold leading-tight">
-            {greeting}{me?.name ? ` ${me.name}` : ""}
-          </p>
+          <p className="text-[19px] font-semibold leading-tight">{thaiDate(data.date)}</p>
           <Badge tone="blue">สาขา {data.branch}</Badge>
         </div>
-        <p className="mt-0.5 text-[15px] font-medium text-brand-ink/70">{thaiDate(data.date)}</p>
+        {me?.name && <p className="mt-0.5 text-[14px] font-medium text-brand-ink/60">{me.name}</p>}
       </div>
 
       <GlassCard className="mb-3">
