@@ -84,6 +84,9 @@ export interface SalesRow {
   edc: number;
   grab: number;
   lineman: number;
+  // ยอดขายรวมที่หน้าจอ POS สรุปมา — ไว้ตรวจว่ากรอกช่องย่อยครบและถูกต้อง (v1.23)
+  // ไม่ได้เอาไปคิดยอดขาย เป็นตัวตรวจอย่างเดียว · null = ยังไม่ได้กรอก (ใบเก่าก่อนมีช่องนี้)
+  posTotal?: number | null;
 }
 
 export interface CupRow {

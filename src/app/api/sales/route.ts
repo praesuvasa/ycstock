@@ -67,6 +67,8 @@ export async function POST(req: Request) {
     const num = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
     const row: SalesRow = {
       cash: num(r.cash), qr: num(r.qr), edc: num(r.edc), grab: num(r.grab), lineman: num(r.lineman),
+      // ยอดรวมตาม POS — เป็นตัวตรวจ ไม่เอาไปคิดยอดขาย · ไม่กรอก = null (ไม่ใช่ 0 ซึ่งแปลว่า "ขายไม่ได้เลย")
+      posTotal: r.posTotal === "" || r.posTotal === null || r.posTotal === undefined ? null : num(r.posTotal),
     };
 
     // เคสรับเงินไม่ตรงบิล — บันทึกทับทั้งชุด · กรองแถวที่ยอดยังไม่ได้กรอกทั้งคู่ออก

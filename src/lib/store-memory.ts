@@ -414,7 +414,7 @@ export const memoryStore = {
     seed();
     const rec = sales.get(vk(date, branch));
     if (rec) { const { date: _d, branch: _b, ...row } = rec; return row; }
-    return { cash: 0, qr: 0, edc: 0, grab: 0, lineman: 0 };
+    return { cash: 0, qr: 0, edc: 0, grab: 0, lineman: 0, posTotal: null };
   },
 
   saveSales(branch: Branch, date: string, row: SalesRow) {

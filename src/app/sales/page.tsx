@@ -89,9 +89,9 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
 }
 
 // เก็บ input เป็น string เพื่อให้ลบ/พิมพ์ได้ลื่น แล้วค่อยแปลงเป็นเลขตอนคำนวณ
-type Field = keyof SalesRow;
+type Field = "cash" | "qr" | "edc" | "grab" | "lineman" | "posTotal";
 type Form = Record<Field, string>;
-const EMPTY: Form = { cash: "", qr: "", edc: "", grab: "", lineman: "" };
+const EMPTY: Form = { cash: "", qr: "", edc: "", grab: "", lineman: "", posTotal: "" };
 
 const toNum = (v: string): number => {
   const n = Number(v);
@@ -103,6 +103,8 @@ const fromRow = (row: SalesRow): Form => ({
   edc: String(row.edc ?? 0),
   grab: String(row.grab ?? 0),
   lineman: String(row.lineman ?? 0),
+  // ใบเก่าก่อนมีช่องนี้จะเป็น null — ปล่อยว่างไว้ ไม่ใส่ 0 เพราะ 0 แปลว่า "วันนั้นขายไม่ได้เลย"
+  posTotal: row.posTotal === null || row.posTotal === undefined ? "" : String(row.posTotal),
 });
 
 // v1.11: ประเภทเคส "รับเงินไม่ตรงบิล" — เพิ่มประเภทใหม่ที่นี่ที่เดียว (สูตรคำนวณอยู่ใน calc.ts)
@@ -201,6 +203,8 @@ export default function SalesPage() {
   const inStore = toNum(form.cash) + toNum(form.qr) + toNum(form.edc);
   const delivery = toNum(form.grab) + toNum(form.lineman);
   const total = inStore + delivery;
+  // ส่วนต่างระหว่างผลรวมที่กรอกกับยอดที่ POS สรุป — 0 = กรอกครบถูกต้อง
+  const posDiff = form.posTotal === "" ? 0 : total - toNum(form.posTotal);
 
   // v1.11: ยอด "เงินเข้าจริง" = ยอด POS ที่กรอก + ผลรวมเคสรับเงินไม่ตรงบิล
   // ตัวนี้คือตัวที่ต้องตรงกับสลิปธนาคาร/เงินในลิ้นชัก จึงใช้เทียบตอนอัปโหลดหลักฐาน
@@ -256,6 +260,7 @@ export default function SalesPage() {
         edc: toNum(form.edc),
         grab: toNum(form.grab),
         lineman: toNum(form.lineman),
+        posTotal: form.posTotal === "" ? null : toNum(form.posTotal),
       };
       const res = await fetch("/api/sales", {
         method: "POST",
@@ -317,10 +322,9 @@ export default function SalesPage() {
         </div>
         {/* แพรถามเอง: พนักงานจะรู้ได้ยังไงว่าต้องใส่ยอด POS ไม่ใช่ยอดในแอปธนาคาร (2026-07-28)
             ทั้งสองเลขมีอยู่จริงตรงหน้าและต่างกันได้ ถ้าไม่เขียนบอก จะเดาเอาเอง แล้วยอดจะเพี้ยนแบบเงียบ ๆ */}
-        <p className="mt-1.5 text-[11px] leading-relaxed text-brand-ink/45">
-          ทุกช่องกรอก <b className="font-semibold text-brand-ink/60">ตามที่ POS สรุป</b> เท่านั้น —
-          ยังไม่ต้องบวกลบเงินที่คืนลูกค้า และอย่าเอายอดจากแอปธนาคารมาใส่
-          <span className="block">ถ้าวันไหนมีคืนเงิน ให้ไปบันทึกที่กล่องข้างล่าง ระบบจะคำนวณยอดจริงให้เอง</span>
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-brand-ink/50">
+          ทุกช่องกรอกตามที่ <b className="font-semibold text-brand-ink/70">POS iPad</b> สรุปเท่านั้น
+          <span className="block">หากมีเคสโอนขาด/โอนเกิน/คืนเงินสด ระบบจะคำนวณให้อัตโนมัติ กดเพิ่มเคสด้านล่างได้เลย</span>
         </p>
         {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) — ยุบไว้เป็นดีฟอลต์ (แพรขอ 2026-07-27)
             เพราะเป็นเคสนาน ๆ ที กางค้างไว้ทุกวันทำให้หน้าจอรก และพนักงานสับสนว่าต้องกรอกด้วยไหม */}
@@ -538,12 +542,39 @@ export default function SalesPage() {
         </div>
       </GlassCard>
 
-      {/* รวมทั้งวัน */}
+      {/* รวมทั้งวัน + ตรวจกับยอด POS
+          POS สรุป "อื่นๆ" มาเป็นก้อนเดียว (QR + Grab + Lineman) พนักงานต้องลบเลขเองกว่าจะได้ยอด QR
+          ซึ่งพลาดง่ายและไม่มีอะไรฟ้อง · ให้กรอกยอดรวมจาก POS มาเทียบ จะดักได้ทุกช่องที่กรอกผิด
+          ไม่ใช่แค่ QR — รวมถึงเคสเผลอเอายอดจากแอปธนาคารมาใส่ */}
       <GlassCard className="mb-3">
         <div className="grid grid-cols-3 gap-2.5">
           <Stat label="In-store" value={baht(inStore)} />
           <Stat label="Delivery" value={baht(delivery)} />
           <Stat label="รวมทั้งวัน" value={baht(total)} tone="ok" />
+        </div>
+
+        <div className="mt-3 border-t border-black/[.06] pt-3">
+          <NumberField label="ยอดขายรวมตาม POS iPad" value={form.posTotal} onChange={set("posTotal")} />
+          {form.posTotal === "" ? (
+            <p className="mt-1.5 text-[11px] leading-relaxed text-brand-ink/45">
+              ใส่ยอดรวมที่ POS สรุป แล้วระบบจะตรวจให้ว่ากรอกครบถูกต้องไหม
+            </p>
+          ) : posDiff === 0 ? (
+            <div className="mt-2 rounded-xl border border-ok/40 bg-ok/10 px-3 py-2.5">
+              <p className="text-[13px] font-semibold text-ok">ตรงกับ POS ✓</p>
+              <p className="text-[11.5px] text-brand-ink/55">ผลรวมที่กรอก {baht(total)} = ยอด POS {baht(toNum(form.posTotal))}</p>
+            </div>
+          ) : (
+            <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
+              <p className="text-[13px] font-semibold text-warn">
+                ไม่ตรงกับ POS — {posDiff > 0 ? "เกิน" : "ขาด"} {baht(Math.abs(posDiff))}
+              </p>
+              <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
+                ผลรวมที่กรอก {baht(total)} · ยอด POS {baht(toNum(form.posTotal))}
+                <span className="block">ไล่เช็คทีละช่อง — ถ้าเกินพอดีกับเงินที่คืนลูกค้า แปลว่าเผลอเอายอดจากแอปธนาคารมาใส่</span>
+              </p>
+            </div>
+          )}
         </div>
       </GlassCard>
 

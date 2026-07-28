@@ -399,13 +399,18 @@ export const supabaseStore = {
 
   async getSales(branch: Branch, date: string): Promise<SalesRow> {
     const { data } = await sb().from("sales_daily").select("*").eq("branch_id", branch).eq("date", date).maybeSingle();
-    if (!data) return { cash: 0, qr: 0, edc: 0, grab: 0, lineman: 0 };
-    return { cash: data.cash, qr: data.qr, edc: data.edc, grab: data.grab, lineman: data.lineman };
+    if (!data) return { cash: 0, qr: 0, edc: 0, grab: 0, lineman: 0, posTotal: null };
+    return {
+      cash: data.cash, qr: data.qr, edc: data.edc, grab: data.grab, lineman: data.lineman,
+      posTotal: data.pos_total === null || data.pos_total === undefined ? null : Number(data.pos_total),
+    };
   },
 
   async saveSales(branch: Branch, date: string, row: SalesRow) {
+    // posTotal เป็นชื่อฝั่งแอป ต้องแปลงเป็นชื่อคอลัมน์เอง ไม่งั้น spread จะยิงคีย์ที่ไม่มีในตาราง
+    const { posTotal, ...cols } = row;
     const { error } = await sb().from("sales_daily")
-      .upsert({ date, branch_id: branch, ...row }, { onConflict: "date,branch_id" });
+      .upsert({ date, branch_id: branch, ...cols, pos_total: posTotal ?? null }, { onConflict: "date,branch_id" });
     if (error) throw error;
     return { ok: true };
   },
