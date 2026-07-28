@@ -1033,7 +1033,12 @@ function ProductionRow({
       </div>
       <div className={`mt-2 text-right text-xs font-semibold ${isOrange ? "text-orange-700" : "text-brand-ink/70"}`}>
         {hasG
-          ? `รวมสั่งผลิต: ${Math.floor(totalG / item.gramsPerUOM)} แพ็ค (${totalG.toLocaleString()}${gUnit})`
+          ? `รวมสั่งผลิต: ${formatOrderQty(
+              Math.floor(totalG / item.gramsPerUOM),
+              totalG % item.gramsPerUOM,
+              true,
+              gUnit
+            )} (${totalG.toLocaleString()}${gUnit})`
           : `รวมสั่งผลิต: ${packSum}`}
       </div>
     </div>
