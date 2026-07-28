@@ -2,16 +2,34 @@
 import { cookies } from "next/headers";
 import type { Branch, Session } from "./types";
 import { SESSION_COOKIE, verifySession } from "./session";
+import { db } from "./db";
 
 export class AuthError extends Error {
   status: number;
   constructor(message: string, status: number) { super(message); this.status = status; }
 }
 
-/** อ่าน session จาก cookie (route handler / server component) */
+/**
+ * อ่าน session จาก cookie แล้ว ** อ่านสิทธิ์/สาขาสดจาก DB ทับทุกครั้ง **
+ *
+ * เดิมใช้ค่าที่ฝังอยู่ใน cookie ตั้งแต่ตอนล็อกอิน — แอดมินย้ายสาขาหรือเปลี่ยนสิทธิ์แล้ว
+ * พนักงานยังเห็นสาขาเดิมจนกว่าจะ logout เข้าใหม่ (cookie อายุยาวเป็นสัปดาห์)
+ * แพรเจอเอง: ตั้งให้อยู่ KCN แต่เปิดแอปแล้วยังเป็น NVP
+ *
+ * ผลพลอยได้ที่สำคัญกว่า: กด "ปิดการใช้งาน" แล้วมีผลทันที ไม่ต้องรอ cookie หมดอายุ
+ * อ่านไม่ได้ (เน็ตสะดุด) → ใช้ค่าจาก cookie ต่อ ดีกว่าเตะทุกคนออกจากระบบ
+ */
 export async function getSession(): Promise<Session | null> {
   const token = cookies().get(SESSION_COOKIE)?.value;
-  return verifySession(token);
+  const s = verifySession(token);
+  if (!s) return null;
+  try {
+    const u = await db.getUserById(s.userId);
+    if (!u || !u.active) return null;
+    return { ...s, role: u.role, branchScope: u.branchScope };
+  } catch {
+    return s;
+  }
 }
 
 export async function requireSession(): Promise<Session> {

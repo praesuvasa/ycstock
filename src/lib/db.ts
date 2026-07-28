@@ -64,6 +64,8 @@ export const db = {
     useSupabase ? supabaseStore.recordLoginAttempt(ip, ok) : Promise.resolve(memoryStore.recordLoginAttempt(ip, ok)),
   countRecentFailedLogins: (ip: string, minutes: number): Promise<number> =>
     useSupabase ? supabaseStore.countRecentFailedLogins(ip, minutes) : Promise.resolve(memoryStore.countRecentFailedLogins(ip, minutes)),
+  getUserById: (id: string) =>
+    useSupabase ? supabaseStore.getUserById(id) : Promise.resolve(memoryStore.getUserById(id)),
   listUsers: () =>
     useSupabase ? supabaseStore.listUsers() : Promise.resolve(memoryStore.listUsers()),
   createUser: (input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }) =>

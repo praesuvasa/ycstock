@@ -11,7 +11,7 @@ export async function GET() {
   // ไม่ต้องรอพนักงาน logout เข้าใหม่ (session cookie อายุยาว กว่าจะหมดอาจเป็นสัปดาห์)
   let allowanceEnabled = false;
   try {
-    allowanceEnabled = !!(await db.listUsers()).find((u) => u.id === s.userId)?.allowanceEnabled;
+    allowanceEnabled = !!(await db.getUserById(s.userId))?.allowanceEnabled;
   } catch {
     // อ่านไม่ได้ = ถือว่ายังไม่ได้รับสิทธิ์ (ซ่อนเมนู) ดีกว่าโชว์เมนูที่กดแล้วพัง
   }

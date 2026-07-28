@@ -532,6 +532,14 @@ export const supabaseStore = {
       .eq("ip", ip).eq("ok", false).gte("attempted_at", since);
     return count ?? 0;
   },
+  // อ่านผู้ใช้รายคน — ใช้ตอนเช็ค session ทุก request จึงต้องเบา (แถวเดียว ไม่ใช่ทั้งตาราง)
+  async getUserById(id: string): Promise<User | null> {
+    const { data } = await sb().from("users")
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode")
+      .eq("id", id).maybeSingle();
+    return data ? userRow(data) : null;
+  },
+
   async listUsers(): Promise<User[]> {
     const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode").order("created_at");
     return (data ?? []).map(userRow);

@@ -517,6 +517,12 @@ export const memoryStore = {
   // dev store ไม่ต้องหน่วง (เครื่องเดียว ไม่มีใครมายิงเดา) — มีไว้ให้ signature ตรงกับ production
   recordLoginAttempt(_ip: string, _ok: boolean): void {},
   countRecentFailedLogins(_ip: string, _minutes: number): number { return 0; },
+  getUserById(id: string): User | null {
+    const rec = users.find((u) => u.id === id);
+    if (!rec) return null;
+    const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = rec;
+    return pub;
+  },
   listUsers(): User[] {
     return users.map(({ passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub }) => pub);
   },
