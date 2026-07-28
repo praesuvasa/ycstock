@@ -102,7 +102,12 @@ export async function POST(req: Request) {
       }
       dist = distanceM(lat, lng, geo.lat, geo.lng);
       if (dist > geo.radiusM) {
-        return NextResponse.json({ error: `อยู่ห่างจากร้าน ${dist} เมตร — ลงเวลาได้เฉพาะตอนอยู่ที่ร้าน` }, { status: 403 });
+        // บอกให้ครบว่าเทียบกับสาขาไหนและรัศมีเท่าไหร่ — เคสที่เจอจริงคือบัญชีผูกผิดสาขา
+        // (ยืนอยู่สาขา A แต่บัญชีผูกสาขา B) ถ้าบอกแค่ระยะ จะไล่หาสาเหตุไม่ถูก
+        return NextResponse.json({
+          error: `อยู่ห่างจากร้านสาขา ${branch} ${dist.toLocaleString()} เมตร (รัศมีที่ตั้งไว้ ${geo.radiusM} เมตร) — ` +
+            `ถ้ายืนอยู่ที่ร้านจริง แปลว่าพิกัดร้านหรือสาขาของบัญชีนี้ตั้งไว้ไม่ตรง`,
+        }, { status: 403 });
       }
     } else if (lat !== null && lng !== null) {
       const geo = await db.getBranchGeo(branch);
