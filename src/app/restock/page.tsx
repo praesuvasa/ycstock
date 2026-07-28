@@ -211,7 +211,10 @@ function SelectableAccordion({
 // v2 (2026-07-21): หมวด/รายการที่ไม่มีของจริง ไม่ส่งมาให้ component นี้เลย (กรองไว้ตั้งแต่ printGroups ฝั่งเรียกใช้)
 // เพราะโชว์ครบทุกหมวดทำให้ปริ้นยาวเป็น 2 หน้า อ่านยากกว่าเดิม
 type PrintRow = RestockRow & { qty: string };
-const PRINT_OVERFLOW_THRESHOLD = 70; // รายการเกินนี้อาจล้นหน้า A4 — เตือนก่อนพิมพ์
+// เกณฑ์เตือนล้นหน้า — คิดจากความจุจริงหลังขยายตัวอักษร 2026-07-28
+// แถวสูง ~5.8mm · คอลัมน์ละ ~36 บรรทัด · 2 คอลัมน์ = ~72 บรรทัด
+// หักหัวหมวดที่กินบรรทัดด้วย (ปกติ ~12 หมวด) เหลือรับรายการจริงได้ ~58
+const PRINT_OVERFLOW_THRESHOLD = 58;
 
 function PrintSheet({
   branch, date, weekdayLabel, printGroups, totalCount, note, extras,
@@ -227,34 +230,34 @@ function PrintSheet({
   function renderColumn(colGroups: typeof printGroups, withExtra: boolean) {
     return (
       <div className="flex-1">
-        <table className="w-full border-collapse text-[9.5px]">
+        <table className="w-full border-collapse text-[12px]">
           <thead>
             <tr className="border-b-2 border-black">
-              <th className="w-3 py-1"></th>
-              <th className="py-1 text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
-              <th className="w-7 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">จำนวน</th>
-              <th className="w-12 py-1 text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+              <th className="w-4 py-1"></th>
+              <th className="py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">รายการ</th>
+              <th className="w-9 py-1 text-center text-[10px] uppercase tracking-wide text-neutral-500">จำนวน</th>
+              <th className="w-12 py-1 text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
             </tr>
           </thead>
           <tbody>
             {colGroups.map((g) => (
               <React.Fragment key={g.category}>
                 <tr>
-                  <td colSpan={4} className="pt-2 text-[8.5px] font-bold uppercase tracking-wide text-neutral-600">
+                  <td colSpan={4} className="pt-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-600">
                     {g.category}
                   </td>
                 </tr>
                 {g.items.map((r) => (
                   <tr key={r.itemId} className="border-b border-neutral-300">
-                    <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
-                    <td className="py-[3px] text-black">
+                    <td className="py-[3.5px]"><span className="inline-block h-[13px] w-[13px] border-[1.4px] border-black" /></td>
+                    <td className="py-[3.5px] leading-tight text-black">
                       <span className="inline-flex items-center gap-1">
                         {itemIcon(r.name)}
                         <span>{r.name}</span>
                       </span>
                     </td>
-                    <td className="py-[3px] text-center font-bold text-black">{r.qty}</td>
-                    <td className="border-b border-neutral-400 py-[3px]" />
+                    <td className="py-[3.5px] text-center text-[15px] font-bold leading-tight text-black">{r.qty}</td>
+                    <td className="border-b border-neutral-400 py-[3.5px]" />
                   </tr>
                 ))}
               </React.Fragment>
@@ -263,20 +266,20 @@ function PrintSheet({
         </table>
         {withExtra && (
           <div className="mt-3">
-            <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
             {/* รายการที่กรอกไว้ในระบบ (ข้อ 16) พิมพ์ออกมาเลย — ที่เหลือเว้นบรรทัดว่างให้เขียนเพิ่มหน้างาน */}
             {(extras ?? []).map((e, i) => (
               <div key={`x${i}`} className="mb-1 flex items-baseline gap-1.5 border-b border-neutral-400 pb-[2px]">
-                <span className="inline-block h-[10px] w-[10px] shrink-0 border-[1.3px] border-black" />
-                <span className="flex-1 text-[9.5px] text-black">
+                <span className="inline-block h-[13px] w-[13px] shrink-0 border-[1.4px] border-black" />
+                <span className="flex-1 text-[12px] leading-tight text-black">
                   {e.name}
-                  {e.note ? <span className="text-[8px] text-neutral-600"> · {e.note}</span> : null}
+                  {e.note ? <span className="text-[10px] text-neutral-600"> · {e.note}</span> : null}
                 </span>
-                <span className="text-[9.5px] font-bold text-black">{e.qty || ""}</span>
+                <span className="text-[15px] font-bold text-black">{e.qty || ""}</span>
               </div>
             ))}
             {[0, 1, 2].map((i) => (
-              <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
+              <div key={i} className="mb-1 h-[17px] border-b border-dotted border-neutral-400" />
             ))}
           </div>
         )}
@@ -289,23 +292,25 @@ function PrintSheet({
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[19px] font-semibold leading-none text-black">ใบส่งของเข้าสาขา · Yogurt Culture</div>
-          <div className="text-[32px] font-bold leading-none text-black">{branch}</div>
-          <div className="mt-0.5 text-[15px] font-medium text-neutral-700">{BRANCH_LABEL_TH[branch]}</div>
+          <div className="text-[27px] font-bold leading-tight text-black">ใบส่งของเข้าสาขา</div>
+          <div className="mt-0.5 flex items-baseline gap-2.5">
+            <span className="text-[34px] font-bold leading-none text-black">{branch}</span>
+            <span className="text-[26px] font-bold leading-none text-black">{BRANCH_LABEL_TH[branch]}</span>
+          </div>
         </div>
         <div className="text-right">
-          <div className="text-[19px] font-semibold leading-none text-black">{thaiDateSlash(date)}</div>
-          <div className="text-[11px] text-neutral-600">{weekdayLabel}</div>
+          <div className="text-[23px] font-bold leading-none text-black">{thaiDateSlash(date)}</div>
+          <div className="mt-0.5 text-[13px] text-neutral-600">{weekdayLabel}</div>
         </div>
       </div>
       {note && note.trim() && (
         <div className="mb-2 border-[1.3px] border-black px-2 py-1.5">
-          <span className="text-[9.5px] font-bold uppercase tracking-wide text-black">NOTE: </span>
-          <span className="text-[10px] font-bold text-black">{note}</span>
+          <span className="text-[11px] font-bold uppercase tracking-wide text-black">NOTE: </span>
+          <span className="text-[12.5px] font-bold text-black">{note}</span>
         </div>
       )}
 
-      <div className="mb-2 flex justify-between text-[9.5px] text-neutral-600">
+      <div className="mb-2 flex justify-between text-[11px] text-neutral-600">
         <span>รวม {totalCount} รายการ</span>
         <span>ผู้จัดเตรียม: ____________________</span>
       </div>
@@ -1047,7 +1052,10 @@ function ProductionRow({
 
 // ── ใบสั่งผลิตพิมพ์ A4 — แยกจาก CSV เหมือนใบส่งของ ให้ทีมผลิตติ๊ก ☐ + เซ็นชื่อได้ ──
 interface ProdPrintRow { id: string; name: string; snd: string; nvp: string; kcn: string; other: string; total: string; note: string }
-const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 40;
+// ความจุจริงหลังขยายตัวอักษร+บีบบรรทัด 2026-07-28: แถวสูง ~5.2mm รับได้ ~36 บรรทัด
+// รายการที่สั่งผลิตได้มีเพดานอยู่แล้ว 21 รายการ + หัวหมวด 7 = 28 บรรทัด จึงไม่ล้นในการใช้งานปกติ
+// เหลือเกณฑ์ไว้กันเคสเพิ่มรายการพิเศษเยอะผิดปกติ
+const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 30;
 // ข้อ 17: หมวดพิเศษบนใบสั่งผลิต — ของที่มีอยู่แล้ว ไม่ต้องผลิตใหม่ แค่หยิบจากสต็อกเดิมไปส่ง
 const IN_STOCK_CATEGORY = "✅ มีของแล้ว — ไม่ต้องผลิต (หยิบจากสต็อกเดิม)";
 
@@ -1062,55 +1070,55 @@ function ProductionPrintSheet({
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[13px] font-medium uppercase tracking-widest text-neutral-500">ใบสั่งผลิต · Yogurt Culture</div>
-          <div className="text-[26px] font-bold leading-tight text-black">สั่งผลิต {thaiDateSlash(orderDate)}</div>
+          <div className="text-[15px] font-bold uppercase tracking-widest text-neutral-500">ใบสั่งผลิต</div>
+          <div className="text-[30px] font-bold leading-tight text-black">สั่งผลิต {thaiDateSlash(orderDate)}</div>
         </div>
         <div className="text-right">
-          <div className="text-[9px] uppercase tracking-widest text-neutral-500">จัดส่งเข้าสาขา</div>
-          <div className="text-[22px] font-semibold leading-none text-black">{thaiDateSlash(deliveryDate)}</div>
+          <div className="text-[11px] uppercase tracking-widest text-neutral-500">จัดส่งเข้าสาขา</div>
+          <div className="text-[26px] font-bold leading-none text-black">{thaiDateSlash(deliveryDate)}</div>
         </div>
       </div>
-      <div className="mb-2 flex justify-between text-[9.5px] text-neutral-600">
+      <div className="mb-1.5 flex justify-between text-[11px] text-neutral-600">
         <span>รวม {totalCount} รายการ</span>
         <span>ผู้สั่งผลิต: ____________________</span>
       </div>
 
-      <table className="w-full border-collapse text-[9px]">
+      <table className="w-full border-collapse text-[13px] leading-tight">
         <thead>
           <tr className="border-b-2 border-black">
-            <th className="w-3 py-1 align-top"></th>
-            <th className="py-1 align-top text-left text-[8px] uppercase tracking-wide text-neutral-500">รายการ</th>
-            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.SND}</span></th>
-            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.NVP}</span></th>
-            <th className="w-8 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.KCN}</span></th>
-            <th className="w-10 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
-            <th className="w-9 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">รวม</th>
-            <th className="w-16 py-1 align-top text-center text-[8px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+            <th className="w-4 py-1 align-top"></th>
+            <th className="py-1 align-top text-left text-[10px] uppercase tracking-wide text-neutral-500">รายการ</th>
+            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.SND}</span></th>
+            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.NVP}</span></th>
+            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.KCN}</span></th>
+            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
+            <th className="w-12 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">รวม</th>
+            <th className="w-20 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
           {printGroups.map((g) => (
             <React.Fragment key={g.category}>
               <tr>
-                <td colSpan={8} className="pt-2 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">
+                <td colSpan={8} className="pt-1 text-[10.5px] font-bold uppercase tracking-wide text-neutral-600">
                   {g.category}
                 </td>
               </tr>
               {g.items.map((r) => (
                 <tr key={r.id} className="border-b border-neutral-300">
-                  <td className="py-[3px]"><span className="inline-block h-[10px] w-[10px] border-[1.3px] border-black" /></td>
-                  <td className="py-[3px] text-black">
+                  <td className="py-[1.5px]"><span className="inline-block h-[13px] w-[13px] border-[1.4px] border-black" /></td>
+                  <td className="py-[1.5px] text-black">
                     <span className="inline-flex items-center gap-1">
                       {itemIcon(r.name)}
                       <span>{r.name}</span>
                     </span>
                   </td>
-                  <td className="py-[3px] text-center text-black">{r.snd}</td>
-                  <td className="py-[3px] text-center text-black">{r.nvp}</td>
-                  <td className="py-[3px] text-center text-black">{r.kcn}</td>
-                  <td className="py-[3px] text-center text-black">{r.other}</td>
-                  <td className="py-[3px] text-center font-bold text-black">{r.total}</td>
-                  <td className="py-[3px] text-center text-black">{r.note}</td>
+                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.snd}</td>
+                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.nvp}</td>
+                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.kcn}</td>
+                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.other}</td>
+                  <td className="py-[1.5px] text-center text-[16px] font-bold text-black">{r.total}</td>
+                  <td className="py-[1.5px] text-center text-[11px] text-black">{r.note}</td>
                 </tr>
               ))}
             </React.Fragment>
@@ -1119,15 +1127,15 @@ function ProductionPrintSheet({
       </table>
 
       {note.trim() && (
-        <div className="mt-3 text-[9px] text-black">
+        <div className="mt-2 text-[12px] text-black">
           <span className="font-bold">หมายเหตุรวม: </span>{note.trim()}
         </div>
       )}
 
-      <div className="mt-3">
-        <div className="mb-1 text-[7.5px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
+      <div className="mt-2">
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
         {[0, 1, 2].map((i) => (
-          <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
+          <div key={i} className="mb-1 h-[17px] border-b border-dotted border-neutral-400" />
         ))}
       </div>
 
