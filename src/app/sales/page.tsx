@@ -315,6 +315,13 @@ export default function SalesPage() {
           <NumberField label="PromptPay / QR" value={form.qr} onChange={set("qr")} />
           <NumberField label="EDC บัตร" value={form.edc} onChange={set("edc")} />
         </div>
+        {/* แพรถามเอง: พนักงานจะรู้ได้ยังไงว่าต้องใส่ยอด POS ไม่ใช่ยอดในแอปธนาคาร (2026-07-28)
+            ทั้งสองเลขมีอยู่จริงตรงหน้าและต่างกันได้ ถ้าไม่เขียนบอก จะเดาเอาเอง แล้วยอดจะเพี้ยนแบบเงียบ ๆ */}
+        <p className="mt-1.5 text-[11px] leading-relaxed text-brand-ink/45">
+          ทุกช่องกรอก <b className="font-semibold text-brand-ink/60">ตามที่ POS สรุป</b> เท่านั้น —
+          ยังไม่ต้องบวกลบเงินที่คืนลูกค้า และอย่าเอายอดจากแอปธนาคารมาใส่
+          <span className="block">ถ้าวันไหนมีคืนเงิน ให้ไปบันทึกที่กล่องข้างล่าง ระบบจะคำนวณยอดจริงให้เอง</span>
+        </p>
         {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) — ยุบไว้เป็นดีฟอลต์ (แพรขอ 2026-07-27)
             เพราะเป็นเคสนาน ๆ ที กางค้างไว้ทุกวันทำให้หน้าจอรก และพนักงานสับสนว่าต้องกรอกด้วยไหม */}
         <div className="mt-3 rounded-xl border border-black/10 bg-black/[.02] px-3 py-2.5">
@@ -435,7 +442,7 @@ export default function SalesPage() {
           {hasAdjustment && (
             <div className="mt-2.5 rounded-xl border-2 border-brand-blue/50 bg-brand-blue/15 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">
-                ยอดเงินเข้าจริง — ใช้ยอดนี้เทียบสลิป
+                ยอดเงินเข้าจริง — ต้องตรงกับแอปธนาคาร
               </p>
               <div className="mt-1.5 flex items-baseline gap-2">
                 <span className="text-[12px] text-sky-700">QR</span>
@@ -449,6 +456,10 @@ export default function SalesPage() {
               {adj.overBill !== 0 && (
                 <p className="mt-1.5 text-[11.5px] text-sky-700">เกินบิลรวม {baht(adj.overBill)} (นับเป็นรายได้ร้าน)</p>
               )}
+              {/* เลขในแอปธนาคารกลายเป็น "ตัวตรวจ" ไม่ใช่ "ตัวกรอก" — ถ้าไม่ตรงแปลว่ายังมีเคสตกหล่น */}
+              <p className="mt-1.5 border-t border-sky-700/15 pt-1.5 text-[11px] leading-relaxed text-sky-700/80">
+                เอาเลขนี้ไปเทียบกับยอดในแอปธนาคาร ถ้าไม่ตรง แปลว่ายังมีเคสที่ยังไม่ได้บันทึก
+              </p>
             </div>
           )}
 
