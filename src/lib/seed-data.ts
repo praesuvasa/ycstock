@@ -260,8 +260,9 @@ const EXPIRY_CONVERT: Record<string, [string, number | null]> = {
 };
 
 const VARIABLE_YIELD_ITEMS = new Set<string>([
-  "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
+  "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple",
   "น้ำ Ice cream / Soft Serve", // เพิ่ม 2026-07-21 แพรยืนยัน
+  // Biscoff เอาออก 2026-07-28 (แพรแก้) — เข้าเต็มแพ็คเสมอ หน่วยเหมือน Greek Yogurt 1kg
 ]);
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
