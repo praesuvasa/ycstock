@@ -85,6 +85,24 @@ const ITEM_ICON_KEY: Record<string, keyof typeof FRUIT_ICONS> = {
   "Banana": "banana",
   "Shake (แช่แข็ง)": "bowl",
 };
+// ── ชื่อและไอคอน "เฉพาะบนใบพิมพ์" (แพรสั่ง 2026-07-28) ──
+// ไม่แตะชื่อจริงในระบบ เพราะชื่อนั้นผูกกับข้อมูลเก่าทั้งหมด (สต็อก/ใบยืนยันรับ/รายงาน)
+// เปลี่ยนแค่สิ่งที่พิมพ์ออกกระดาษ เพื่อให้คนแพ็คของรู้ขนาดโดยไม่ต้องถาม
+const PRINT_NAME: Record<string, string> = {
+  "S-ACAI Cup (mini)": "S-ACAI Cup (mini) (100g)",
+  "R-ACAI Bowl": "R-ACAI Bowl (200g)",
+};
+function printName(name: string): string {
+  return PRINT_NAME[name] ?? name;
+}
+// ไอคอนที่วางไว้ "หลังชื่อ" — ต่างจาก itemIcon (ผลไม้) ที่อยู่หน้าชื่อ
+// จับชื่อแบบตรงตัวเท่านั้น กัน "Overnight oats biscoff" ติดไปด้วย
+const PRINT_ICON_AFTER: Record<string, string> = { Biscoff: "🍪" };
+function itemIconAfter(name: string): React.ReactNode | null {
+  const icon = PRINT_ICON_AFTER[name];
+  if (!icon) return null;
+  return <span className="text-[11px] leading-none">{icon}</span>;
+}
 function itemIcon(name: string): React.ReactNode | null {
   const key = ITEM_ICON_KEY[name];
   if (!key) return null;
@@ -259,7 +277,8 @@ function PrintSheet({
                     <td className="py-[1.5px] text-black">
                       <span className="inline-flex items-center gap-1">
                         {itemIcon(r.name)}
-                        <span>{r.name}</span>
+                        <span>{printName(r.name)}</span>
+                        {itemIconAfter(r.name)}
                       </span>
                     </td>
                     <td className="py-[1.5px] text-center text-[13px] font-bold text-black">{r.qty}</td>
@@ -332,15 +351,15 @@ function PrintSheet({
       <div className="mt-2 flex gap-6 border-t-[1.3px] border-black pt-2">
         <div className="flex-1">
           <div className="mb-3 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้ส่ง)</div>
-          <div className="mb-1 border-b border-black" />
-          <div className="flex justify-between text-[8px] text-neutral-600">
+          <div className="mb-2 border-b border-black" />
+          <div className="flex justify-between text-[11px] text-neutral-700">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
           </div>
         </div>
         <div className="flex-1">
           <div className="mb-3 text-[8.5px] text-neutral-600">ผู้รับสินค้า (สาขา)</div>
-          <div className="mb-1 border-b border-black" />
-          <div className="flex justify-between text-[8px] text-neutral-600">
+          <div className="mb-2 border-b border-black" />
+          <div className="flex justify-between text-[11px] text-neutral-700">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
           </div>
         </div>
@@ -1245,7 +1264,8 @@ function ProductionPrintSheet({
                   <td className="py-[1.5px] text-black">
                     <span className="inline-flex items-center gap-1">
                       {itemIcon(r.name)}
-                      <span>{r.name}</span>
+                      <span>{printName(r.name)}</span>
+                      {itemIconAfter(r.name)}
                     </span>
                   </td>
                   <td className="whitespace-nowrap border-l border-neutral-400 py-[1.5px] text-center text-[15px] leading-none text-black">{r.snd}</td>
@@ -1277,15 +1297,15 @@ function ProductionPrintSheet({
       <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
         <div className="flex-1">
           <div className="mb-4 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้สั่ง)</div>
-          <div className="mb-1 border-b border-black" />
-          <div className="flex justify-between text-[8px] text-neutral-600">
+          <div className="mb-2 border-b border-black" />
+          <div className="flex justify-between text-[11px] text-neutral-700">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
           </div>
         </div>
         <div className="flex-1">
           <div className="mb-4 text-[8.5px] text-neutral-600">ผู้ผลิต</div>
-          <div className="mb-1 border-b border-black" />
-          <div className="flex justify-between text-[8px] text-neutral-600">
+          <div className="mb-2 border-b border-black" />
+          <div className="flex justify-between text-[11px] text-neutral-700">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
           </div>
         </div>
