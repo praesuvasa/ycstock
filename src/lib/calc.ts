@@ -112,7 +112,8 @@ export function incidentAdjustment(
 ): IncidentAdjustment {
   const diff = n(actualAmount) - n(billAmount);
   if (kind === "over_no_change") return { qr: diff, cash: 0, overBill: diff };
-  // อีก 2 เคสเงินสดชดเชยกลับเสมอ ยอดรวมจึงตรงบิล
+  // อีก 3 เคสเงินสดชดเชยกลับเสมอ ยอดรวมจึงตรงบิล
+  // (รวม menu_change_refund — เงินเข้า QR เต็มจำนวนที่โอนมา แล้วจ่ายสดคืนเท่าส่วนต่าง)
   return { qr: diff, cash: -diff, overBill: 0 };
 }
 

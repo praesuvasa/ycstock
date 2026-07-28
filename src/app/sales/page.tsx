@@ -110,6 +110,7 @@ const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }
   { kind: "over_no_change", label: "โอนเกิน · ไม่ได้ทอนคืน", hint: "ส่วนเกินนับเป็นรายได้ของร้าน" },
   { kind: "over_cash_change", label: "โอนเกิน · ทอนเป็นเงินสด", hint: "หยิบเงินสดในลิ้นชักคืนลูกค้า" },
   { kind: "under_cash_topup", label: "โอนขาด · จ่ายสดเพิ่ม", hint: "โอนไม่ครบ แล้วจ่ายส่วนต่างเป็นเงินสด" },
+  { kind: "menu_change_refund", label: "เปลี่ยน/ยกเลิกเมนู · คืนสดส่วนต่าง", hint: "โอนมาแล้วเปลี่ยนเมนูถูกลง คืนเงินสดเฉพาะส่วนต่าง" },
 ];
 
 // อ่านสาขา/วันที่จาก query string ถ้ามี (เช่น มาจาก prompt "ไปกรอกยอดขาย" หลังบันทึกสต็อก)
@@ -394,7 +395,9 @@ export default function SalesPage() {
                     </div>
                     <div className="flex gap-2">
                       <label className="flex flex-1 flex-col gap-0.5">
-                        <span className="text-[10px] text-brand-ink/50">ยอดตามบิล</span>
+                        <span className="text-[10px] text-brand-ink/50">
+                          {it.kind === "menu_change_refund" ? "ยอดหลังเปลี่ยนเมนู" : "ยอดตามบิล"}
+                        </span>
                         <input
                           inputMode="decimal" value={it.billAmount || ""}
                           onChange={(e) => patch({ billAmount: toNum(e.target.value) })}
@@ -402,7 +405,9 @@ export default function SalesPage() {
                         />
                       </label>
                       <label className="flex flex-1 flex-col gap-0.5">
-                        <span className="text-[10px] text-brand-ink/50">โอนเข้าจริง</span>
+                        <span className="text-[10px] text-brand-ink/50">
+                          {it.kind === "menu_change_refund" ? "ยอดที่โอนมาตอนแรก" : "โอนเข้าจริง"}
+                        </span>
                         <input
                           inputMode="decimal" value={it.actualAmount || ""}
                           onChange={(e) => patch({ actualAmount: toNum(e.target.value) })}
