@@ -171,7 +171,7 @@ type Selection = "received" | "notReceived";
 // ** ใช้เฉพาะหน้ายืนยันรับของ ** หน้าสต็อก/สั่งของยังกรอกเศษกรัมได้ตามปกติ
 // เพราะเศษเกิดตอนเปิดกล่องใช้งาน ไม่ใช่ตอนรับเข้า — คนละจังหวะกัน
 const NO_GRAMS_CATEGORIES = new Set(["Toppings", "Softserve Toppings"]);
-const NO_GRAMS_ITEMS = new Set(["Greek Yogurt 1kg", "Plain Yogurt (ธรรมชาติ)", "Biscoff"]);
+const NO_GRAMS_ITEMS = new Set(["Greek Yogurt 1kg", "Plain Yogurt (ธรรมชาติ)"]);
 
 function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;

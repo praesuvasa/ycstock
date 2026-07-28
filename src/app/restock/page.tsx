@@ -99,10 +99,13 @@ function csvEscape(s: string): string {
   return '"' + str.split('"').join('""') + '"';
 }
 // รวมแพ็ค+เศษเป็นข้อความเดียว ใช้ทั้งใบพิมพ์/CSV/หน้าสั่งผลิต — ไม่โชว์ "0 แพ็ค" ให้รกถ้ามีแต่เศษ
+// ใส่คำว่า "แพ็ค" เฉพาะตอนมีเศษต่อท้าย — ต้องมีไว้กันสับสนว่า "2 + 300g" คือ 2 อะไร
+// ไม่มีเศษก็เขียนเลขเปล่า ๆ ให้เหมือนรายการอื่นทั้งใบ (แพรทัก 2026-07-28 ว่า Biscoff ขึ้น "2 แพ็ค"
+// ทั้งที่ Greek Yogurt หน่วยเดียวกันขึ้น "12" เฉย ๆ — อ่านแล้วเหมือนคนละหน่วย)
 function formatOrderQty(pack: number, g: number, hasG: boolean, gUnit: string): string {
   if (!hasG) return String(pack);
   if (pack > 0 && g > 0) return `${pack} แพ็ค + ${g}${gUnit}`;
-  if (pack > 0) return `${pack} แพ็ค`;
+  if (pack > 0) return String(pack);
   if (g > 0) return `${g}${gUnit}`;
   return "0";
 }

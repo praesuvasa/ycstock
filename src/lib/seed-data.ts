@@ -260,9 +260,10 @@ const EXPIRY_CONVERT: Record<string, [string, number | null]> = {
 };
 
 const VARIABLE_YIELD_ITEMS = new Set<string>([
-  "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple",
+  "Yuzu", "Kyoho", "Mint", "Vanilla", "Pineapple", "Biscoff",
   "น้ำ Ice cream / Soft Serve", // เพิ่ม 2026-07-21 แพรยืนยัน
-  // Biscoff เอาออก 2026-07-28 (แพรแก้) — เข้าเต็มแพ็คเสมอ หน่วยเหมือน Greek Yogurt 1kg
+  // Biscoff: เคยเอาออกช่วงสั้น ๆ 2026-07-28 เพราะเข้าใจผิดว่าปัญหาคือธงนี้
+  // ที่จริงปัญหาคือคำว่า "แพ็ค" ที่ต่อท้ายเลข (แก้ที่ formatOrderQty แล้ว) — Biscoff ต้องมีเศษกรัม
 ]);
 
 const slug = (i: number) => "it-" + String(i + 1).padStart(3, "0");
