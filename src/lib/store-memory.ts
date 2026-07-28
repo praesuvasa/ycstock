@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
@@ -53,6 +53,7 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; qtyG2: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
+const dispatchedReturnKeys = new Set<string>(); // `${branch}|${checkDate}|${index}` ที่ฝากรถไปแล้ว
 const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 
 // รายการที่ไม่มีให้เลือกในระบบ (v1.10) — key = `${branch}|${date}` เก็บทั้งชุดต่อคู่ (ไม่ผูก itemId)
@@ -773,6 +774,38 @@ export const memoryStore = {
   getExpiryChecks(branch: Branch, checkDate: string): ExpiryCheckRow[] {
     return (expiryChecks.get(`${branch}|${checkDate}`) ?? []).map((r, i) => ({ ...r, id: i + 1 }));
   },
+  // ── ของรอฝากรถส่งคืน (v1.21) — dev store เก็บใน memory ตามชุด expiryChecks ──
+  listPendingReturns(branch: Branch): PendingReturnRow[] {
+    const out: PendingReturnRow[] = [];
+    const itemMap = new Map(ITEMS.map((it) => [it.id, it]));
+    for (const [key, rows] of expiryChecks) {
+      const [b, checkDate] = key.split("|");
+      if (b !== branch) continue;
+      rows.forEach((r, i) => {
+        if (r.disposition !== "return" || dispatchedReturnKeys.has(`${key}|${i}`)) return;
+        const it = itemMap.get(r.itemId);
+        out.push({
+          id: i + 1, checkDate, itemId: r.itemId,
+          itemName: it?.name ?? r.itemId, unit: it?.unit ?? "",
+          qty: r.qty, expiryDate: r.expiryDate,
+        });
+      });
+    }
+    return out.sort((a, b2) => a.checkDate.localeCompare(b2.checkDate));
+  },
+  markReturnsDispatched(branch: Branch): number {
+    let n = 0;
+    for (const [key, rows] of expiryChecks) {
+      if (!key.startsWith(`${branch}|`)) continue;
+      rows.forEach((r, i) => {
+        if (r.disposition !== "return") return;
+        const k = `${key}|${i}`;
+        if (!dispatchedReturnKeys.has(k)) { dispatchedReturnKeys.add(k); n++; }
+      });
+    }
+    return n;
+  },
+
   // สาขาไหน "บันทึกผลตรวจของวันนั้นแล้ว" — ใช้ทำ badge เตือนวันอังคาร/ศุกร์
   getBranchesWithExpiryCheck(checkDate: string): Branch[] {
     const out = new Set<Branch>();

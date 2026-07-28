@@ -16,6 +16,17 @@ interface HomeTask {
   status: "done" | "todo" | "due";
   hint?: string;
 }
+// ของที่ตรวจวันหมดอายุแล้วสั่ง "ส่งคืน" แต่ยังไม่ได้ฝากขึ้นรถ (v1.21 — แพรขอ)
+// เตือนข้ามวันจนกว่าจะกดว่าฝากแล้ว เพราะรถมาไม่ตรงวันที่ตรวจ ของจึงค้างหลังร้านได้หลายวัน
+interface PendingReturn {
+  id: number;
+  checkDate: string;
+  itemName: string;
+  unit: string;
+  qty: number;
+  expiryDate: string;
+}
+
 interface HomeResp {
   branch: string;
   date: string;
@@ -42,7 +53,31 @@ export function StaffHome() {
       .catch((e) => setErr(String(e?.message ?? e)));
   }, []);
 
-  React.useEffect(() => { load(); }, [load]);
+  const [returns, setReturns] = React.useState<PendingReturn[]>([]);
+  const [sending, setSending] = React.useState(false);
+  const loadReturns = React.useCallback(() => {
+    fetch("/api/expiry-returns")
+      .then((r) => r.json())
+      .then((d: { rows?: PendingReturn[] }) => setReturns(d.rows ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function markDispatched() {
+    if (!window.confirm("ฝากของส่งคืนขึ้นรถเรียบร้อยแล้วใช่ไหม?\n\nกดตกลงแล้วรายการนี้จะหายไปจากหน้าหลัก")) return;
+    setSending(true);
+    try {
+      await fetch("/api/expiry-returns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      loadReturns();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  React.useEffect(() => { load(); loadReturns(); }, [load, loadReturns]);
   // กลับมาที่แท็บนี้เมื่อไหร่ก็โหลดใหม่ — เพื่อนร่วมกะอาจทำงานไปแล้วระหว่างที่เราสลับไปหน้าอื่น
   React.useEffect(() => {
     const onFocus = () => { if (document.visibilityState === "visible") load(); };
@@ -89,6 +124,31 @@ export function StaffHome() {
           รายการที่ต้องทำเป็นของทั้งสาขา — เพื่อนทำไปแล้วจะขึ้นติ๊กเขียวให้เอง
         </p>
       </GlassCard>
+
+      {returns.length > 0 && (
+        <div className="mb-3 rounded-2xl border border-brand-orange/45 bg-brand-orange/[.1] px-3.5 py-3">
+          <p className="text-[17px] font-bold leading-tight text-orange-700">วันนี้มีของส่งคืน</p>
+          <p className="mt-0.5 text-[12px] font-medium text-brand-ink/70">
+            อย่าลืมฝากสินค้ากลับไปกับรถส่งของ
+          </p>
+          <div className="mt-2 grid gap-1">
+            {returns.map((r) => (
+              <div key={r.id} className="flex items-baseline gap-2 rounded-lg bg-white/70 px-2.5 py-1.5">
+                <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium">{r.itemName}</span>
+                <span className="shrink-0 text-[12.5px] font-semibold">{r.qty} {r.unit}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={markDispatched}
+            disabled={sending}
+            className="mt-2.5 w-full rounded-xl bg-brand-ink px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-50"
+          >
+            {sending ? "กำลังบันทึก…" : "ฝากขึ้นรถแล้ว"}
+          </button>
+        </div>
+      )}
 
       <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">รายการที่ต้องทำวันนี้</p>
 

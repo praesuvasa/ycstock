@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -888,6 +888,37 @@ export const supabaseStore = {
       id: r.id, itemId: r.item_id, expiryDate: r.expiry_date, qty: Number(r.qty),
       disposition: r.disposition ?? null, note: r.note ?? "",
     }));
+  },
+
+  // ── ของที่ตรวจแล้วสั่ง "ส่งคืน" แต่ยังไม่ได้ฝากขึ้นรถ (v1.21) ──
+  // ไม่จำกัดช่วงวัน — ของที่ค้างมาหลายวันยิ่งต้องเตือน ไม่ใช่หายไปเพราะเก่าเกิน
+  async listPendingReturns(branch: Branch): Promise<PendingReturnRow[]> {
+    const { data, error } = await sb().from("expiry_checks")
+      .select("id,check_date,item_id,qty,expiry_date")
+      .eq("branch_id", branch).eq("disposition", "return").is("dispatched_at", null)
+      .order("check_date", { ascending: true });
+    if (error) throw error;
+    if ((data ?? []).length === 0) return [];
+    const meta = await this.getMeta();
+    const itemMap = new Map(meta.items.map((it) => [it.id, it]));
+    return (data ?? []).map((r: any) => {
+      const it = itemMap.get(r.item_id);
+      return {
+        id: r.id, checkDate: r.check_date, itemId: r.item_id,
+        itemName: it?.name ?? r.item_id, unit: it?.unit ?? "",
+        qty: Number(r.qty), expiryDate: r.expiry_date,
+      };
+    });
+  },
+
+  // กด "ฝากรถแล้ว" — ปิดทุกแถวที่ค้างของสาขานั้นทีเดียว (ของขึ้นรถไปพร้อมกันอยู่แล้ว)
+  async markReturnsDispatched(branch: Branch): Promise<number> {
+    const { data, error } = await sb().from("expiry_checks")
+      .update({ dispatched_at: new Date().toISOString() })
+      .eq("branch_id", branch).eq("disposition", "return").is("dispatched_at", null)
+      .select("id");
+    if (error) throw error;
+    return (data ?? []).length;
   },
 
   // สาขาไหน "บันทึกผลตรวจของวันนั้นแล้ว" — ใช้ทำ badge เตือนวันอังคาร/ศุกร์

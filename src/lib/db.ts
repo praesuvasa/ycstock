@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize } from "./types";
+import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -195,6 +195,12 @@ export const db = {
     useSupabase
       ? supabaseStore.getBranchesWithExpiryCheck(checkDate)
       : Promise.resolve(memoryStore.getBranchesWithExpiryCheck(checkDate)),
+
+  // ของที่ตรวจแล้วสั่งส่งคืน แต่ยังไม่ได้ฝากขึ้นรถ (v1.21)
+  listPendingReturns: (branch: Branch): Promise<PendingReturnRow[]> =>
+    useSupabase ? supabaseStore.listPendingReturns(branch) : Promise.resolve(memoryStore.listPendingReturns(branch)),
+  markReturnsDispatched: (branch: Branch): Promise<number> =>
+    useSupabase ? supabaseStore.markReturnsDispatched(branch) : Promise.resolve(memoryStore.markReturnsDispatched(branch)),
 
   saveExpiryChecks: (branch: Branch, checkDate: string, rows: ExpiryCheckRow[], userId: string, userName: string): Promise<void> =>
     useSupabase

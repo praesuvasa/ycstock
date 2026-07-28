@@ -161,6 +161,18 @@ export interface ExpiryCheckRow {
   note: string;
 }
 
+// ── ของรอฝากรถส่งคืน (v1.21) ──
+// แถวที่ตรวจวันหมดอายุแล้วเลือก "ส่งคืน" แต่ยังไม่ได้ฝากขึ้นรถ — เตือนที่หน้าหลักจนกว่าจะกดว่าฝากแล้ว
+export interface PendingReturnRow {
+  id: number;
+  checkDate: string;
+  itemId: string;
+  itemName: string;
+  unit: string;
+  qty: number;
+  expiryDate: string;
+}
+
 // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — QR ↔ เงินสด ──
 // POS บอกยอดตามบิล แต่เงินเข้าจริงต่างออกไป · พนักงานกรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
 // ระบบคำนวณ "ยอดเงินเข้าจริง" ให้เอง (POS + ผลรวมการปรับ) → เอาไปเทียบสลิปตอนอัปโหลดหลักฐาน
