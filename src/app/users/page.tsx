@@ -108,11 +108,12 @@ export default function UsersPage() {
     }
   }
 
-  // เปิดหน้าต่างให้เจ้าตัวไปลงทะเบียนใบหน้าเอง — ต้องอยู่กับเขาตอนถ่าย ไม่งั้นกันอะไรไม่ได้
-  async function allowFaceEnroll(u: User) {
+  // รีเซ็ตใบหน้า — ใช้เมื่อเจ้าตัวสแกนไม่ผ่านแล้วจริง ๆ (ตัดผม ใส่แว่น)
+  // เป็นทางเดียวที่ลงทะเบียนใหม่ได้ เพราะพนักงานแก้เองไม่ได้
+  async function resetFace(u: User) {
     const ok = window.confirm(
-      `เปิดสิทธิ์ให้ ${u.name} ลงทะเบียนใบหน้า 30 นาที?\n\n` +
-      `ควรอยู่กับเจ้าตัวตอนถ่าย — ถ้าเปิดทิ้งไว้ คนอื่นอาจเอาหน้าตัวเองมาลงทะเบียนแทน`
+      `รีเซ็ตใบหน้าของ ${u.name}?\n\n` +
+      `ใบหน้าเดิมจะถูกลบ และเจ้าตัวต้องลงทะเบียนใหม่เองก่อนถึงจะลงเวลาได้อีก`
     );
     if (!ok) return;
     setBusy(u.id);
@@ -121,11 +122,11 @@ export default function UsersPage() {
       const res = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: u.id, allowFaceEnroll: true }),
+        body: JSON.stringify({ id: u.id, resetFace: true }),
       });
       const d = await res.json();
-      if (!res.ok || !d?.ok) throw new Error(d?.error ?? "เปิดสิทธิ์ไม่สำเร็จ");
-      window.alert(`เปิดสิทธิ์ให้ ${u.name} แล้ว — ให้เจ้าตัวเข้าเมนู "ลงเวลาเข้า-ออกงาน" แล้วกดลงทะเบียนใบหน้าภายใน 30 นาที`);
+      if (!res.ok || !d?.ok) throw new Error(d?.error ?? "รีเซ็ตไม่สำเร็จ");
+      window.alert(`รีเซ็ตใบหน้าของ ${u.name} แล้ว — ให้เจ้าตัวเข้าเมนู "ลงเวลาเข้า-ออกงาน" แล้วลงทะเบียนใหม่`);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     } finally {
@@ -269,10 +270,10 @@ export default function UsersPage() {
                         ออกรหัสตั้งค่าใหม่
                       </Button>
                     </div>
-                    {/* ลงทะเบียนใบหน้าต้องผ่านแอดมินเสมอ — ถ้าปล่อยให้ทำเองอิสระ
-                        ใครรู้รหัสของอีกคนก็เข้าไปเปลี่ยนเป็นหน้าตัวเองแล้วลงเวลาแทนกันได้ */}
-                    <Button variant="ghost" onClick={() => allowFaceEnroll(u)} disabled={busy === u.id}>
-                      เปิดสิทธิ์ลงทะเบียนใบหน้า (30 นาที)
+                    {/* พนักงานลงทะเบียนใบหน้าเองได้ครั้งเดียว แก้เองไม่ได้
+                        ปุ่มนี้คือทางเดียวที่จะลงใหม่ได้ ใช้เมื่อสแกนไม่ผ่านจริง ๆ */}
+                    <Button variant="ghost" onClick={() => resetFace(u)} disabled={busy === u.id}>
+                      รีเซ็ตใบหน้า (ให้ลงทะเบียนใหม่)
                     </Button>
                     {/* บัญชีแอดมินไม่มีปุ่มลบเลย — ซ่อนดีกว่าโชว์แล้วกดไม่ได้ (กันคำถามว่าทำไมกดไม่ได้) */}
                     {u.role !== "admin" && (

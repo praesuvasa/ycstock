@@ -938,10 +938,13 @@ export const supabaseStore = {
     };
   },
 
-  // แอดมินเปิดหน้าต่างให้ลงทะเบียน — ปิดเองเมื่อหมดเวลา หรือเมื่อลงทะเบียนสำเร็จ
-  async setFaceEnrollWindow(userId: string, until: string | null): Promise<void> {
-    const { error } = await sb().from("users").update({ face_enroll_allowed_until: until }).eq("id", userId);
+  // แอดมินรีเซ็ตใบหน้า — ล้างของเดิมให้เจ้าตัวลงทะเบียนใหม่ได้ (เหมือนเริ่มครั้งแรก)
+  async clearFaceEnrollment(userId: string): Promise<string | null> {
+    const { data } = await sb().from("users").select("face_id").eq("id", userId).maybeSingle();
+    const { error } = await sb().from("users")
+      .update({ face_id: null, face_enrolled_at: null, face_enroll_allowed_until: null }).eq("id", userId);
     if (error) throw error;
+    return (data as any)?.face_id ?? null;
   },
 
   async saveFaceEnrollment(userId: string, faceId: string): Promise<void> {

@@ -14,7 +14,6 @@ interface Status {
   faceConfigured: boolean;
   enrolled: boolean;
   enrolledAt: string | null;
-  enrollAllowed: boolean;
   open: { id: number; clockIn: string } | null;
   name: string;
   error?: string;
@@ -200,11 +199,12 @@ export default function TimeClockPage() {
             {!st.enrolled ? (
               <>
                 <p className="text-[12.5px] leading-relaxed text-brand-ink/60">
-                  {st.enrollAllowed
-                    ? "ยังไม่ได้ลงทะเบียนใบหน้า — ทำครั้งเดียว แล้วใช้ลงเวลาได้ตลอด"
-                    : "ยังไม่ได้ลงทะเบียนใบหน้า — ให้แอดมินเปิดสิทธิ์ให้ก่อน แล้วถ่ายต่อหน้าแอดมิน"}
+                  ยังไม่ได้ลงทะเบียนใบหน้า — ทำครั้งเดียว แล้วใช้ลงเวลาได้ตลอด
+                  <span className="mt-1 block text-[11.5px] text-brand-ink/45">
+                    ลงทะเบียนแล้วแก้เองไม่ได้ ถ่ายให้ชัดตั้งแต่ครั้งแรก
+                  </span>
                 </p>
-                <Button onClick={() => openCamera("enroll")} disabled={!st.faceConfigured || !st.enrollAllowed}>
+                <Button onClick={() => openCamera("enroll")} disabled={!st.faceConfigured}>
                   ลงทะเบียนใบหน้า
                 </Button>
               </>
@@ -218,21 +218,12 @@ export default function TimeClockPage() {
               </Button>
             )}
 
-            {/* ลงทะเบียนใหม่ต้องผ่านแอดมินเสมอ — ปุ่มจะโผล่เฉพาะตอนแอดมินเปิดสิทธิ์ให้แล้วเท่านั้น
-                ไม่งั้นใครรู้รหัสของอีกคนก็เข้ามาเปลี่ยนเป็นหน้าตัวเองได้ */}
-            {st.enrolled && (st.enrollAllowed ? (
-              <button
-                type="button"
-                onClick={() => openCamera("enroll")}
-                className="text-[11.5px] font-medium text-brand-red underline underline-offset-2"
-              >
-                ลงทะเบียนใบหน้าใหม่ (แอดมินเปิดสิทธิ์ให้แล้ว)
-              </button>
-            ) : (
+            {/* ไม่มีปุ่มลงทะเบียนใหม่โดยตั้งใจ — ถ้าแก้เองได้ ใครรู้รหัสของอีกคนก็เปลี่ยนเป็นหน้าตัวเองได้ */}
+            {st.enrolled && (
               <p className="text-[11px] leading-relaxed text-brand-ink/40">
-                สแกนไม่ผ่านเพราะเปลี่ยนทรงผม/ใส่แว่น? แจ้งแอดมินให้เปิดสิทธิ์ลงทะเบียนใหม่ให้
+                ลงทะเบียนใบหน้าแล้ว · แก้เองไม่ได้ — ถ้าสแกนไม่ผ่าน (ตัดผม ใส่แว่น) แจ้งแอดมินให้รีเซ็ตให้
               </p>
-            ))}
+            )}
           </div>
         )}
       </GlassCard>

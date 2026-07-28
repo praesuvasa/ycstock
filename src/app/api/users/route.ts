@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { deleteFace } from "@/lib/face";
 import type { Role, BranchScope } from "@/lib/types";
 import { BRANCHES } from "@/lib/types";
 
@@ -79,14 +80,16 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: true, setupCode: code });
     }
 
-    // เปิดสิทธิ์ให้ลงทะเบียนใบหน้า 30 นาที (แพรทักเอง 2026-07-28)
-    // ต้องมีหน้าต่างเวลา ไม่ใช่เปิดค้าง — เปิดค้างไว้เท่ากับไม่ได้กันอะไรเลย
-    // 30 นาทีพอให้เดินไปหาเจ้าตัวแล้วถ่าย แต่สั้นพอที่จะไม่ค้างข้ามกะ
-    if (body.allowFaceEnroll === true) {
-      const until = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-      await db.setFaceEnrollWindow(id, until);
-      await writeAudit(s, "allow_face_enroll", { entity: id, detail: "เปิดสิทธิ์ลงทะเบียนใบหน้า 30 นาที" });
-      return NextResponse.json({ ok: true, allowedUntil: until });
+    // รีเซ็ตใบหน้า — พนักงานลงทะเบียนได้ครั้งเดียวและแก้เองไม่ได้
+    // ทางออกเดียวเมื่อสแกนไม่ผ่าน (ตัดผม ใส่แว่น น้ำหนักเปลี่ยน) คือให้แอดมินล้างของเดิมให้
+    // ลบออกจากคลังใบหน้าฝั่ง AWS ด้วย ไม่งั้นหน้าเก่าค้างอยู่แล้วบล็อกตอนลงทะเบียนใหม่
+    if (body.resetFace === true) {
+      const oldFaceId = await db.clearFaceEnrollment(id);
+      if (oldFaceId) {
+        try { await deleteFace(oldFaceId); } catch { /* ลบไม่ได้/ไม่มีอยู่แล้ว ก็ไม่ต้องขวางการรีเซ็ต */ }
+      }
+      await writeAudit(s, "reset_face", { entity: id, detail: "รีเซ็ตใบหน้า ให้ลงทะเบียนใหม่ได้" });
+      return NextResponse.json({ ok: true });
     }
 
     const user = await db.updateUser(id, patch);

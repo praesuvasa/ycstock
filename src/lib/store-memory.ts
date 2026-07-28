@@ -802,9 +802,10 @@ export const memoryStore = {
   getFaceEnrollment(userId: string): { faceId: string | null; enrolledAt: string | null; allowedUntil: string | null } {
     return faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null, allowedUntil: null };
   },
-  setFaceEnrollWindow(userId: string, until: string | null): void {
-    const cur = faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null, allowedUntil: null };
-    faceEnrollments.set(userId, { ...cur, allowedUntil: until });
+  clearFaceEnrollment(userId: string): string | null {
+    const cur = faceEnrollments.get(userId);
+    faceEnrollments.set(userId, { faceId: null, enrolledAt: null, allowedUntil: null });
+    return cur?.faceId ?? null;
   },
   saveFaceEnrollment(userId: string, faceId: string): void {
     faceEnrollments.set(userId, { faceId, enrolledAt: new Date().toISOString(), allowedUntil: null });
