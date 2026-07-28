@@ -37,6 +37,12 @@ export default function ConfirmReceiptPage() {
   }, [branch]);
   React.useEffect(() => { loadSheets(); }, [loadSheets]);
 
+  // ใบที่ลงวันที่ล่วงหน้า (แอดมินเตรียมไว้ก่อน) ยังไม่ต้องขึ้นให้สาขายืนยัน — แพรสั่ง 2026-07-28
+  // ถ้าโชว์ไว้ พนักงานจะติ๊กรับตั้งแต่ของยังไม่มา แล้วยอด "รับเข้า" จะไปลงวันนี้ทั้งที่ของถึงพรุ่งนี้
+  // = สต็อกวันนี้เกินจริง ปนกับของที่มีอยู่ แยกไม่ออกภายหลัง
+  const dueSheets = React.useMemo(() => sheets.filter((x) => x.date <= todayISO()), [sheets]);
+  const futureSheets = React.useMemo(() => sheets.filter((x) => x.date > todayISO()), [sheets]);
+
   const [activeDate, setActiveDate] = React.useState<string | null>(null);
   const [clearing, setClearing] = React.useState(false);
 
@@ -75,9 +81,9 @@ export default function ConfirmReceiptPage() {
   }
   React.useEffect(() => {
     // เลือกใบแรกในลิสอัตโนมัติ (เก่าสุดก่อน) — ถ้าใบที่เลือกอยู่หายไปแล้ว (ยืนยันครบ) ให้รีเซ็ต
-    if (activeDate && sheets.some((s) => s.date === activeDate)) return;
-    setActiveDate(sheets[0]?.date ?? null);
-  }, [sheets, activeDate]);
+    if (activeDate && dueSheets.some((s) => s.date === activeDate)) return;
+    setActiveDate(dueSheets[0]?.date ?? null);
+  }, [dueSheets, activeDate]);
 
   return (
     <div>
@@ -100,7 +106,7 @@ export default function ConfirmReceiptPage() {
 
       {loadingSheets ? (
         <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
-      ) : sheets.length === 0 ? (
+      ) : dueSheets.length === 0 ? (
         <GlassCard>
           <div className="py-6 text-center">
             <p className="text-sm text-brand-ink/50">ยืนยันรับครบทุกใบแล้ว ✓</p>
@@ -111,12 +117,18 @@ export default function ConfirmReceiptPage() {
               </Link>
             </p>
           </div>
+          {futureSheets.length > 0 && (
+            <p className="mt-3 rounded-lg bg-black/[.03] px-3 py-2 text-center text-[11.5px] leading-relaxed text-brand-ink/45">
+              มีใบของวันที่ {futureSheets.map((x) => thaiDate(x.date)).join(" · ")} เตรียมไว้ล่วงหน้าแล้ว
+              <br />จะขึ้นให้ยืนยันเมื่อถึงวันที่ของมาส่ง
+            </p>
+          )}
           <TodayNextStep show hideTask="receipt" />
         </GlassCard>
       ) : (
         <>
           <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
-            {sheets.map((s) => (
+            {dueSheets.map((s) => (
               <button
                 key={s.date}
                 onClick={() => setActiveDate(s.date)}
