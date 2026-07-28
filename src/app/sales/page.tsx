@@ -517,9 +517,6 @@ export default function SalesPage() {
           </div>
         )}
 
-        <div className="mt-3">
-          <Stat label="รวม In-store" value={baht(inStore)} tone="default" />
-        </div>
       </GlassCard>
 
       {/* Delivery */}
@@ -545,9 +542,6 @@ export default function SalesPage() {
               row={evidence.lineman} onUploaded={(row) => setEvidence((p) => ({ ...p, lineman: row }))}
             />
           )}
-        </div>
-        <div className="mt-3">
-          <Stat label="รวม Delivery" value={baht(delivery)} tone="default" />
         </div>
       </GlassCard>
 
