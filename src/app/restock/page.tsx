@@ -101,6 +101,13 @@ function csvEscape(s: string): string {
 // รวมแพ็ค+เศษเป็นข้อความเดียว ใช้ทั้งใบพิมพ์/CSV/หน้าสั่งผลิต — ไม่โชว์ "0 แพ็ค" ให้รกถ้ามีแต่เศษ
 // ไม่มีคำว่า "แพ็ค" แล้ว (แพรสั่ง 2026-07-28) — เลขโดด ๆ คือจำนวนแพ็ค เศษมี g กำกับอยู่แล้ว
 // "1 + 700g" · คำว่าแพ็คทำให้ช่องแคบ ๆ ในใบสั่งผลิตตัดบรรทัดเป็น 3 บรรทัด อ่านยากกว่าที่ช่วย
+// ถุงเศษที่ 2 ต่อท้ายเป็นก้อนแยก ไม่บวกรวม — คนหยิบของต้องรู้ว่าไปหยิบ 2 ถุง (300g กับ 500g)
+// ไม่ใช่ถุงเดียว 800g ซึ่งไม่มีอยู่จริงในตู้ (แพรสั่ง 2026-07-28)
+function formatOrderQty2(pack: number, g: number, g2: number, hasG: boolean, gUnit: string): string {
+  const base = formatOrderQty(pack, g, hasG, gUnit);
+  if (!hasG || !(g2 > 0)) return base;
+  return g > 0 || pack > 0 ? `${base} + ${g2}${gUnit}` : `${g2}${gUnit}`;
+}
 function formatOrderQty(pack: number, g: number, hasG: boolean, gUnit: string): string {
   if (!hasG) return String(pack);
   if (pack > 0 && g > 0) return `${pack} + ${g}${gUnit}`;
@@ -409,11 +416,13 @@ function RestockByBranch() {
 
   // ── ตัวเลือกที่เลือกไว้ — hydrate จาก DB (ไม่ใช่ store client memory เดิม) ──
   const [selEntries, setSelEntries] = React.useState<Record<string, RestockSelectionEntry>>({});
+  // แถวไหนกางช่องถุงเศษที่ 2 ไว้ — ไม่ต้องเก็บลง DB เป็นแค่สถานะบนจอ
+  const [showG2, setShowG2] = React.useState<Record<string, boolean>>({});
   const [saving, setSaving] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<Date | null>(null);
   // ── snapshot ค่าที่ "บันทึกลง DB แล้วจริง" ล่าสุด (จากการโหลด หรือหลังกดบันทึกสำเร็จ) — undefined ต่อ itemId = ไม่เคยบันทึกคู่นี้เลย
   // ใช้เทียบกับ selEntries เพื่อบอกสถานะแต่ละแถว: แนะนำ (ยังไม่แตะ) / แก้ไขแล้วยังไม่บันทึก / บันทึกแล้ว
-  const [savedEntries, setSavedEntries] = React.useState<Record<string, { selected: boolean; qty: number; qtyG: number }>>({});
+  const [savedEntries, setSavedEntries] = React.useState<Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2?: number }>>({});
 
   const weekday = React.useMemo(() => weekdayFromDate(date), [date]);
 
@@ -437,7 +446,7 @@ function RestockByBranch() {
         const data = await r.json();
         if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
         return data as {
-          entries: Record<string, { selected: boolean; qty: number; qtyG: number }>;
+          entries: Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2?: number }>;
           note?: string; extras?: RestockExtraItem[]; received?: string[];
         };
       }),
@@ -457,11 +466,11 @@ function RestockByBranch() {
         for (const r of restockData.rows) {
           const saved = selData.entries[r.itemId];
           next[r.itemId] = saved
-            ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty, qtyG: saved.qtyG }
+            ? { itemId: r.itemId, selected: saved.selected, qty: saved.qty, qtyG: saved.qtyG, qtyG2: saved.qtyG2 ?? 0 }
             // ยังไม่เคยบันทึกคู่ (สาขา,วันที่) นี้ → ไม่ติ๊กให้ล่วงหน้า (แพรขอ 2026-07-26)
             // เดิมติ๊กให้อัตโนมัติเมื่อ need>0 ทำให้พนักงานแยกไม่ออกว่าอันไหนตัวเองเลือก อันไหนระบบเลือกให้
             // ยังใส่ตัวเลข Par−คงเหลือ ไว้ในช่องเหมือนเดิม (ช่วยกรอกเร็ว) แค่ต้องติ๊กเองก่อนถึงจะนับ
-            : { itemId: r.itemId, selected: false, qty: r.need ?? 0, qtyG: 0 };
+            : { itemId: r.itemId, selected: false, qty: r.need ?? 0, qtyG: 0, qtyG2: 0 };
         }
         setSelEntries(next);
         setSavedEntries(selData.entries); // snapshot ของจริงจาก DB ณ ตอนโหลด — ใช้เทียบสถานะแต่ละแถว
@@ -515,6 +524,7 @@ function RestockByBranch() {
         selected: selEntries[r.itemId]?.selected ?? false,
         qty: Number(selEntries[r.itemId]?.qty ?? 0),
         qtyG: Number(selEntries[r.itemId]?.qtyG ?? 0),
+        qtyG2: Number(selEntries[r.itemId]?.qtyG2 ?? 0),
       }));
       const res = await fetch("/api/restock/selections", {
         method: "POST",
@@ -544,7 +554,8 @@ function RestockByBranch() {
   function statusOf(r: RestockRow): "saved" | "dirty" | "suggested" {
     const cur = selEntries[r.itemId] ?? { itemId: r.itemId, selected: false, qty: 0, qtyG: 0 };
     const saved = savedEntries[r.itemId];
-    if (saved && cur.selected === saved.selected && cur.qty === saved.qty && cur.qtyG === saved.qtyG) return "saved";
+    if (saved && cur.selected === saved.selected && cur.qty === saved.qty && cur.qtyG === saved.qtyG
+        && (cur.qtyG2 ?? 0) === (saved.qtyG2 ?? 0)) return "saved";
     if (!saved) {
       const def = defaultOf(r);
       if (cur.selected === def.selected && cur.qty === def.qty && cur.qtyG === def.qtyG) return "suggested";
@@ -648,6 +659,34 @@ function RestockByBranch() {
               placeholder={r.isCup ? "ชิ้น" : "g"}
               className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
             />
+            {/* ถุงเศษที่ 2 — ซ่อนไว้เป็นค่าเริ่มต้น (แพรสั่ง) เพราะเป็นเคสนาน ๆ ที
+                กางค้างไว้ทุกแถวจะรกและพนักงานจะสับสนว่าต้องกรอกทุกวันไหม
+                กางเองถ้าวันนั้นมีค่าอยู่แล้ว ไม่งั้นค่าที่กรอกไปจะถูกซ่อนจนไม่มีใครรู้ว่ามี */}
+            {showG2[r.itemId] || (entry?.qtyG2 ?? 0) > 0 ? (
+              <>
+                <span className="shrink-0 text-[10px] text-brand-ink/35">+</span>
+                <input
+                  inputMode="numeric"
+                  value={entry?.qtyG2 ?? ""}
+                  disabled={!isSel}
+                  onChange={(e) => updateEntry(r.itemId, { qtyG2: Number(e.target.value) || 0 })}
+                  title="ถุงเศษถุงที่ 2 — ใช้เมื่อของรอบนั้นมาเป็นถุงเศษ 2 ถุงแยกกัน (เช่น 300g กับ 500g) ใบส่งของจะพิมพ์แยกถุงให้"
+                  placeholder={r.isCup ? "ชิ้น" : "g"}
+                  className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
+                />
+              </>
+            ) : (
+              isSel && (
+                <button
+                  type="button"
+                  onClick={() => setShowG2((m) => ({ ...m, [r.itemId]: true }))}
+                  title="เพิ่มถุงเศษถุงที่ 2 (ของมาเป็น 2 ถุงแยกกัน)"
+                  className="shrink-0 rounded border border-black/10 px-1 text-[10px] leading-[18px] text-brand-ink/35"
+                >
+                  +g
+                </button>
+              )
+            )}
           </>
         )}
       </div>
@@ -666,12 +705,13 @@ function RestockByBranch() {
 
   function exportCsv() {
     const selectedRows = rows.filter((r) => selEntries[r.itemId]?.selected);
-    const lines = ["หมวด,รายการ,จำนวนสั่ง (แพ็ค),เศษ"];
+    const lines = ["หมวด,รายการ,จำนวนสั่ง (แพ็ค),เศษ,เศษถุงที่ 2"];
     for (const r of selectedRows) {
       const entry = selEntries[r.itemId];
       const q = entry?.qty ?? 0;
       const qG = r.hasVariableYield ? entry?.qtyG ?? 0 : "";
-      lines.push([csvEscape(r.category), csvEscape(r.name), String(q), String(qG)].join(","));
+      const qG2 = r.hasVariableYield && (entry?.qtyG2 ?? 0) > 0 ? entry?.qtyG2 ?? 0 : "";
+      lines.push([csvEscape(r.category), csvEscape(r.name), String(q), String(qG), String(qG2)].join(","));
     }
     lines.push(...SIGNATURE_FOOTER_LINES);
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
@@ -688,11 +728,11 @@ function RestockByBranch() {
     for (const r of rows) {
       const entry = selEntries[r.itemId];
       if (!entry?.selected) continue;
-      if ((entry.qty ?? 0) <= 0 && (entry.qtyG ?? 0) <= 0) continue;
+      if ((entry.qty ?? 0) <= 0 && (entry.qtyG ?? 0) <= 0 && (entry.qtyG2 ?? 0) <= 0) continue;
       // ข้อ 15: ตัดของที่ส่งไปแล้ว+สาขายืนยันรับแล้วออก เวลาพิมพ์ใบรอบถัดไปของวันเดียวกัน
       // (ไม่ตัดตัวที่ติ๊ก "ไม่ได้รับ" เพราะของยังไม่ถึงสาขา ต้องพิมพ์ไปส่งใหม่)
       if (printOnlyNew && receivedIds.has(r.itemId)) continue;
-      const qtyText = formatOrderQty(entry.qty ?? 0, entry.qtyG ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
+      const qtyText = formatOrderQty2(entry.qty ?? 0, entry.qtyG ?? 0, entry.qtyG2 ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
       const arr = byCategory.get(r.category) ?? [];
       arr.push({ ...r, qty: qtyText });
       byCategory.set(r.category, arr);

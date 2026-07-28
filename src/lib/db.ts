@@ -134,7 +134,7 @@ export const db = {
     useSupabase ? supabaseStore.deleteCashRemittance(id) : Promise.resolve(memoryStore.deleteCashRemittance(id)),
 
   // ── restock selections (v1.4) ──
-  getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> =>
+  getRestockSelections: (branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2: number }>> =>
     useSupabase ? supabaseStore.getRestockSelections(branch, date) : Promise.resolve(memoryStore.getRestockSelections(branch, date)),
 
   saveRestockSelections: (branch: Branch, date: string, entries: RestockSelectionEntry[], userId: string, userName: string) =>

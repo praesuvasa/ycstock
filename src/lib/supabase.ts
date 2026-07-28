@@ -855,12 +855,12 @@ export const supabaseStore = {
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──
-  async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number }>> {
+  async getRestockSelections(branch: Branch, date: string): Promise<Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2: number }>> {
     const { data, error } = await sb().from("restock_selections")
-      .select("item_id,selected,qty,qty_g").eq("branch_id", branch).eq("date", date);
+      .select("item_id,selected,qty,qty_g,qty_g2").eq("branch_id", branch).eq("date", date);
     if (error) throw error;
-    const out: Record<string, { selected: boolean; qty: number; qtyG: number }> = {};
-    for (const r of data ?? []) out[r.item_id] = { selected: r.selected, qty: Number(r.qty), qtyG: Number(r.qty_g) };
+    const out: Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2: number }> = {};
+    for (const r of data ?? []) out[r.item_id] = { selected: r.selected, qty: Number(r.qty), qtyG: Number(r.qty_g), qtyG2: Number(r.qty_g2 ?? 0) };
     return out;
   },
 
@@ -868,7 +868,7 @@ export const supabaseStore = {
     const now = new Date().toISOString();
     const payload = entries.map((e) => ({
       date, branch_id: branch, item_id: e.itemId,
-      selected: e.selected, qty: e.qty, qty_g: e.qtyG,
+      selected: e.selected, qty: e.qty, qty_g: e.qtyG, qty_g2: e.qtyG2 ?? 0,
       updated_by_user_id: userId, updated_by_name: userName, updated_at: now,
     }));
     const { error } = await sb().from("restock_selections").upsert(payload, { onConflict: "date,branch_id,item_id" });
@@ -1131,7 +1131,7 @@ export const supabaseStore = {
 
   async getRestockReceiptStatus(branch: Branch, date: string): Promise<RestockReceiptStatus[]> {
     const [selRes, receiptRes, meta] = await Promise.all([
-      sb().from("restock_selections").select("item_id,qty,qty_g").eq("branch_id", branch).eq("date", date).eq("selected", true),
+      sb().from("restock_selections").select("item_id,qty,qty_g,qty_g2").eq("branch_id", branch).eq("date", date).eq("selected", true),
       sb().from("restock_receipts").select("item_id,received_qty,received_qty_g,is_extra,not_received,note,confirmed_by_name,confirmed_at").eq("branch_id", branch).eq("date", date),
       this.getMeta(),
     ]);
@@ -1144,7 +1144,8 @@ export const supabaseStore = {
       const receipt = receiptMap.get(r.item_id);
       return {
         itemId: r.item_id, name: it?.name ?? r.item_id, unit: it?.unit ?? "",
-        orderedQty: Number(r.qty), orderedQtyG: Number(r.qty_g),
+        // รวมถุงเศษทั้ง 2 ถุงเป็นยอดเดียว — หน้ายืนยันรับของสนใจแค่ "ได้ครบไหม" ไม่ได้สนว่ากี่ถุง
+        orderedQty: Number(r.qty), orderedQtyG: Number(r.qty_g) + Number(r.qty_g2 ?? 0),
         receivedQty: receipt ? Number((receipt as any).received_qty) : null,
         receivedQtyG: receipt ? Number((receipt as any).received_qty_g) : null,
         isExtra: false, notReceived: (receipt as any)?.not_received ?? false,

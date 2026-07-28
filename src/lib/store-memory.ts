@@ -50,7 +50,7 @@ const stock = new Map<string, StockRec>();   // `${date}|${branch}|${itemId}`
 const sales = new Map<string, SalesRec>();    // `${date}|${branch}`
 const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 
-interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
+interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; qtyG2: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
 const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 
@@ -748,11 +748,11 @@ export const memoryStore = {
   },
 
   // ── ตัวเลือกเติมของ (v1.4) ──
-  getRestockSelections(branch: Branch, date: string): Record<string, { selected: boolean; qty: number; qtyG: number }> {
-    const out: Record<string, { selected: boolean; qty: number; qtyG: number }> = {};
+  getRestockSelections(branch: Branch, date: string): Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2: number }> {
+    const out: Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2: number }> = {};
     for (const rec of restockSelections.values()) {
       if (rec.branch !== branch || rec.date !== date) continue;
-      out[rec.itemId] = { selected: rec.selected, qty: rec.qty, qtyG: rec.qtyG };
+      out[rec.itemId] = { selected: rec.selected, qty: rec.qty, qtyG: rec.qtyG, qtyG2: rec.qtyG2 ?? 0 };
     }
     return out;
   },
@@ -761,7 +761,7 @@ export const memoryStore = {
     const now = new Date().toISOString();
     for (const e of entries) {
       restockSelections.set(sk(date, branch, e.itemId), {
-        date, branch, itemId: e.itemId, selected: e.selected, qty: e.qty, qtyG: e.qtyG,
+        date, branch, itemId: e.itemId, selected: e.selected, qty: e.qty, qtyG: e.qtyG, qtyG2: e.qtyG2 ?? 0,
         updatedByUserId: userId, updatedByName: userName, updatedAt: now,
       });
     }
