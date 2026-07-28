@@ -4,6 +4,12 @@ import type { Session } from "./types";
 export const SESSION_COOKIE = "yc_session";
 const SESSION_HOURS = 12;
 
+/**
+ * วันที่ตามเวลาไทยจาก epoch — บวก 7 ชั่วโมงตรง ๆ ไม่พึ่ง Intl
+ * middleware รันบน edge ซึ่งบางรันไทม์ไม่มีข้อมูลโซนเวลาครบ · ไทยไม่มี DST จึงบวกคงที่ได้เป๊ะ
+ */
+const bkkDay = (t: number): string => new Date(t + 7 * 3600_000).toISOString().slice(0, 10);
+
 function secret(): string {
   return process.env.SESSION_SECRET || "yc-stock-dev-secret-change-me"; // dev fallback (ตั้ง env จริงบน production)
 }
@@ -29,7 +35,8 @@ async function hmac(data: string): Promise<string> {
 
 /** สร้าง token: base64url(payload).base64url(hmac) · เซ็ต exp = now + 12h */
 export async function signSession(s: Omit<Session, "exp">): Promise<string> {
-  const payload: Session = { ...s, exp: Date.now() + SESSION_HOURS * 3600_000 };
+  const now = Date.now();
+  const payload: Session = { ...s, exp: now + SESSION_HOURS * 3600_000, day: bkkDay(now) };
   const body = b64u(enc.encode(JSON.stringify(payload)));
   const sig = await hmac(body);
   return `${body}.${sig}`;
@@ -45,6 +52,9 @@ export async function verifySession(token: string | undefined | null): Promise<S
   try {
     const s = JSON.parse(new TextDecoder().decode(fromB64u(body))) as Session;
     if (!s.exp || s.exp < Date.now()) return null;
+    // ข้ามวันแล้วถือว่าหมดอายุเสมอ — พนักงานต้องใส่ PIN ใหม่ทุกเช้าก่อนเริ่มงาน
+    // session เก่าที่ยังไม่มีฟิลด์นี้ ก็ให้หมดอายุไปเลยรอบเดียว
+    if (!s.day || s.day !== bkkDay(Date.now())) return null;
     return s;
   } catch {
     return null;

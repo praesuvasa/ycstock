@@ -14,6 +14,7 @@ interface Status {
   faceConfigured: boolean;
   enrolled: boolean;
   enrolledAt: string | null;
+  enrollAllowed: boolean;
   open: { id: number; clockIn: string } | null;
   name: string;
   error?: string;
@@ -199,9 +200,11 @@ export default function TimeClockPage() {
             {!st.enrolled ? (
               <>
                 <p className="text-[12.5px] leading-relaxed text-brand-ink/60">
-                  ยังไม่ได้ลงทะเบียนใบหน้า — ทำครั้งเดียว แล้วใช้ลงเวลาได้ตลอด
+                  {st.enrollAllowed
+                    ? "ยังไม่ได้ลงทะเบียนใบหน้า — ทำครั้งเดียว แล้วใช้ลงเวลาได้ตลอด"
+                    : "ยังไม่ได้ลงทะเบียนใบหน้า — ให้แอดมินเปิดสิทธิ์ให้ก่อน แล้วถ่ายต่อหน้าแอดมิน"}
                 </p>
-                <Button onClick={() => openCamera("enroll")} disabled={!st.faceConfigured}>
+                <Button onClick={() => openCamera("enroll")} disabled={!st.faceConfigured || !st.enrollAllowed}>
                   ลงทะเบียนใบหน้า
                 </Button>
               </>
@@ -215,15 +218,21 @@ export default function TimeClockPage() {
               </Button>
             )}
 
-            {st.enrolled && (
+            {/* ลงทะเบียนใหม่ต้องผ่านแอดมินเสมอ — ปุ่มจะโผล่เฉพาะตอนแอดมินเปิดสิทธิ์ให้แล้วเท่านั้น
+                ไม่งั้นใครรู้รหัสของอีกคนก็เข้ามาเปลี่ยนเป็นหน้าตัวเองได้ */}
+            {st.enrolled && (st.enrollAllowed ? (
               <button
                 type="button"
                 onClick={() => openCamera("enroll")}
-                className="text-[11.5px] font-medium text-brand-ink/45 underline underline-offset-2"
+                className="text-[11.5px] font-medium text-brand-red underline underline-offset-2"
               >
-                ลงทะเบียนใบหน้าใหม่ (เปลี่ยนทรงผม/ใส่แว่นแล้วสแกนไม่ผ่าน)
+                ลงทะเบียนใบหน้าใหม่ (แอดมินเปิดสิทธิ์ให้แล้ว)
               </button>
-            )}
+            ) : (
+              <p className="text-[11px] leading-relaxed text-brand-ink/40">
+                สแกนไม่ผ่านเพราะเปลี่ยนทรงผม/ใส่แว่น? แจ้งแอดมินให้เปิดสิทธิ์ลงทะเบียนใหม่ให้
+              </p>
+            ))}
           </div>
         )}
       </GlassCard>

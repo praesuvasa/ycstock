@@ -37,6 +37,7 @@ export async function GET() {
       faceConfigured: faceConfigured(),
       enrolled: !!enrollment.faceId,
       enrolledAt: enrollment.enrolledAt,
+      enrollAllowed: enrollment.allowedUntil ? new Date(enrollment.allowedUntil).getTime() > Date.now() : false,
       open,
       name: s.name,
     });

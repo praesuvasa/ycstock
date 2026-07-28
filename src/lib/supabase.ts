@@ -928,14 +928,27 @@ export const supabaseStore = {
     if (error) throw error;
   },
 
-  async getFaceEnrollment(userId: string): Promise<{ faceId: string | null; enrolledAt: string | null }> {
-    const { data } = await sb().from("users").select("face_id,face_enrolled_at").eq("id", userId).maybeSingle();
-    return { faceId: (data as any)?.face_id ?? null, enrolledAt: (data as any)?.face_enrolled_at ?? null };
+  async getFaceEnrollment(userId: string): Promise<{ faceId: string | null; enrolledAt: string | null; allowedUntil: string | null }> {
+    const { data } = await sb().from("users")
+      .select("face_id,face_enrolled_at,face_enroll_allowed_until").eq("id", userId).maybeSingle();
+    return {
+      faceId: (data as any)?.face_id ?? null,
+      enrolledAt: (data as any)?.face_enrolled_at ?? null,
+      allowedUntil: (data as any)?.face_enroll_allowed_until ?? null,
+    };
+  },
+
+  // แอดมินเปิดหน้าต่างให้ลงทะเบียน — ปิดเองเมื่อหมดเวลา หรือเมื่อลงทะเบียนสำเร็จ
+  async setFaceEnrollWindow(userId: string, until: string | null): Promise<void> {
+    const { error } = await sb().from("users").update({ face_enroll_allowed_until: until }).eq("id", userId);
+    if (error) throw error;
   },
 
   async saveFaceEnrollment(userId: string, faceId: string): Promise<void> {
+    // ปิดหน้าต่างทันทีที่ลงทะเบียนสำเร็จ — เปิดค้างไว้เท่ากับเปิดช่องให้ลงซ้ำด้วยหน้าคนอื่น
     const { error } = await sb().from("users")
-      .update({ face_id: faceId, face_enrolled_at: new Date().toISOString() }).eq("id", userId);
+      .update({ face_id: faceId, face_enrolled_at: new Date().toISOString(), face_enroll_allowed_until: null })
+      .eq("id", userId);
     if (error) throw error;
   },
 

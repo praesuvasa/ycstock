@@ -79,6 +79,16 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ ok: true, setupCode: code });
     }
 
+    // เปิดสิทธิ์ให้ลงทะเบียนใบหน้า 30 นาที (แพรทักเอง 2026-07-28)
+    // ต้องมีหน้าต่างเวลา ไม่ใช่เปิดค้าง — เปิดค้างไว้เท่ากับไม่ได้กันอะไรเลย
+    // 30 นาทีพอให้เดินไปหาเจ้าตัวแล้วถ่าย แต่สั้นพอที่จะไม่ค้างข้ามกะ
+    if (body.allowFaceEnroll === true) {
+      const until = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+      await db.setFaceEnrollWindow(id, until);
+      await writeAudit(s, "allow_face_enroll", { entity: id, detail: "เปิดสิทธิ์ลงทะเบียนใบหน้า 30 นาที" });
+      return NextResponse.json({ ok: true, allowedUntil: until });
+    }
+
     const user = await db.updateUser(id, patch);
     if (!user) return NextResponse.json({ error: "ไม่พบผู้ใช้" }, { status: 404 });
 

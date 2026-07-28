@@ -108,6 +108,31 @@ export default function UsersPage() {
     }
   }
 
+  // เปิดหน้าต่างให้เจ้าตัวไปลงทะเบียนใบหน้าเอง — ต้องอยู่กับเขาตอนถ่าย ไม่งั้นกันอะไรไม่ได้
+  async function allowFaceEnroll(u: User) {
+    const ok = window.confirm(
+      `เปิดสิทธิ์ให้ ${u.name} ลงทะเบียนใบหน้า 30 นาที?\n\n` +
+      `ควรอยู่กับเจ้าตัวตอนถ่าย — ถ้าเปิดทิ้งไว้ คนอื่นอาจเอาหน้าตัวเองมาลงทะเบียนแทน`
+    );
+    if (!ok) return;
+    setBusy(u.id);
+    setErr(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: u.id, allowFaceEnroll: true }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d?.ok) throw new Error(d?.error ?? "เปิดสิทธิ์ไม่สำเร็จ");
+      window.alert(`เปิดสิทธิ์ให้ ${u.name} แล้ว — ให้เจ้าตัวเข้าเมนู "ลงเวลาเข้า-ออกงาน" แล้วกดลงทะเบียนใบหน้าภายใน 30 นาที`);
+    } catch (e: any) {
+      setErr(String(e?.message ?? e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // ออกรหัสตั้งค่าใหม่ = ตัด PIN เดิมทิ้งทันที เจ้าตัวต้องเข้ามาตั้งใหม่ → ต้องถามก่อน
   async function issueSetupCode(u: User) {
     const ok = window.confirm(
@@ -244,6 +269,11 @@ export default function UsersPage() {
                         ออกรหัสตั้งค่าใหม่
                       </Button>
                     </div>
+                    {/* ลงทะเบียนใบหน้าต้องผ่านแอดมินเสมอ — ถ้าปล่อยให้ทำเองอิสระ
+                        ใครรู้รหัสของอีกคนก็เข้าไปเปลี่ยนเป็นหน้าตัวเองแล้วลงเวลาแทนกันได้ */}
+                    <Button variant="ghost" onClick={() => allowFaceEnroll(u)} disabled={busy === u.id}>
+                      เปิดสิทธิ์ลงทะเบียนใบหน้า (30 นาที)
+                    </Button>
                     {/* บัญชีแอดมินไม่มีปุ่มลบเลย — ซ่อนดีกว่าโชว์แล้วกดไม่ได้ (กันคำถามว่าทำไมกดไม่ได้) */}
                     {u.role !== "admin" && (
                       <button

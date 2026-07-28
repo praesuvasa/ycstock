@@ -209,6 +209,8 @@ export const db = {
     useSupabase ? supabaseStore.setBranchGeo(branch, lat, lng, radiusM) : Promise.resolve(memoryStore.setBranchGeo(branch, lat, lng, radiusM)),
   getFaceEnrollment: (userId: string) =>
     useSupabase ? supabaseStore.getFaceEnrollment(userId) : Promise.resolve(memoryStore.getFaceEnrollment(userId)),
+  setFaceEnrollWindow: (userId: string, until: string | null): Promise<void> =>
+    useSupabase ? supabaseStore.setFaceEnrollWindow(userId, until) : Promise.resolve(memoryStore.setFaceEnrollWindow(userId, until)),
   saveFaceEnrollment: (userId: string, faceId: string): Promise<void> =>
     useSupabase ? supabaseStore.saveFaceEnrollment(userId, faceId) : Promise.resolve(memoryStore.saveFaceEnrollment(userId, faceId)),
   getOpenShift: (userId: string): Promise<TimeClockEntry | null> =>

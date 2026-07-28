@@ -54,7 +54,7 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; qtyG2: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
 const appSettings = new Map<string, string>([["time_clock_enabled", "0"], ["time_clock_require_face", "1"]]);
-const faceEnrollments = new Map<string, { faceId: string | null; enrolledAt: string | null }>();
+const faceEnrollments = new Map<string, { faceId: string | null; enrolledAt: string | null; allowedUntil: string | null }>();
 const timeClock = new Map<number, TimeClockEntry>();
 let timeClockSeq = 1;
 const dispatchedReturnKeys = new Set<string>(); // `${branch}|${checkDate}|${index}` ที่ฝากรถไปแล้ว
@@ -799,11 +799,15 @@ export const memoryStore = {
     return null; // dev ไม่เช็คตำแหน่ง
   },
   setBranchGeo(_branch: Branch, _lat: number, _lng: number, _radiusM: number): void {},
-  getFaceEnrollment(userId: string): { faceId: string | null; enrolledAt: string | null } {
-    return faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null };
+  getFaceEnrollment(userId: string): { faceId: string | null; enrolledAt: string | null; allowedUntil: string | null } {
+    return faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null, allowedUntil: null };
+  },
+  setFaceEnrollWindow(userId: string, until: string | null): void {
+    const cur = faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null, allowedUntil: null };
+    faceEnrollments.set(userId, { ...cur, allowedUntil: until });
   },
   saveFaceEnrollment(userId: string, faceId: string): void {
-    faceEnrollments.set(userId, { faceId, enrolledAt: new Date().toISOString() });
+    faceEnrollments.set(userId, { faceId, enrolledAt: new Date().toISOString(), allowedUntil: null });
   },
   getOpenShift(userId: string): TimeClockEntry | null {
     return [...timeClock.values()].find((e) => e.userId === userId && !e.clockOut) ?? null;
