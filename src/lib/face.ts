@@ -88,22 +88,31 @@ export async function deleteFace(faceId: string): Promise<void> {
   await rk().send(new DeleteFacesCommand({ CollectionId: COLLECTION, FaceIds: [faceId] }));
 }
 
-/** ค้นว่ารูปนี้คือใคร — คืน userId ที่ตรงที่สุด (null = ไม่ตรงกับใครเลย) */
-export async function identifyFace(imageBase64: string): Promise<{ userId: string; similarity: number } | null> {
+/**
+ * ค้นว่ารูปนี้ตรงกับใครบ้าง — คืนรายชื่อที่ผ่านเกณฑ์ทั้งหมด เรียงจากคล้ายที่สุด
+ *
+ * ** ต้องคืนหลายรายการ ไม่ใช่รายการเดียว ** เพราะคนหนึ่งคนมีได้หลายบัญชี
+ * (แพรมีทั้งบัญชีแอดมินและบัญชีทดสอบ — หน้าเดียวกันอยู่ในระบบ 2 รายการ)
+ * ถ้าเอาแค่ตัวที่คล้ายที่สุดตัวเดียว จะสุ่มได้บัญชีอีกใบแล้วฟ้องว่า "ไม่ใช่เจ้าของบัญชี" ทั้งที่เป็นคนเดียวกัน
+ */
+export async function identifyFace(imageBase64: string): Promise<{ userId: string; similarity: number }[]> {
   await ensureCollection();
   try {
     const res = await rk().send(new SearchFacesByImageCommand({
       CollectionId: COLLECTION,
       Image: { Bytes: toBytes(imageBase64) },
       FaceMatchThreshold: FACE_MATCH_THRESHOLD,
-      MaxFaces: 1,
+      MaxFaces: 10,
     }));
-    const m = res.FaceMatches?.[0];
-    if (!m?.Face?.ExternalImageId) return null;
-    return { userId: m.Face.ExternalImageId, similarity: Math.round((m.Similarity ?? 0) * 10) / 10 };
+    return (res.FaceMatches ?? [])
+      .filter((m) => !!m.Face?.ExternalImageId)
+      .map((m) => ({
+        userId: m.Face!.ExternalImageId!,
+        similarity: Math.round((m.Similarity ?? 0) * 10) / 10,
+      }));
   } catch (e: any) {
     // ไม่เจอหน้าในรูปเลย AWS โยน InvalidParameterException — ไม่ใช่ระบบพัง แค่ถ่ายไม่ติดหน้า
-    if (e?.name === "InvalidParameterException") return null;
+    if (e?.name === "InvalidParameterException") return [];
     throw e;
   }
 }

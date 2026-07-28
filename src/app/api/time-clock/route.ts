@@ -71,18 +71,21 @@ export async function POST(req: Request) {
       if (!enrollment.faceId) {
         return NextResponse.json({ error: "ยังไม่ได้ลงทะเบียนใบหน้า — ไปที่ 'ข้อมูลของฉัน' เพื่อลงทะเบียนก่อน" }, { status: 400 });
       }
-      const match = await identifyFace(String(body.imageBase64));
-      if (!match) {
+      const matches = await identifyFace(String(body.imageBase64));
+      if (matches.length === 0) {
         return NextResponse.json({ error: "ไม่พบใบหน้าในรูป หรือไม่ตรงกับผู้ใช้คนไหน — ถ่ายใหม่ในที่สว่าง หันหน้าตรง" }, { status: 400 });
       }
-      if (match.userId !== s.userId) {
-        // จับได้ว่าคนอื่นกดแทน — บันทึกไว้ให้แอดมินเห็น ไม่ใช่แค่ปฏิเสธเงียบ ๆ
+      // ถามว่า "ตรงกับหน้าที่บัญชีนี้ลงทะเบียนไว้ไหม" ไม่ใช่ "หน้านี้คือใคร"
+      // คนหนึ่งคนมีได้หลายบัญชี ถ้าถามแบบหลัง จะสุ่มได้บัญชีอื่นของคนเดียวกันแล้วปฏิเสธผิด ๆ
+      const mine = matches.find((m) => m.userId === s.userId);
+      if (!mine) {
+        // ตรงกับคนอื่นจริง = มีคนกดแทนกัน — บันทึกไว้ให้แอดมินเห็น ไม่ใช่แค่ปฏิเสธเงียบ ๆ
         await writeAudit(s, "time_clock_face_mismatch", {
-          branch, detail: `หน้าที่สแกนตรงกับผู้ใช้ ${match.userId} (${match.similarity}%) ไม่ใช่เจ้าของบัญชี`,
+          branch, detail: `หน้าที่สแกนตรงกับผู้ใช้ ${matches.map((m) => `${m.userId} (${m.similarity}%)`).join(", ")} ไม่ใช่เจ้าของบัญชี`,
         });
         return NextResponse.json({ error: "ใบหน้าไม่ตรงกับเจ้าของบัญชี — ลงเวลาแทนกันไม่ได้" }, { status: 403 });
       }
-      similarity = match.similarity;
+      similarity = mine.similarity;
     }
 
     // ── ด่าน 2: ตำแหน่ง ──
