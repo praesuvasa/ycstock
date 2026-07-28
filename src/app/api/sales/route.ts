@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import type { SalesRow, PaymentIncident } from "@/lib/types";
+import { PAYMENT_INCIDENT_KINDS } from "@/lib/types";
 import { sumIncidentAdjustments } from "@/lib/calc";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
     };
 
     // เคสรับเงินไม่ตรงบิล — บันทึกทับทั้งชุด · กรองแถวที่ยอดยังไม่ได้กรอกทั้งคู่ออก
-    const VALID_KINDS = new Set(["over_no_change", "over_cash_change", "under_cash_topup"]);
+    const VALID_KINDS = new Set<string>(PAYMENT_INCIDENT_KINDS);
     const incidents: PaymentIncident[] = (Array.isArray(body?.incidents) ? body.incidents : [])
       .filter((i: any) => VALID_KINDS.has(i?.kind))
       .map((i: any) => ({

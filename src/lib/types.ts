@@ -209,6 +209,12 @@ export type PaymentIncidentKind =
   // อันนั้นลูกค้าโอนผิดจำนวน อันนี้ร้านเปลี่ยนรายการขาย · ย้อนดูทีหลังจะได้รู้ว่าเกิดอะไรจริง
   | "menu_change_refund";
 
+// รายชื่อชนิดทั้งหมด — ให้ API ใช้ตรวจค่าที่ส่งเข้ามา แทนที่จะไปเขียนลิสต์ซ้ำในแต่ละไฟล์
+// (เพิ่มชนิดใหม่แล้วลืมแก้ validator = บันทึกไม่ได้ โดยที่หน้าจอมีให้เลือก — เจอมาแล้ว 2026-07-28)
+export const PAYMENT_INCIDENT_KINDS: PaymentIncidentKind[] = [
+  "over_no_change", "over_cash_change", "under_cash_topup", "menu_change_refund",
+];
+
 export interface PaymentIncident {
   id?: number;
   kind: PaymentIncidentKind;

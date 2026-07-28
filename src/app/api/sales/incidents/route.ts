@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import type { PaymentIncident } from "@/lib/types";
+import { PAYMENT_INCIDENT_KINDS } from "@/lib/types";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
 const isDate = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
-const VALID_KINDS = new Set(["over_no_change", "over_cash_change", "under_cash_topup"]);
+const VALID_KINDS = new Set<string>(PAYMENT_INCIDENT_KINDS);
 
 // POST /api/sales/incidents { branch, date, incidents } → { ok, count }
 //
