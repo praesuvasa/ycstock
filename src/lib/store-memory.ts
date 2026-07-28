@@ -4,6 +4,7 @@ import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Use
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
+import { todayBangkok } from "./fmt";
 import { verifyPasscode, hashPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
 
 // ── users + audit (memory) ──
@@ -1014,7 +1015,11 @@ export const memoryStore = {
   },
 
   getPendingReceiptCount(branch: Branch): number {
-    return this.listOutstandingRestockSheets(branch).reduce((sum, s) => sum + s.pendingCount, 0);
+    // ไม่นับใบที่ยังไม่ถึงวัน — ให้ตรงกับหน้ายืนยันรับของที่ซ่อนใบล่วงหน้าไว้
+    const today = todayBangkok();
+    return this.listOutstandingRestockSheets(branch)
+      .filter((s) => s.date <= today)
+      .reduce((sum, s) => sum + s.pendingCount, 0);
   },
 
   listAdminFlags(includeResolved = false): AdminFlag[] {

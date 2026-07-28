@@ -4,6 +4,7 @@ import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Ite
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
+import { todayBangkok } from "./fmt";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
 function sb(): SupabaseClient {
@@ -1260,8 +1261,11 @@ export const supabaseStore = {
   },
 
   async getPendingReceiptCount(branch: Branch): Promise<number> {
+    // ไม่นับใบที่ลงวันที่ล่วงหน้า — หน้ายืนยันรับของก็ไม่โชว์ใบพวกนั้นแล้ว (2026-07-28)
+    // ถ้ายังนับ badge จะขึ้นเลขค้างทั้งที่กดเข้าไปแล้วเจอ "ยืนยันครบทุกใบแล้ว" — พนักงานจะเลิกเชื่อ badge
+    const today = todayBangkok();
     const sheets = await this.listOutstandingRestockSheets(branch);
-    return sheets.reduce((sum, s) => sum + s.pendingCount, 0);
+    return sheets.filter((s) => s.date <= today).reduce((sum, s) => sum + s.pendingCount, 0);
   },
 
   async listAdminFlags(includeResolved = false): Promise<AdminFlag[]> {
