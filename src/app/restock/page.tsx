@@ -274,7 +274,10 @@ function PrintSheet({
                   {e.name}
                   {e.note ? <span className="text-[9px] text-neutral-600"> · {e.note}</span> : null}
                 </span>
-                <span className="text-[13px] font-bold text-black">{e.qty || ""}</span>
+                {/* จัดให้ตรงคอลัมน์ "จำนวน" ของตารางข้างบน (w-8) + เว้นที่คอลัมน์หมายเหตุ (w-11)
+                    เดิมปล่อยชิดขวาสุด เลขเลยไปเบียดขอบกระดาษจนดูเหมือนตกขอบ */}
+                <span className="w-8 shrink-0 text-center text-[13px] font-bold text-black">{e.qty || ""}</span>
+                <span className="w-11 shrink-0" />
               </div>
             ))}
             {[0, 1, 2].map((i) => (
