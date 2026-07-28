@@ -960,9 +960,34 @@ const PROD_FIELDS: { key: ProdField; label: string }[] = [
 interface ExtraRow { id: string; name: string; qty: string; unit: string; note: string }
 interface HaveStock { qty: string; qtyG: string }
 
+// ของเก่าเป็นถุงเศษหลายถุง — พิมพ์ "700+200" ได้เลย (แพรขอ 2026-07-28)
+// ใช้ผลรวมตอนคำนวณว่าต้องผลิตเท่าไหร่ แต่ตอนพิมพ์ลงใบต้องแยกถุงตามที่พิมพ์
+// เพราะคนหยิบของต้องรู้ว่าไปหยิบ 2 ถุง ไม่ใช่ถุงเดียว 900g
+function gramParts(v: string | undefined): number[] {
+  return (v ?? "")
+    .split(/[+,]/)
+    .map((x) => parseFloat(x.trim()) || 0)
+    .filter((n) => n > 0);
+}
+function sumGrams(v: string | undefined): number {
+  return gramParts(v).reduce((s, n) => s + n, 0);
+}
+function gramPartsText(v: string | undefined, unit: string): string {
+  return gramParts(v).map((n) => `${n}${unit}`).join(" + ");
+}
+
 // ยอดที่ต้องผลิตจริง = ยอดที่ต้องส่ง − ของเก่าที่มีอยู่แล้ว
 // รายการที่มีเศษกรัมต้องคิดรวมเป็นกรัมก่อนแล้วค่อยแตกกลับ ไม่งั้นเคส "ต้องการ 3+250 มีของเก่า 1+250"
 // จะได้ 2+0 ถูกพอดี แต่เคส "ต้องการ 3+100 มีของเก่า 1+250" จะได้เศษติดลบ ซึ่งไม่มีความหมาย
+// ข้อความ "ของเก่า" ที่โชว์/พิมพ์ — แพ็คเต็มก่อน แล้วต่อด้วยถุงเศษแยกถุงตามที่พิมพ์
+function haveTextOf(pack: number, gText: string | undefined, unit: string): string {
+  const parts: string[] = [];
+  if (pack > 0) parts.push(String(pack));
+  const g = gramPartsText(gText, unit);
+  if (g) parts.push(g);
+  return parts.join(" + ") || "0";
+}
+
 function needToProduce(
   item: Item, packSum: number, gSum: number, havePack: number, haveG: number
 ): { none: boolean; text: string; pack: number; g: number } {
@@ -1001,7 +1026,7 @@ function ProductionRow({
   // ของเก่าที่มีอยู่แล้ว → หักออกจากยอดที่ต้องผลิต (แพร 2026-07-28)
   // ต้องการ 3 + 250g มีของเก่า 1 + 250g → ผลิต 2 · ไม่ใช่แค่ "มี/ไม่มี" เหมือนช่องติ๊กเดิม
   const havePack = parseFloat(have?.qty ?? "") || 0;
-  const haveG = parseFloat(have?.qtyG ?? "") || 0;
+  const haveG = sumGrams(have?.qtyG);
   const need = needToProduce(item, packSum, gSum, havePack, haveG);
   const hasHave = havePack > 0 || haveG > 0;
   return (
@@ -1031,11 +1056,12 @@ function ProductionRow({
             {hasG && (
               <>
                 <input
-                  inputMode="numeric"
+                  inputMode="text"
                   value={have?.qtyG ?? ""}
-                  placeholder="0"
+                  placeholder="700+200"
+                  title="ของเก่าเป็นถุงเศษหลายถุง พิมพ์คั่นด้วย + ได้ เช่น 700+200 — ใบพิมพ์จะแยกถุงให้"
                   onChange={(e) => onChangeHave({ qty: have?.qty ?? "", qtyG: e.target.value })}
-                  className="field w-14 bg-white/80 px-1 py-1 text-center text-xs"
+                  className="field w-20 bg-white/80 px-1 py-1 text-center text-xs"
                 />
                 <span className="text-[10px] text-brand-ink/45">{gUnit}</span>
               </>
@@ -1098,7 +1124,7 @@ function ProductionRow({
             <div className="text-[10.5px] font-normal text-brand-ink/50">
               ต้องการ {hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}
               {" · มีของเก่า "}
-              {hasG ? formatOrderQty(havePack, haveG, true, gUnit) : havePack}
+              {hasG ? haveTextOf(havePack, have?.qtyG, gUnit) : havePack}
             </div>
             <div className={need.none ? "text-orange-700" : ""}>
               {need.none ? "ไม่ต้องผลิต — หยิบจากสต็อกเดิม" : `ต้องผลิต: ${need.text}`}
@@ -1371,7 +1397,8 @@ function ProductionOrder({
             if ((it.haveStockQty ?? 0) > 0 || (it.haveStockG ?? 0) > 0) {
               have[it.itemId] = {
                 qty: it.haveStockQty ? String(it.haveStockQty) : "",
-                qtyG: it.haveStockG ? String(it.haveStockG) : "",
+                // ใช้ข้อความดิบที่พิมพ์ไว้ ("700+200") ถ้ามี — ไม่งั้นจะกลายเป็น 900 ทุกครั้งที่เปิดใบเก่า
+                qtyG: it.haveStockGText || (it.haveStockG ? String(it.haveStockG) : ""),
               };
             }
             const field = prodFieldFromBranchKey(it.branch);
@@ -1482,12 +1509,12 @@ function ProductionOrder({
     const gSum = PROD_FIELDS.reduce((sum, f) => sum + (parseFloat(gv[f.key] ?? "") || 0), 0);
     const h = haveFor(it.id);
     const havePack = parseFloat(h.qty) || 0;
-    const haveG = parseFloat(h.qtyG) || 0;
+    const haveG = sumGrams(h.qtyG);
     const gUnit = it.isCup ? "ชิ้น" : "g";
     return {
       ...needToProduce(it, packSum, gSum, havePack, haveG),
       hasHave: havePack > 0 || haveG > 0,
-      haveText: it.variableYield ? formatOrderQty(havePack, haveG, true, gUnit) : String(havePack),
+      haveText: it.variableYield ? haveTextOf(havePack, h.qtyG, gUnit) : String(havePack),
     };
   }
   // "ไม่ต้องผลิต" = มีของเก่าอยู่ และครบทั้งจำนวนที่ต้องส่ง
@@ -1528,7 +1555,8 @@ function ProductionOrder({
           // inStockNoProduce ไม่ใช่ช่องติ๊กแล้ว — ระบบคิดให้จาก "มีของเก่าครบทั้งจำนวน"
           inStockNoProduce: noProduceFor(it),
           haveStockQty: parseFloat(haveFor(it.id).qty) || 0,
-          haveStockG: parseFloat(haveFor(it.id).qtyG) || 0,
+          haveStockG: sumGrams(haveFor(it.id).qtyG),
+          haveStockGText: haveFor(it.id).qtyG ?? "",
         });
       }
     }

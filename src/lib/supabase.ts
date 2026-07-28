@@ -1333,6 +1333,7 @@ export const supabaseStore = {
         extra_name: i.extraName ?? null, extra_unit: i.extraUnit ?? null, extra_note: i.extraNote ?? null,
         in_stock_no_produce: i.inStockNoProduce ?? false,
         have_stock_qty: i.haveStockQty ?? 0, have_stock_g: i.haveStockG ?? 0,
+        have_stock_g_text: i.haveStockGText ?? "",
       }));
     let items: any[] = [];
     if (rows.length > 0) {
@@ -1369,6 +1370,7 @@ export const supabaseStore = {
           order_id: id, item_id: i.itemId, branch_key: i.branch, qty: i.qty, qty_g: i.qtyG,
           in_stock_no_produce: i.inStockNoProduce ?? false,
           have_stock_qty: i.haveStockQty ?? 0, have_stock_g: i.haveStockG ?? 0,
+          have_stock_g_text: i.haveStockGText ?? "",
           updated_at: now,
         }));
       if (gridRows.length > 0) {
@@ -1384,6 +1386,7 @@ export const supabaseStore = {
             extra_name: row.extraName ?? null, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
             in_stock_no_produce: row.inStockNoProduce ?? false,
             have_stock_qty: row.haveStockQty ?? 0, have_stock_g: row.haveStockG ?? 0,
+            have_stock_g_text: row.haveStockGText ?? "",
             updated_at: now,
           }).eq("id", row.id).eq("order_id", id);
           if (e3) throw e3;
@@ -1393,6 +1396,7 @@ export const supabaseStore = {
             extra_name: row.extraName, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
             in_stock_no_produce: row.inStockNoProduce ?? false,
             have_stock_qty: row.haveStockQty ?? 0, have_stock_g: row.haveStockG ?? 0,
+            have_stock_g_text: row.haveStockGText ?? "",
           });
           if (e4) throw e4;
         }
@@ -1511,6 +1515,7 @@ function rowFromProdOrderItemDb(r: any): ProductionOrderItem {
     extraName: r.extra_name ?? undefined, extraUnit: r.extra_unit ?? undefined, extraNote: r.extra_note ?? undefined,
     inStockNoProduce: r.in_stock_no_produce ?? false,
     haveStockQty: Number(r.have_stock_qty ?? 0), haveStockG: Number(r.have_stock_g ?? 0),
+    haveStockGText: r.have_stock_g_text ?? "",
     confirmed: r.confirmed, confirmedQty: r.confirmed_qty ?? undefined, confirmedQtyG: r.confirmed_qty_g ?? undefined,
     confirmedAt: r.confirmed_at ?? undefined, confirmedByName: r.confirmed_by_name ?? undefined,
   };

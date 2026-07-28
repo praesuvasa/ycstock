@@ -346,6 +346,9 @@ export interface ProductionOrderItem {
   // ของเก่าที่มีอยู่แล้ว หักออกจากยอดที่ต้องผลิต — ค่าระดับ "รายการ" เก็บซ้ำทุกแถวสาขาของรายการนั้น
   haveStockQty?: number;
   haveStockG?: number;
+  // ข้อความดิบตามที่พิมพ์ เช่น "700+200" — ของเก่าเป็นถุงเศษหลายถุง ต้องพิมพ์บนใบแยกถุง
+  // haveStockG เก็บผลรวม (900) ไว้คำนวณ · ช่องนี้ไว้แสดงผลเท่านั้น
+  haveStockGText?: string;
 }
 
 export interface ProductionOrder {
@@ -386,6 +389,9 @@ export interface ProductionOrderItemInput {
   inStockNoProduce?: boolean;
   haveStockQty?: number;
   haveStockG?: number;
+  // ข้อความดิบตามที่พิมพ์ เช่น "700+200" — ของเก่าเป็นถุงเศษหลายถุง ต้องพิมพ์บนใบแยกถุง
+  // haveStockG เก็บผลรวม (900) ไว้คำนวณ · ช่องนี้ไว้แสดงผลเท่านั้น
+  haveStockGText?: string;
 }
 
 // ── ยืนยันรับของ (v1.9) — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้
