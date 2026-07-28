@@ -159,6 +159,14 @@ export default function SalesPage() {
   const load = React.useCallback(async () => {
     setLoading(true);
     setErr(null);
+    // ล้างของสาขา/วันที่เดิมทิ้งทันทีก่อนยิงโหลด (แพรเจอ 2026-07-28)
+    //
+    // เดิมค่าเก่าค้างบนจอจนกว่าโหลดใหม่จะเสร็จ — บนมือถือเน็ตช้าอาจค้างหลายวินาที
+    // แพรสลับไป KCN 24 ก.ค. (ไม่มีข้อมูล) แต่ยังเห็นยอด 5,439 ของ NVP 28 ก.ค. ค้างอยู่
+    // ที่อันตรายกว่าคือถ้ากดบันทึกตอนนั้นพอดี ยอดของสาขาหนึ่งจะถูกเขียนลงอีกสาขาทันที
+    setForm(EMPTY);
+    setIncidents([]);
+    setSavedIncidents([]);
     try {
       const res = await fetch(`/api/sales?branch=${branch}&date=${date}`, { cache: "no-store" });
       const data = await res.json();
@@ -251,6 +259,7 @@ export default function SalesPage() {
   const hasAdjustment = adj.qr !== 0 || adj.cash !== 0;
 
   const save = async () => {
+    if (loading) return; // ยังโหลดข้อมูลของสาขา/วันที่นี้ไม่เสร็จ — กันบันทึกทับด้วยค่าที่ยังไม่ใช่ของจริง
     setSaving(true);
     setErr(null);
     try {
