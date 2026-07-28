@@ -99,12 +99,11 @@ function csvEscape(s: string): string {
   return '"' + str.split('"').join('""') + '"';
 }
 // รวมแพ็ค+เศษเป็นข้อความเดียว ใช้ทั้งใบพิมพ์/CSV/หน้าสั่งผลิต — ไม่โชว์ "0 แพ็ค" ให้รกถ้ามีแต่เศษ
-// ใส่คำว่า "แพ็ค" เฉพาะตอนมีเศษต่อท้าย — ต้องมีไว้กันสับสนว่า "2 + 300g" คือ 2 อะไร
-// ไม่มีเศษก็เขียนเลขเปล่า ๆ ให้เหมือนรายการอื่นทั้งใบ (แพรทัก 2026-07-28 ว่า Biscoff ขึ้น "2 แพ็ค"
-// ทั้งที่ Greek Yogurt หน่วยเดียวกันขึ้น "12" เฉย ๆ — อ่านแล้วเหมือนคนละหน่วย)
+// ไม่มีคำว่า "แพ็ค" แล้ว (แพรสั่ง 2026-07-28) — เลขโดด ๆ คือจำนวนแพ็ค เศษมี g กำกับอยู่แล้ว
+// "1 + 700g" · คำว่าแพ็คทำให้ช่องแคบ ๆ ในใบสั่งผลิตตัดบรรทัดเป็น 3 บรรทัด อ่านยากกว่าที่ช่วย
 function formatOrderQty(pack: number, g: number, hasG: boolean, gUnit: string): string {
   if (!hasG) return String(pack);
-  if (pack > 0 && g > 0) return `${pack} แพ็ค + ${g}${gUnit}`;
+  if (pack > 0 && g > 0) return `${pack} + ${g}${gUnit}`;
   if (pack > 0) return String(pack);
   if (g > 0) return `${g}${gUnit}`;
   return "0";
@@ -1056,6 +1055,9 @@ interface ProdPrintRow { id: string; name: string; snd: string; nvp: string; kcn
 // รายการที่สั่งผลิตได้มีเพดานอยู่แล้ว 21 รายการ + หัวหมวด 7 = 28 บรรทัด จึงไม่ล้นในการใช้งานปกติ
 // เหลือเกณฑ์ไว้กันเคสเพิ่มรายการพิเศษเยอะผิดปกติ
 const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 30;
+// ชื่อสาขาแบบสั้นสำหรับหัวตารางใบสั่งผลิตเท่านั้น (แพรสั่งตัด "พอร์ช"/"ภิเษก" ออก 2026-07-28)
+// ที่อื่นยังใช้ชื่อเต็มจาก BRANCH_LABEL_TH เหมือนเดิม
+const PROD_BRANCH_SHORT: Record<Branch, string> = { SND: "สินธร", NVP: "เนอวาน่า", KCN: "กาญจนา" };
 // ข้อ 17: หมวดพิเศษบนใบสั่งผลิต — ของที่มีอยู่แล้ว ไม่ต้องผลิตใหม่ แค่หยิบจากสต็อกเดิมไปส่ง
 const IN_STOCK_CATEGORY = "✅ มีของแล้ว — ไม่ต้องผลิต (หยิบจากสต็อกเดิม)";
 
@@ -1088,11 +1090,12 @@ function ProductionPrintSheet({
           <tr className="border-b-2 border-black">
             <th className="w-4 py-1 align-top"></th>
             <th className="py-1 align-top text-left text-[10px] uppercase tracking-wide text-neutral-500">รายการ</th>
-            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.SND}</span></th>
-            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.NVP}</span></th>
-            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{BRANCH_LABEL_TH.KCN}</span></th>
-            <th className="w-11 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
-            <th className="w-12 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">รวม</th>
+            {/* ชื่อสาขาแบบสั้นเฉพาะใบนี้ (แพรสั่ง) — ชื่อเต็มตัดบรรทัดเป็น 3 บรรทัด ดันหัวตารางสูงเกินจำเป็น */}
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.SND}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.NVP}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.KCN}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
+            <th className="w-16 border-l-2 border-black py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">รวม</th>
             <th className="w-20 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
           </tr>
         </thead>
@@ -1113,11 +1116,11 @@ function ProductionPrintSheet({
                       <span>{r.name}</span>
                     </span>
                   </td>
-                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.snd}</td>
-                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.nvp}</td>
-                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.kcn}</td>
-                  <td className="py-[1.5px] text-center text-[15px] text-black">{r.other}</td>
-                  <td className="py-[1.5px] text-center text-[16px] font-bold text-black">{r.total}</td>
+                  <td className="whitespace-nowrap border-l border-neutral-400 py-[1.5px] text-center text-[15px] leading-none text-black">{r.snd}</td>
+                  <td className="whitespace-nowrap border-l border-neutral-400 py-[1.5px] text-center text-[15px] leading-none text-black">{r.nvp}</td>
+                  <td className="whitespace-nowrap border-l border-neutral-400 py-[1.5px] text-center text-[15px] leading-none text-black">{r.kcn}</td>
+                  <td className="whitespace-nowrap border-l border-neutral-400 py-[1.5px] text-center text-[15px] leading-none text-black">{r.other}</td>
+                  <td className="whitespace-nowrap border-l-2 border-black py-[1.5px] text-center text-[16px] font-bold leading-none text-black">{r.total}</td>
                   <td className="py-[1.5px] text-center text-[11px] text-black">{r.note}</td>
                 </tr>
               ))}
