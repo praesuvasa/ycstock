@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Role, BranchScope } from "@/lib/types";
 
-export type Me = { id: string; name: string; role: Role; branchScope: BranchScope; allowanceEnabled?: boolean };
+export type Me = { id: string; name: string; role: Role; branchScope: BranchScope; allowanceEnabled?: boolean; mustEnrollFace?: boolean };
 
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
@@ -171,12 +171,22 @@ export function NavShell({ children }: { children: React.ReactNode }) {
   const [expiryDue, setExpiryDue] = React.useState(0);
   const [unseenFeedback, setUnseenFeedback] = React.useState(0);
   const path = usePathname();
+  const router = useRouter();
   React.useEffect(() => {
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : { user: null }))
       .then((d) => setMe(d.user))
       .catch(() => setMe(null));
   }, [path]);
+
+  // ยังไม่ได้ลงทะเบียนใบหน้า = พาไปทำให้จบก่อน ใช้หน้าอื่นไม่ได้ (แพรสั่ง 2026-07-28)
+  // บังคับที่ฝั่งหน้าจอพอ — ตัวนี้เป็นขั้นตอนตั้งค่าเริ่มต้น ไม่ใช่ด่านความปลอดภัย
+  // (ด่านจริงคือตอนลงเวลา ซึ่งเช็คที่เซิร์ฟเวอร์อยู่แล้ว) middleware อ่านฐานข้อมูลไม่ได้จึงทำตรงนั้นไม่ได้
+  React.useEffect(() => {
+    if (me?.mustEnrollFace && path !== "/time-clock" && path !== "/set-pin") {
+      router.replace("/time-clock");
+    }
+  }, [me, path, router]);
 
   // เช็คจำนวนคำขอเบิกที่ยังไม่เห็น ทุกครั้งที่เปลี่ยนหน้า (เคลียร์อัตโนมัติหลังเปิดหน้า "ขอเบิกสินค้า")
   React.useEffect(() => {

@@ -32,7 +32,8 @@ export default function SetPinPage() {
       const d = await res.json();
       if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ตั้งรหัสไม่สำเร็จ");
       window.alert("ตั้งรหัสเรียบร้อย — ครั้งหน้าใช้รหัสนี้เข้าระบบ");
-      router.replace("/");
+      // ไปลงทะเบียนใบหน้าต่อทันที — nav จะพากลับหน้าหลักเองถ้าลงทะเบียนไว้แล้ว/ไม่ต้องทำ
+      router.replace("/time-clock");
       router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? "ตั้งรหัสไม่สำเร็จ");

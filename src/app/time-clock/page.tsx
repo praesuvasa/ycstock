@@ -148,9 +148,21 @@ export default function TimeClockPage() {
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
       <PageTitle title="ลงเวลาเข้า-ออกงาน" />
 
-      {!st.settings.enabled && (
+      {/* ยังไม่ได้ลงทะเบียน = ถูกพามาที่นี่โดยอัตโนมัติ ต้องบอกให้ชัดว่ามาทำอะไร
+          ไม่งั้นพนักงานจะงงว่าทำไมกดหน้าอื่นไม่ได้ */}
+      {!st.enrolled && (
+        <div className="mb-3 rounded-xl border border-warn/35 bg-warn/[.08] px-3.5 py-3">
+          <p className="text-[15px] font-bold text-warn">ลงทะเบียนใบหน้าก่อนเริ่มใช้งาน</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-brand-ink/70">
+            ทำครั้งเดียว ใช้ยืนยันตัวตนตอนลงเวลาเข้า-ออกงาน — ลงทะเบียนเสร็จแล้วใช้เมนูอื่นได้ตามปกติ
+          </p>
+        </div>
+      )}
+
+      {!st.settings.enabled && st.enrolled && (
         <div className="mb-3 rounded-xl border border-black/10 bg-black/[.03] px-3.5 py-3 text-[12px] leading-relaxed text-brand-ink/60">
-          ระบบลงเวลายังไม่เปิดใช้งาน — ตอนนี้ทดสอบได้เฉพาะการลงทะเบียนใบหน้า
+          ลงทะเบียนใบหน้าเรียบร้อยแล้ว — ระบบลงเวลายังไม่เปิดใช้งาน เปิดเมื่อไหร่จะแจ้งให้ทราบ
+          และใช้ได้เลยโดยไม่ต้องลงทะเบียนใหม่
         </div>
       )}
 
