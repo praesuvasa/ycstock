@@ -2202,17 +2202,31 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
           {groupedCategories.map(([category, rows], gi) => (
             <Accordion key={category} title={category} count={`${rows.length} รายการ`} defaultOpen={gi === 0}>
               <div className="grid gap-2 py-1">
-                {rows.map(({ item, cells }) => (
-                  <ConfirmRow
-                    key={item.id}
-                    name={item.name}
-                    hasG={item.variableYield}
-                    gUnit={item.isCup ? "ชิ้น" : "g"}
-                    cells={cells}
-                    onToggleConfirm={onToggleConfirm}
-                    onEditConfirmedQty={onEditConfirmedQty}
-                  />
-                ))}
+                {rows.map(({ item, cells }) => {
+                  // ของเก่าเก็บซ้ำทุกแถวสาขาของรายการนั้น — อ่านช่องไหนก็ได้
+                  const anyCell = PROD_FIELDS.map((f) => cells[branchKeyFromProdField(f.key)]).find(Boolean);
+                  return (
+                    <ConfirmRow
+                      key={item.id}
+                      name={item.name}
+                      hasG={item.variableYield}
+                      gUnit={item.isCup ? "ชิ้น" : "g"}
+                      cells={cells}
+                      noProduce={!!anyCell?.inStockNoProduce}
+                      haveText={
+                        (anyCell?.haveStockQty ?? 0) > 0 || (anyCell?.haveStockG ?? 0) > 0
+                          ? haveTextOf(
+                              anyCell?.haveStockQty ?? 0,
+                              anyCell?.haveStockGText || String(anyCell?.haveStockG ?? 0),
+                              item.isCup ? "ชิ้น" : "g"
+                            )
+                          : ""
+                      }
+                      onToggleConfirm={onToggleConfirm}
+                      onEditConfirmedQty={onEditConfirmedQty}
+                    />
+                  );
+                })}
               </div>
             </Accordion>
           ))}
@@ -2251,18 +2265,28 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
 // ── local component: 1 แถว = 1 รายการกริดหลัก แสดง 4 คอลัมน์สาขา (SND/NVP/KCN/อื่นๆ) พร้อมติ๊กคอนเฟิร์มต่อคอลัมน์ ──
 // โครง 4-column grid เดียวกับ ProductionRow เดิม เพื่อความคุ้นตา (ดู spec ข้อ 6.3)
 function ConfirmRow({
-  name, hasG, gUnit, cells, onToggleConfirm, onEditConfirmedQty,
+  name, hasG, gUnit, cells, noProduce, haveText, onToggleConfirm, onEditConfirmedQty,
 }: {
   name: string;
   hasG: boolean;
   gUnit: string;
   cells: Partial<Record<ProdBranchKey, ProductionOrderItemRecord>>;
+  // ของเก่าที่หยิบมาส่งแทนการผลิต — ต้องเห็นชัดในประวัติ ไม่งั้นย้อนดูทีหลังจะนึกว่าผลิตใหม่ทั้งหมด
+  noProduce?: boolean;
+  haveText?: string;
   onToggleConfirm: (id: number, next: boolean) => void;
   onEditConfirmedQty: (id: number, confirmedQty: number, confirmedQtyG: number) => void;
 }) {
   return (
-    <div className="glass-soft px-3 py-2.5">
-      <div className="mb-2 text-sm font-medium">{name}</div>
+    <div className={`px-3 py-2.5 ${noProduce ? "rounded-xl border border-brand-orange/40 bg-brand-orange/[.07]" : "glass-soft"}`}>
+      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-sm font-medium">{name}</span>
+        {noProduce ? (
+          <Badge tone="orange">ไม่ได้ผลิต · หยิบของเก่า {haveText}</Badge>
+        ) : haveText ? (
+          <Badge tone="orange">ผลิตบางส่วน · ของเก่า {haveText}</Badge>
+        ) : null}
+      </div>
       <div className="grid grid-cols-4 gap-1.5">
         {PROD_FIELDS.map((f) => {
           const cell = cells[branchKeyFromProdField(f.key)];
