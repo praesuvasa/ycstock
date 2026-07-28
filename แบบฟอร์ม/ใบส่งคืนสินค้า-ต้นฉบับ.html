@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<title>ใบส่งคืนสินค้า — Yogurt Culture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4 portrait; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Kanit", "Thonburi", -apple-system, sans-serif;
+    font-weight: 300;
+    color: #010101;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .sheet { width: 210mm; height: 297mm; }
+  .half {
+    height: 148.5mm;
+    padding: 9mm 11mm 7mm;
+    position: relative;
+  }
+  .cut {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    border-top: 0.4mm dashed #999;
+  }
+  .cut span {
+    position: absolute; right: 0; top: -3.6mm;
+    font-size: 6pt; color: #999; letter-spacing: .05em;
+  }
+  .hd {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 0.7mm solid #010101; padding-bottom: 1.6mm; margin-bottom: 2.6mm;
+  }
+  .ttl { font-size: 13.5pt; font-weight: 500; }
+  .brand { font-size: 6.5pt; letter-spacing: .16em; color: #555; }
+  .meta { display: flex; gap: 9mm; font-size: 8.5pt; margin-bottom: 2.4mm; }
+  .ln { display: inline-block; border-bottom: 0.25mm dotted #666; }
+  table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+  th {
+    border: 0.25mm solid #010101; padding: 0.9mm 1.4mm;
+    font-weight: 400; text-align: left; color: #333; background: #f2f2f2;
+  }
+  td { border: 0.25mm solid #010101; height: 5.9mm; padding: 0 1.4mm; }
+  td.no { font-size: 6.5pt; color: #888; text-align: center; }
+  .note {
+    border: 0.25mm solid #010101; border-top: none;
+    padding: 0.9mm 1.4mm 4mm; font-size: 6.5pt; color: #666;
+  }
+  .sig { display: flex; gap: 7mm; margin-top: 4.5mm; }
+  .sig div { flex: 1; text-align: center; font-size: 7pt; color: #333; }
+  .sig .line { border-bottom: 0.25mm dotted #666; height: 7mm; margin-bottom: 1mm; }
+  .sig .dt { font-size: 6pt; color: #777; margin-top: 0.8mm; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="half">
+    <div class="hd">
+      <span class="ttl">ใบส่งคืนสินค้า</span>
+      <span class="brand">YOGURT CULTURE</span>
+    </div>
+    <div class="meta">
+      <span>สาขา <span class="ln" style="width:32mm"></span></span>
+      <span>วันที่ <span class="ln" style="width:30mm"></span></span>
+      <span>รอบตรวจ <span class="ln" style="width:24mm"></span></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:12mm">อันดับ</th>
+          <th>ชื่อสินค้า</th>
+          <th style="width:24mm">วันหมดอายุ</th>
+          <th style="width:16mm">จำนวน</th>
+          <th style="width:38mm">เหตุผล</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="no">1</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">2</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">3</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">4</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">5</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">6</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">7</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">8</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">9</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">10</td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="note">หมายเหตุ</div>
+    <div class="sig">
+      <div><div class="line"></div>ผู้ส่งคืน (สาขา)<div class="dt">วันที่ __________</div></div>
+      <div><div class="line"></div>ผู้รับของ (คนขับรถ)<div class="dt">วันที่ __________</div></div>
+      <div><div class="line"></div>ผู้ตรวจรับ (ครัวกลาง)<div class="dt">วันที่ __________</div></div>
+    </div>
+    <div class="cut"><span>ตัดตามรอยประ</span></div>
+  </div>
+
+  <div class="half">
+    <div class="hd">
+      <span class="ttl">ใบส่งคืนสินค้า</span>
+      <span class="brand">YOGURT CULTURE</span>
+    </div>
+    <div class="meta">
+      <span>สาขา <span class="ln" style="width:32mm"></span></span>
+      <span>วันที่ <span class="ln" style="width:30mm"></span></span>
+      <span>รอบตรวจ <span class="ln" style="width:24mm"></span></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:12mm">อันดับ</th>
+          <th>ชื่อสินค้า</th>
+          <th style="width:24mm">วันหมดอายุ</th>
+          <th style="width:16mm">จำนวน</th>
+          <th style="width:38mm">เหตุผล</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="no">1</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">2</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">3</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">4</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">5</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">6</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">7</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">8</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">9</td><td></td><td></td><td></td><td></td></tr>
+        <tr><td class="no">10</td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+    <div class="note">หมายเหตุ</div>
+    <div class="sig">
+      <div><div class="line"></div>ผู้ส่งคืน (สาขา)<div class="dt">วันที่ __________</div></div>
+      <div><div class="line"></div>ผู้รับของ (คนขับรถ)<div class="dt">วันที่ __________</div></div>
+      <div><div class="line"></div>ผู้ตรวจรับ (ครัวกลาง)<div class="dt">วันที่ __________</div></div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

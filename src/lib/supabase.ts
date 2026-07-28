@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -890,6 +890,101 @@ export const supabaseStore = {
     }));
   },
 
+  // ── ลงเวลาเข้า-ออกงาน (v1.22) ──
+  async getTimeClockSettings(): Promise<TimeClockSettings> {
+    const { data } = await sb().from("app_settings").select("key,value")
+      .in("key", ["time_clock_enabled", "time_clock_require_face", "time_clock_require_location"]);
+    const m = new Map((data ?? []).map((r: any) => [r.key, r.value]));
+    return {
+      enabled: m.get("time_clock_enabled") === "1",
+      requireFace: m.get("time_clock_require_face") !== "0",
+      requireLocation: m.get("time_clock_require_location") === "1",
+    };
+  },
+
+  async setAppSetting(key: string, value: string, updatedBy: string): Promise<void> {
+    const { error } = await sb().from("app_settings")
+      .upsert({ key, value, updated_by: updatedBy, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    if (error) throw error;
+  },
+
+  async getBranchGeo(branch: Branch): Promise<{ lat: number; lng: number; radiusM: number } | null> {
+    const { data } = await sb().from("branches").select("lat,lng,geofence_radius_m").eq("id", branch).maybeSingle();
+    if (!data?.lat || !data?.lng) return null;
+    return { lat: Number(data.lat), lng: Number(data.lng), radiusM: Number(data.geofence_radius_m ?? 150) };
+  },
+
+  async setBranchGeo(branch: Branch, lat: number, lng: number, radiusM: number): Promise<void> {
+    const { error } = await sb().from("branches")
+      .update({ lat, lng, geofence_radius_m: radiusM }).eq("id", branch);
+    if (error) throw error;
+  },
+
+  async getFaceEnrollment(userId: string): Promise<{ faceId: string | null; enrolledAt: string | null }> {
+    const { data } = await sb().from("users").select("face_id,face_enrolled_at").eq("id", userId).maybeSingle();
+    return { faceId: (data as any)?.face_id ?? null, enrolledAt: (data as any)?.face_enrolled_at ?? null };
+  },
+
+  async saveFaceEnrollment(userId: string, faceId: string): Promise<void> {
+    const { error } = await sb().from("users")
+      .update({ face_id: faceId, face_enrolled_at: new Date().toISOString() }).eq("id", userId);
+    if (error) throw error;
+  },
+
+  // กะที่ยังไม่ได้กดออกงาน — มีได้คนละ 1 กะ (unique index กันไว้ที่ฐานข้อมูลอีกชั้น)
+  async getOpenShift(userId: string): Promise<TimeClockEntry | null> {
+    const { data } = await sb().from("time_clock").select("*")
+      .eq("user_id", userId).is("clock_out", null).maybeSingle();
+    return data ? rowFromTimeClockDb(data) : null;
+  },
+
+  async clockIn(input: {
+    branch: Branch; userId: string; userName: string; workDate: string;
+    photoPath?: string | null; similarity?: number | null;
+    lat?: number | null; lng?: number | null; distanceM?: number | null;
+  }): Promise<TimeClockEntry> {
+    const { data, error } = await sb().from("time_clock").insert({
+      branch_id: input.branch, user_id: input.userId, user_name: input.userName,
+      work_date: input.workDate, clock_in: new Date().toISOString(),
+      in_photo_path: input.photoPath ?? null, in_face_similarity: input.similarity ?? null,
+      in_lat: input.lat ?? null, in_lng: input.lng ?? null, in_distance_m: input.distanceM ?? null,
+    }).select().single();
+    if (error) throw error;
+    return rowFromTimeClockDb(data);
+  },
+
+  async clockOut(id: number, input: {
+    photoPath?: string | null; similarity?: number | null;
+    lat?: number | null; lng?: number | null; distanceM?: number | null;
+  }): Promise<TimeClockEntry | null> {
+    const { data, error } = await sb().from("time_clock").update({
+      clock_out: new Date().toISOString(), updated_at: new Date().toISOString(),
+      out_photo_path: input.photoPath ?? null, out_face_similarity: input.similarity ?? null,
+      out_lat: input.lat ?? null, out_lng: input.lng ?? null, out_distance_m: input.distanceM ?? null,
+    }).eq("id", id).is("clock_out", null).select().maybeSingle();
+    if (error) throw error;
+    return data ? rowFromTimeClockDb(data) : null;
+  },
+
+  // รายเดือน — ใช้ทำสรุปชั่วโมงและหน้าให้แอดมินแก้เวลาย้อนหลัง
+  async listTimeClock(month: string, branch?: Branch): Promise<TimeClockEntry[]> {
+    const { from, to } = monthRange(month);
+    let q = sb().from("time_clock").select("*").gte("work_date", from).lt("work_date", to)
+      .order("work_date", { ascending: false }).order("clock_in", { ascending: false });
+    if (branch) q = q.eq("branch_id", branch);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data ?? []).map(rowFromTimeClockDb);
+  },
+
+  async editTimeClock(id: number, patch: { clockIn?: string; clockOut?: string | null; note: string; editedBy: string }): Promise<void> {
+    const up: any = { edited_by: patch.editedBy, edit_note: patch.note, updated_at: new Date().toISOString() };
+    if (patch.clockIn) up.clock_in = patch.clockIn;
+    if (patch.clockOut !== undefined) up.clock_out = patch.clockOut;
+    const { error } = await sb().from("time_clock").update(up).eq("id", id);
+    if (error) throw error;
+  },
+
   // ── ของที่ตรวจแล้วสั่ง "ส่งคืน" แต่ยังไม่ได้ฝากขึ้นรถ (v1.21) ──
   // ไม่จำกัดช่วงวัน — ของที่ค้างมาหลายวันยิ่งต้องเตือน ไม่ใช่หายไปเพราะเก่าเกิน
   async listPendingReturns(branch: Branch): Promise<PendingReturnRow[]> {
@@ -1541,6 +1636,16 @@ function rowFromDb(s: any): StockRow {
     returnedG: s.returned_g ?? 0,
     transferOut: Number(s.transfer_out ?? 0), transferInG: Number(s.transfer_in_g ?? 0),
     note: s.note ?? "", variance: s.variance, hasEntry: !!s.remain_confirmed,
+  };
+}
+
+function rowFromTimeClockDb(r: any): TimeClockEntry {
+  return {
+    id: r.id, branch: r.branch_id as Branch, userId: r.user_id, userName: r.user_name,
+    workDate: r.work_date, clockIn: r.clock_in, clockOut: r.clock_out ?? null,
+    inDistanceM: r.in_distance_m ?? null, outDistanceM: r.out_distance_m ?? null,
+    inFaceSimilarity: r.in_face_similarity ?? null, outFaceSimilarity: r.out_face_similarity ?? null,
+    editedBy: r.edited_by ?? null, editNote: r.edit_note ?? null,
   };
 }
 

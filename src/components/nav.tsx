@@ -9,13 +9,14 @@ export type Me = { id: string; name: string; role: Role; branchScope: BranchScop
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
   | "request" | "calendar" | "undo" | "ticket" | "flag" | "sliders" | "users"
-  | "megaphone" | "list" | "lock" | "chat" | "logout";
+  | "megaphone" | "list" | "lock" | "chat" | "clock" | "logout";
 
 // ไอคอนเส้นเรียบ วาดเอง 24x24 — ไม่ใช้ emoji (ขนาด/สีต่างกันตามอุปกรณ์ คุมไม่ได้)
 // และไม่ดึงไลบรารีไอคอนเข้ามาเพื่อ 19 อัน (bundle โตเกินจำเป็น)
 const ICON_PATHS: Record<IconKey, string> = {
   home: "M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z",
   clipboard: "M5 5h14v16H5zM9 3h6v4H9zM9 12h6M9 16h4",
+  clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3.5 2",
   truck: "M3 7h11v9H3zM14 10h4l3 3v3h-7M7 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4M17.5 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4",
   inbox: "M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M8 10l4 4 4-4M12 3v11",
   package: "M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10",
@@ -101,6 +102,7 @@ const tabsForMe = (me: Me | null): Tab[] =>
 // กลุ่ม "ข้อมูลของฉัน" — ของส่วนตัวรายคน แยกจากเมนูงานประจำวัน (แพรจัด 2026-07-27)
 // "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว — ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้
 const accountMenuFor = (me: Me | null): Tab[] => [
+  { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", icon: "clock" },
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },

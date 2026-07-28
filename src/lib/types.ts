@@ -173,6 +173,30 @@ export interface PendingReturnRow {
   expiryDate: string;
 }
 
+// ── ลงเวลาเข้า-ออกงาน (v1.22) ──
+// ตั้งค่าทั้งหมดเก็บใน app_settings — เปิด/ปิดได้โดยไม่ต้อง deploy ใหม่
+export interface TimeClockSettings {
+  enabled: boolean;          // เปิดให้พนักงานลงเวลา
+  requireFace: boolean;      // ต้องสแกนหน้าผ่านถึงจะลงเวลาได้
+  requireLocation: boolean;  // ต้องอยู่ในรัศมีร้าน
+}
+
+export interface TimeClockEntry {
+  id: number;
+  branch: Branch;
+  userId: string;
+  userName: string;
+  workDate: string;      // yyyy-mm-dd
+  clockIn: string;       // ISO
+  clockOut?: string | null;
+  inDistanceM?: number | null;
+  outDistanceM?: number | null;
+  inFaceSimilarity?: number | null;
+  outFaceSimilarity?: number | null;
+  editedBy?: string | null;
+  editNote?: string | null;
+}
+
 // ── เคส "รับเงินไม่ตรงบิล" (v1.11) — QR ↔ เงินสด ──
 // POS บอกยอดตามบิล แต่เงินเข้าจริงต่างออกไป · พนักงานกรอกยอด POS ตามปกติ แล้วบันทึกเคสแยก
 // ระบบคำนวณ "ยอดเงินเข้าจริง" ให้เอง (POS + ผลรวมการปรับ) → เอาไปเทียบสลิปตอนอัปโหลดหลักฐาน

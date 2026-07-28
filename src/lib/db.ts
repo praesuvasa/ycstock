@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow } from "./types";
+import type { User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -195,6 +195,30 @@ export const db = {
     useSupabase
       ? supabaseStore.getBranchesWithExpiryCheck(checkDate)
       : Promise.resolve(memoryStore.getBranchesWithExpiryCheck(checkDate)),
+
+  // ── ลงเวลาเข้า-ออกงาน (v1.22) ──
+  getTimeClockSettings: (): Promise<TimeClockSettings> =>
+    useSupabase ? supabaseStore.getTimeClockSettings() : Promise.resolve(memoryStore.getTimeClockSettings()),
+  setAppSetting: (key: string, value: string, updatedBy: string): Promise<void> =>
+    useSupabase ? supabaseStore.setAppSetting(key, value, updatedBy) : Promise.resolve(memoryStore.setAppSetting(key, value, updatedBy)),
+  getBranchGeo: (branch: Branch) =>
+    useSupabase ? supabaseStore.getBranchGeo(branch) : Promise.resolve(memoryStore.getBranchGeo(branch)),
+  setBranchGeo: (branch: Branch, lat: number, lng: number, radiusM: number): Promise<void> =>
+    useSupabase ? supabaseStore.setBranchGeo(branch, lat, lng, radiusM) : Promise.resolve(memoryStore.setBranchGeo(branch, lat, lng, radiusM)),
+  getFaceEnrollment: (userId: string) =>
+    useSupabase ? supabaseStore.getFaceEnrollment(userId) : Promise.resolve(memoryStore.getFaceEnrollment(userId)),
+  saveFaceEnrollment: (userId: string, faceId: string): Promise<void> =>
+    useSupabase ? supabaseStore.saveFaceEnrollment(userId, faceId) : Promise.resolve(memoryStore.saveFaceEnrollment(userId, faceId)),
+  getOpenShift: (userId: string): Promise<TimeClockEntry | null> =>
+    useSupabase ? supabaseStore.getOpenShift(userId) : Promise.resolve(memoryStore.getOpenShift(userId)),
+  clockIn: (input: Parameters<typeof supabaseStore.clockIn>[0]): Promise<TimeClockEntry> =>
+    useSupabase ? supabaseStore.clockIn(input) : Promise.resolve(memoryStore.clockIn(input)),
+  clockOut: (id: number, input: Parameters<typeof supabaseStore.clockOut>[1]): Promise<TimeClockEntry | null> =>
+    useSupabase ? supabaseStore.clockOut(id, input) : Promise.resolve(memoryStore.clockOut(id, input)),
+  listTimeClock: (month: string, branch?: Branch): Promise<TimeClockEntry[]> =>
+    useSupabase ? supabaseStore.listTimeClock(month, branch) : Promise.resolve(memoryStore.listTimeClock(month, branch)),
+  editTimeClock: (id: number, patch: { clockIn?: string; clockOut?: string | null; note: string; editedBy: string }): Promise<void> =>
+    useSupabase ? supabaseStore.editTimeClock(id, patch) : Promise.resolve(memoryStore.editTimeClock(id, patch)),
 
   // ของที่ตรวจแล้วสั่งส่งคืน แต่ยังไม่ได้ฝากขึ้นรถ (v1.21)
   listPendingReturns: (branch: Branch): Promise<PendingReturnRow[]> =>

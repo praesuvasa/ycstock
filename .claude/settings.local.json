@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone *)",
+      "Bash(rm -rf /tmp/yc-stock-clone && git clone https://github.com/kimcodriver/yc-stock /tmp/yc-stock-clone 2>&1)",
+      "Bash(ls -la \"/Users/praee/Desktop/CLAUDE\" 2>&1)",
+      "Bash(gh auth *)",
+      "Bash(gh repo *)",
+      "Bash(git config *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(git ls-remote *)",
+      "Bash(git remote *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

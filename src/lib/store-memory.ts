@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
@@ -53,6 +53,10 @@ const cups = new Map<string, CupRec>();       // `${date}|${branch}|${size}`
 
 interface RestockSelectionRec { date: string; branch: Branch; itemId: string; selected: boolean; qty: number; qtyG: number; qtyG2: number; updatedByUserId: string; updatedByName: string; updatedAt: string; }
 const restockSelections = new Map<string, RestockSelectionRec>(); // key = `${date}|${branch}|${itemId}` — ใช้ sk() เดิมได้เลย
+const appSettings = new Map<string, string>([["time_clock_enabled", "0"], ["time_clock_require_face", "1"]]);
+const faceEnrollments = new Map<string, { faceId: string | null; enrolledAt: string | null }>();
+const timeClock = new Map<number, TimeClockEntry>();
+let timeClockSeq = 1;
 const dispatchedReturnKeys = new Set<string>(); // `${branch}|${checkDate}|${index}` ที่ฝากรถไปแล้ว
 const restockNotes = new Map<string, string>(); // key = `${branch}|${date}`
 
@@ -774,6 +778,66 @@ export const memoryStore = {
   getExpiryChecks(branch: Branch, checkDate: string): ExpiryCheckRow[] {
     return (expiryChecks.get(`${branch}|${checkDate}`) ?? []).map((r, i) => ({ ...r, id: i + 1 }));
   },
+  // ── ลงเวลาเข้า-ออกงาน (v1.22) — dev store เก็บใน memory ──
+  getTimeClockSettings(): TimeClockSettings {
+    return {
+      enabled: appSettings.get("time_clock_enabled") === "1",
+      requireFace: appSettings.get("time_clock_require_face") !== "0",
+      requireLocation: appSettings.get("time_clock_require_location") === "1",
+    };
+  },
+  setAppSetting(key: string, value: string, _updatedBy: string): void {
+    appSettings.set(key, value);
+  },
+  getBranchGeo(_branch: Branch): { lat: number; lng: number; radiusM: number } | null {
+    return null; // dev ไม่เช็คตำแหน่ง
+  },
+  setBranchGeo(_branch: Branch, _lat: number, _lng: number, _radiusM: number): void {},
+  getFaceEnrollment(userId: string): { faceId: string | null; enrolledAt: string | null } {
+    return faceEnrollments.get(userId) ?? { faceId: null, enrolledAt: null };
+  },
+  saveFaceEnrollment(userId: string, faceId: string): void {
+    faceEnrollments.set(userId, { faceId, enrolledAt: new Date().toISOString() });
+  },
+  getOpenShift(userId: string): TimeClockEntry | null {
+    return [...timeClock.values()].find((e) => e.userId === userId && !e.clockOut) ?? null;
+  },
+  clockIn(input: {
+    branch: Branch; userId: string; userName: string; workDate: string;
+    photoPath?: string | null; similarity?: number | null;
+    lat?: number | null; lng?: number | null; distanceM?: number | null;
+  }): TimeClockEntry {
+    const id = timeClockSeq++;
+    const row: TimeClockEntry = {
+      id, branch: input.branch, userId: input.userId, userName: input.userName,
+      workDate: input.workDate, clockIn: new Date().toISOString(), clockOut: null,
+      inDistanceM: input.distanceM ?? null, inFaceSimilarity: input.similarity ?? null,
+    };
+    timeClock.set(id, row);
+    return row;
+  },
+  clockOut(id: number, input: { similarity?: number | null; distanceM?: number | null }): TimeClockEntry | null {
+    const row = timeClock.get(id);
+    if (!row || row.clockOut) return null;
+    row.clockOut = new Date().toISOString();
+    row.outFaceSimilarity = input.similarity ?? null;
+    row.outDistanceM = input.distanceM ?? null;
+    return row;
+  },
+  listTimeClock(month: string, branch?: Branch): TimeClockEntry[] {
+    return [...timeClock.values()]
+      .filter((e) => e.workDate.startsWith(month) && (!branch || e.branch === branch))
+      .sort((a, b) => b.clockIn.localeCompare(a.clockIn));
+  },
+  editTimeClock(id: number, patch: { clockIn?: string; clockOut?: string | null; note: string; editedBy: string }): void {
+    const row = timeClock.get(id);
+    if (!row) return;
+    if (patch.clockIn) row.clockIn = patch.clockIn;
+    if (patch.clockOut !== undefined) row.clockOut = patch.clockOut;
+    row.editedBy = patch.editedBy;
+    row.editNote = patch.note;
+  },
+
   // ── ของรอฝากรถส่งคืน (v1.21) — dev store เก็บใน memory ตามชุด expiryChecks ──
   listPendingReturns(branch: Branch): PendingReturnRow[] {
     const out: PendingReturnRow[] = [];
