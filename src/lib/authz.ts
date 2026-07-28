@@ -21,7 +21,7 @@ export class AuthError extends Error {
  */
 export async function getSession(): Promise<Session | null> {
   const token = cookies().get(SESSION_COOKIE)?.value;
-  const s = verifySession(token);
+  const s = await verifySession(token); // verifySession เป็น async (ตรวจลายเซ็นด้วย crypto) ต้อง await ก่อนใช้ค่า
   if (!s) return null;
   try {
     const u = await db.getUserById(s.userId);
