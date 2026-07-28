@@ -110,8 +110,11 @@ const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }
   { kind: "over_no_change", label: "โอนเกิน · ไม่ได้ทอนคืน", hint: "ส่วนเกินนับเป็นรายได้ของร้าน" },
   { kind: "over_cash_change", label: "โอนเกิน · ทอนเป็นเงินสด", hint: "หยิบเงินสดในลิ้นชักคืนลูกค้า" },
   { kind: "under_cash_topup", label: "โอนขาด · จ่ายสดเพิ่ม", hint: "โอนไม่ครบ แล้วจ่ายส่วนต่างเป็นเงินสด" },
-  // ครอบทั้งคืนบางส่วน (เปลี่ยนเมนูถูกลง) และคืนทั้งจำนวน (ยกเลิกทั้งบิล → ใส่ยอดหลังเปลี่ยน = 0)
-  { kind: "menu_change_refund", label: "เปลี่ยน/ยกเลิกเมนู · คืนเป็นเงินสด", hint: "โอนมาแล้วเปลี่ยนเมนูหรือยกเลิก คืนเงินสดให้ลูกค้า · ยกเลิกทั้งบิลใส่ยอดหลังเปลี่ยน = 0" },
+  // เคสจริงจากแพร: ลูกค้าโอน 200 → void บิล → คีย์บิลใหม่ 190 → คืนสด 10
+  // POS จะเห็น QR แค่ 190 (บิลใหม่) แต่เงินเข้าบัญชีจริง 200 และเงินสดหายไป 10
+  // ครอบเคสยกเลิกทั้งบิลด้วย — ใส่ยอดบิลใหม่ = 0
+  { kind: "menu_change_refund", label: "void บิล/เปลี่ยนเมนู · คืนสดจากลิ้นชัก",
+    hint: "โอนมาแล้ว void บิลเก่า คีย์บิลใหม่ที่ถูกลง แล้วคืนส่วนต่างเป็นเงินสด · ยกเลิกทั้งบิลใส่ยอดบิลใหม่ = 0" },
 ];
 
 // อ่านสาขา/วันที่จาก query string ถ้ามี (เช่น มาจาก prompt "ไปกรอกยอดขาย" หลังบันทึกสต็อก)
@@ -397,7 +400,7 @@ export default function SalesPage() {
                     <div className="flex gap-2">
                       <label className="flex flex-1 flex-col gap-0.5">
                         <span className="text-[10px] text-brand-ink/50">
-                          {it.kind === "menu_change_refund" ? "ยอดหลังเปลี่ยน (ยกเลิกหมด = 0)" : "ยอดตามบิล"}
+                          {it.kind === "menu_change_refund" ? "ยอดบิลใหม่ใน POS (ยกเลิกหมด = 0)" : "ยอดตามบิล"}
                         </span>
                         <input
                           inputMode="decimal" value={it.billAmount || ""}
@@ -407,7 +410,7 @@ export default function SalesPage() {
                       </label>
                       <label className="flex flex-1 flex-col gap-0.5">
                         <span className="text-[10px] text-brand-ink/50">
-                          {it.kind === "menu_change_refund" ? "ยอดที่โอนมาตอนแรก" : "โอนเข้าจริง"}
+                          {it.kind === "menu_change_refund" ? "ยอดที่ลูกค้าโอนมา" : "โอนเข้าจริง"}
                         </span>
                         <input
                           inputMode="decimal" value={it.actualAmount || ""}
