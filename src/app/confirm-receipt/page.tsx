@@ -197,6 +197,34 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const [noteDrafts, setNoteDrafts] = React.useState<Record<string, string>>({});
   const [selection, setSelection] = React.useState<Record<string, Selection>>({});
   const [batchSubmitting, setBatchSubmitting] = React.useState(false);
+  // แถบสถานะการบันทึก — แพรบอกว่ากดแล้วค้างนาน ไม่รู้ว่าเสร็จหรือยัง (2026-07-28)
+  // ปุ่มเปลี่ยนป้ายเป็น "กำลังบันทึก…" อย่างเดียวไม่พอ เพราะหลังยิงเสร็จยังต้องโหลดรายการใหม่อีกรอบ
+  // ช่วงนั้นปุ่มกลับเป็นปกติแล้วแต่หน้าจอยังไม่อัปเดต — คนกดเลยไม่แน่ใจว่าสำเร็จไหม
+  const [status, setStatus] = React.useState<{ tone: "busy" | "ok" | "warn"; text: string } | null>(null);
+  const okTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (okTimer.current) clearTimeout(okTimer.current); }, []);
+
+  /** ห่อทุกการบันทึกให้มีสถานะเหมือนกันหมด — กำลังบันทึก → เรียบร้อย (หายเองใน 3 วิ) → ถ้าพังก็บอกว่าพัง */
+  async function runSave(busyText: string, okText: string, fn: () => Promise<void>) {
+    if (okTimer.current) clearTimeout(okTimer.current);
+    setStatus({ tone: "busy", text: busyText });
+    try {
+      await fn();
+      setStatus({ tone: "ok", text: okText });
+      okTimer.current = setTimeout(() => setStatus(null), 3000);
+    } catch (e: any) {
+      // เดิมไม่เช็คผลเลย พังแล้วเงียบ — พนักงานคิดว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก
+      setStatus({ tone: "warn", text: e?.message ?? "บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง" });
+    }
+  }
+
+  /** ยิง API แล้วโยน error ถ้าไม่ผ่าน (fetch ไม่ throw ให้เองตอนได้ 4xx/5xx) */
+  async function post(url: string, init: RequestInit) {
+    const res = await fetch(url, init);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.error) throw new Error(data?.error ?? `บันทึกไม่สำเร็จ (${res.status})`);
+    return data;
+  }
 
   const itemMeta = React.useMemo(() => new Map((meta?.items ?? []).map((it) => [it.id, it])), [meta]);
   const showGrams = (item: RestockReceiptStatus) => {
@@ -227,41 +255,47 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   // ใช้กับ: เพิ่มรายการนอกใบ (ทันที) + แก้ไขรายการที่ยืนยันไปแล้วก่อนหน้า (ทันที)
   async function submitOne(itemId: string, qty: number, qtyG: number, isExtra: boolean, note = "", notReceived = false) {
-    await fetch("/api/confirm-receipt", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra, note, notReceived }),
+    await runSave("กำลังบันทึก…", "บันทึกเรียบร้อย", async () => {
+      await post("/api/confirm-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra, note, notReceived }),
+      });
+      setDrafts((d) => { const { [itemId]: _drop, ...rest } = d; return rest; });
+      load();
+      onChanged();
     });
-    setDrafts((d) => { const { [itemId]: _drop, ...rest } = d; return rest; });
-    load();
-    onChanged();
   }
 
   async function handleUncheck(item: RestockReceiptStatus) {
     if (!window.confirm(`ยกเลิกยืนยันรับ "${item.name}"? (พลาดติ๊กไป)`)) return;
-    await fetch("/api/confirm-receipt", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branch, date, itemId: item.itemId }),
+    await runSave("กำลังยกเลิก…", "ยกเลิกเรียบร้อย", async () => {
+      await post("/api/confirm-receipt", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, itemId: item.itemId }),
+      });
+      setDrafts((d) => { const { [item.itemId]: _drop, ...rest } = d; return rest; });
+      load();
+      onChanged();
     });
-    setDrafts((d) => { const { [item.itemId]: _drop, ...rest } = d; return rest; });
-    load();
-    onChanged();
   }
 
   // admin เท่านั้น — ยกเลิกรายการที่ยังไม่ยืนยันรับ (เช่น สั่งผิด/ไม่เอาแล้ว) ให้หายจากลิสค้าง
   async function removeItem(item: RestockReceiptStatus) {
     if (!window.confirm(`ลบรายการ "${item.name}" ออกจากใบนี้? (รายการนี้จะไม่ค้างให้ยืนยันรับอีก)`)) return;
-    await fetch("/api/restock/selections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        branch, date,
-        entries: [{ itemId: item.itemId, selected: false, qty: item.orderedQty, qtyG: item.orderedQtyG }],
-      }),
+    await runSave("กำลังลบรายการ…", "ลบรายการแล้ว", async () => {
+      await post("/api/restock/selections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branch, date,
+          entries: [{ itemId: item.itemId, selected: false, qty: item.orderedQty, qtyG: item.orderedQtyG }],
+        }),
+      });
+      load();
+      onChanged();
     });
-    load();
-    onChanged();
   }
 
   function handleEditCommit(item: RestockReceiptStatus) {
@@ -342,14 +376,20 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     if (!window.confirm(`ยืนยันรับ ${receivedCount} รายการ ไม่ได้รับ ${notReceivedCount} รายการ?`)) return;
     setBatchSubmitting(true);
     try {
-      await fetch("/api/confirm-receipt/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, date, entries }),
-      });
-      setSelection({}); setDrafts({}); setNoteDrafts({});
-      load();
-      onChanged();
+      await runSave(
+        `กำลังบันทึก ${entries.length} รายการ…`,
+        `บันทึกเรียบร้อย — ยืนยันรับ ${receivedCount} รายการ${notReceivedCount > 0 ? ` · ไม่ได้รับ ${notReceivedCount}` : ""}`,
+        async () => {
+          await post("/api/confirm-receipt/batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch, date, entries }),
+          });
+          setSelection({}); setDrafts({}); setNoteDrafts({});
+          load();
+          onChanged();
+        }
+      );
     } finally {
       setBatchSubmitting(false);
     }
@@ -363,6 +403,22 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   return (
     <GlassCard>
+      {status && (
+        <div
+          className={`sticky top-2 z-10 mb-2 flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium shadow-sm ${
+            status.tone === "busy" ? "border border-black/10 bg-white text-brand-ink/70"
+              : status.tone === "ok" ? "border border-ok/40 bg-ok/[.12] text-ok"
+              : "border border-warn/40 bg-warn/[.12] text-warn"
+          }`}
+        >
+          {status.tone === "busy" && (
+            <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-brand-ink/20 border-t-brand-ink/60" />
+          )}
+          {status.tone === "ok" && <span className="shrink-0">✓</span>}
+          <span className="min-w-0">{status.text}</span>
+        </div>
+      )}
+
       {pendingItems.length > 0 && (
         <div className="mb-2 flex gap-1.5">
           <button
