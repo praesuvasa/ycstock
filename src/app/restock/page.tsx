@@ -958,9 +958,28 @@ const PROD_FIELDS: { key: ProdField; label: string }[] = [
 ];
 
 interface ExtraRow { id: string; name: string; qty: string; unit: string; note: string }
+interface HaveStock { qty: string; qtyG: string }
+
+// ยอดที่ต้องผลิตจริง = ยอดที่ต้องส่ง − ของเก่าที่มีอยู่แล้ว
+// รายการที่มีเศษกรัมต้องคิดรวมเป็นกรัมก่อนแล้วค่อยแตกกลับ ไม่งั้นเคส "ต้องการ 3+250 มีของเก่า 1+250"
+// จะได้ 2+0 ถูกพอดี แต่เคส "ต้องการ 3+100 มีของเก่า 1+250" จะได้เศษติดลบ ซึ่งไม่มีความหมาย
+function needToProduce(
+  item: Item, packSum: number, gSum: number, havePack: number, haveG: number
+): { none: boolean; text: string; pack: number; g: number } {
+  const gUnit = item.isCup ? "ชิ้น" : "g";
+  if (!item.variableYield) {
+    const pack = Math.max(packSum - havePack, 0);
+    return { none: pack <= 0, text: String(pack), pack, g: 0 };
+  }
+  const per = item.gramsPerUOM || 1;
+  const needG = Math.max((packSum * per + gSum) - (havePack * per + haveG), 0);
+  const pack = Math.floor(needG / per);
+  const g = needG % per;
+  return { none: needG <= 0, text: formatOrderQty(pack, g, true, gUnit), pack, g };
+}
 
 function ProductionRow({
-  item, par, values, gValues, onChange, onChangeG, tone, isNew, reflected, inStock, onToggleInStock,
+  item, par, values, gValues, onChange, onChangeG, tone, isNew, reflected, have, onChangeHave,
 }: {
   item: Item;
   par: Partial<Record<Branch, number | null>>;
@@ -971,15 +990,20 @@ function ProductionRow({
   tone?: "orange";
   isNew?: boolean;
   reflected?: boolean;
-  inStock?: boolean;
-  onToggleInStock?: () => void;
+  have?: HaveStock;
+  onChangeHave?: (v: HaveStock) => void;
 }) {
   const hasG = item.variableYield; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
   const gUnit = item.isCup ? "ชิ้น" : "g";
   const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(values[f.key] ?? "") || 0), 0);
   const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gValues[f.key] ?? "") || 0), 0);
-  const totalG = hasG ? packSum * item.gramsPerUOM + gSum : 0;
   const isOrange = tone === "orange";
+  // ของเก่าที่มีอยู่แล้ว → หักออกจากยอดที่ต้องผลิต (แพร 2026-07-28)
+  // ต้องการ 3 + 250g มีของเก่า 1 + 250g → ผลิต 2 · ไม่ใช่แค่ "มี/ไม่มี" เหมือนช่องติ๊กเดิม
+  const havePack = parseFloat(have?.qty ?? "") || 0;
+  const haveG = parseFloat(have?.qtyG ?? "") || 0;
+  const need = needToProduce(item, packSum, gSum, havePack, haveG);
+  const hasHave = havePack > 0 || haveG > 0;
   return (
     <div className={`px-3 py-2.5 ${isOrange ? "rounded-xl border border-brand-orange/40 bg-brand-orange/10" : "glass-soft"}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -987,16 +1011,44 @@ function ProductionRow({
         <div className="flex shrink-0 items-center gap-1">
           {reflected && <Badge tone="blue">จาก Restock</Badge>}
           {isNew && <Badge tone="ok">ไอเทมใหม่</Badge>}
-          {inStock && <Badge tone="orange">มีของแล้ว</Badge>}
+          {hasHave && <Badge tone="orange">{need.none ? "ไม่ต้องผลิต" : "ใช้ของเก่าบางส่วน"}</Badge>}
         </div>
       </div>
-      {/* ข้อ 17: มีของค้างสต็อกอยู่แล้ว ไม่ต้องผลิตใหม่ — ยังต้องหยิบไปส่ง จึงยังกรอกจำนวนตามปกติ
-          ใบพิมพ์จะย้ายรายการนี้ไปกลุ่มแยกท้ายใบ ทีมผลิตจะได้ไม่ทำซ้ำ */}
-      {onToggleInStock && (
-        <label className="mb-2 flex items-center gap-1.5">
-          <input type="checkbox" checked={!!inStock} onChange={onToggleInStock} className="h-3.5 w-3.5 accent-brand-orange" />
-          <span className="text-[11px] text-brand-ink/60">มีของแล้ว ไม่ต้องผลิต (หยิบจากสต็อกเดิมไปส่ง)</span>
-        </label>
+      {/* ของเก่าที่มีในสต็อกอยู่แล้ว — กรอกจำนวน ไม่ใช่ติ๊กมี/ไม่มี เพราะของจริงมักมีไม่ครบ
+          ช่องรายสาขาข้างล่างยังเป็น "ยอดที่ต้องส่ง" เหมือนเดิม ไม่ต้องหักเอง ระบบหักให้ตอนสรุป */}
+      {onChangeHave && (
+        <div className="mb-2 rounded-lg border border-brand-orange/30 bg-brand-orange/[.06] px-2 py-1.5">
+          <div className="mb-1 text-[10.5px] font-medium text-orange-700">มีของเก่าในสต็อก (หยิบไปส่งได้เลย)</div>
+          <div className="flex items-center gap-1.5">
+            <input
+              inputMode="numeric"
+              value={have?.qty ?? ""}
+              placeholder="0"
+              onChange={(e) => onChangeHave({ qty: e.target.value, qtyG: have?.qtyG ?? "" })}
+              className="field w-12 bg-white/80 px-1 py-1 text-center text-xs"
+            />
+            <span className="text-[10px] text-brand-ink/45">แพ็ค</span>
+            {hasG && (
+              <>
+                <input
+                  inputMode="numeric"
+                  value={have?.qtyG ?? ""}
+                  placeholder="0"
+                  onChange={(e) => onChangeHave({ qty: have?.qty ?? "", qtyG: e.target.value })}
+                  className="field w-14 bg-white/80 px-1 py-1 text-center text-xs"
+                />
+                <span className="text-[10px] text-brand-ink/45">{gUnit}</span>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => onChangeHave({ qty: String(packSum), qtyG: hasG ? String(gSum) : "" })}
+              className="ml-auto rounded-lg border border-brand-orange/40 px-2 py-1 text-[10.5px] font-medium text-orange-700"
+            >
+              มีครบ ไม่ต้องผลิต
+            </button>
+          </div>
+        </div>
       )}
       <div className="grid grid-cols-4 gap-1.5">
         {PROD_FIELDS.map((f) => {
@@ -1041,9 +1093,20 @@ function ProductionRow({
       <div className={`mt-2 text-right text-xs font-semibold ${isOrange ? "text-orange-700" : "text-brand-ink/70"}`}>
         {/* โชว์ตามที่กรอกตรง ๆ ไม่แปลงเศษเป็นแพ็ค (แพรขอ 2026-07-28)
             การแปลงทำให้ตัวเลขบนจอไม่ตรงกับที่เพิ่งพิมพ์ไป ต้องมานั่งคิดตามว่ามันไปยังไงมายังไง */}
-        {hasG
-          ? `รวมสั่งผลิต: ${formatOrderQty(packSum, gSum, true, gUnit)}`
-          : `รวมสั่งผลิต: ${packSum}`}
+        {hasHave ? (
+          <>
+            <div className="text-[10.5px] font-normal text-brand-ink/50">
+              ต้องการ {hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}
+              {" · มีของเก่า "}
+              {hasG ? formatOrderQty(havePack, haveG, true, gUnit) : havePack}
+            </div>
+            <div className={need.none ? "text-orange-700" : ""}>
+              {need.none ? "ไม่ต้องผลิต — หยิบจากสต็อกเดิม" : `ต้องผลิต: ${need.text}`}
+            </div>
+          </>
+        ) : (
+          `รวมสั่งผลิต: ${hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}`
+        )}
       </div>
     </div>
   );
@@ -1095,7 +1158,7 @@ function ProductionPrintSheet({
             <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.NVP}</span></th>
             <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.KCN}</span></th>
             <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
-            <th className="w-16 border-l-2 border-black py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">รวม</th>
+            <th className="w-16 border-l-2 border-black py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">ต้องผลิต</th>
             <th className="w-20 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
           </tr>
         </thead>
@@ -1214,16 +1277,14 @@ function ProductionOrder({
 
   const [prodQty, setProdQty] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
   const [prodQtyG, setProdQtyG] = React.useState<Record<string, Partial<Record<ProdField, string>>>>({});
-  // ข้อ 17: itemId ที่ติ๊ก "มีของแล้ว ไม่ต้องผลิต" — ยังส่งจำนวนตามปกติ แต่ใบพิมพ์แยกกลุ่มท้ายใบ
-  const [inStockIds, setInStockIds] = React.useState<Set<string>>(new Set());
-  function toggleInStock(itemId: string) {
-    setInStockIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) next.delete(itemId); else next.add(itemId);
-      return next;
-    });
+  // ของเก่าที่มีอยู่แล้วต่อรายการ (แพร 2026-07-28) — แทนช่องติ๊ก "มีของแล้ว" เดิมที่เป็นมี/ไม่มี
+  // ยังส่งจำนวนรายสาขาตามปกติ ระบบหักของเก่าออกตอนสรุปว่าต้องผลิตเท่าไหร่
+  const [haveStock, setHaveStock] = React.useState<Record<string, HaveStock>>({});
+  function setHaveFor(itemId: string, v: HaveStock) {
+    setHaveStock((prev) => ({ ...prev, [itemId]: v }));
     setDirty(true);
   }
+  function haveFor(itemId: string): HaveStock { return haveStock[itemId] ?? { qty: "", qtyG: "" }; }
   const [extraRows, setExtraRows] = React.useState<ExtraRow[]>([]);
   const [extraName, setExtraName] = React.useState("");
   const [note, setNote] = React.useState("");
@@ -1304,10 +1365,15 @@ function ProductionOrder({
         const qtyG: Record<string, Partial<Record<ProdField, string>>> = {};
         const extras: ExtraRow[] = [];
         const ids: Record<string, number> = {};
-        const inStock = new Set<string>(); // ข้อ 17 — แถวไหนติ๊กไว้ = ทั้งรายการนั้นติ๊ก
+        const have: Record<string, HaveStock> = {}; // ค่าระดับรายการ เก็บซ้ำทุกแถวสาขา — อ่านแถวไหนก็ได้
         for (const it of order.items) {
           if (it.itemId && it.branch) {
-            if (it.inStockNoProduce) inStock.add(it.itemId);
+            if ((it.haveStockQty ?? 0) > 0 || (it.haveStockG ?? 0) > 0) {
+              have[it.itemId] = {
+                qty: it.haveStockQty ? String(it.haveStockQty) : "",
+                qtyG: it.haveStockG ? String(it.haveStockG) : "",
+              };
+            }
             const field = prodFieldFromBranchKey(it.branch);
             if (!qty[it.itemId]) qty[it.itemId] = {};
             if (!qtyG[it.itemId]) qtyG[it.itemId] = {};
@@ -1322,7 +1388,7 @@ function ProductionOrder({
         }
         setProdQty(qty);
         setProdQtyG(qtyG);
-        setInStockIds(inStock);
+        setHaveStock(have);
         setExtraRows(extras);
         setSavedItemIds(ids);
         setRemovedExtraIds([]);
@@ -1408,6 +1474,27 @@ function ProductionOrder({
     const totalG = packSum * it.gramsPerUOM + gSum;
     return { raw: totalG, text: formatOrderQty(packSum, gSum, true, it.isCup ? "ชิ้น" : "g") };
   }
+  // ยอดที่ต้องผลิตจริงของรายการ (หักของเก่าแล้ว) — ใช้ร่วมกันทั้งใบพิมพ์ CSV และตอนบันทึก
+  function produceFor(it: Item) {
+    const v = valuesFor(it.id);
+    const gv = gValuesFor(it.id);
+    const packSum = PROD_FIELDS.reduce((sum, f) => sum + (parseFloat(v[f.key] ?? "") || 0), 0);
+    const gSum = PROD_FIELDS.reduce((sum, f) => sum + (parseFloat(gv[f.key] ?? "") || 0), 0);
+    const h = haveFor(it.id);
+    const havePack = parseFloat(h.qty) || 0;
+    const haveG = parseFloat(h.qtyG) || 0;
+    const gUnit = it.isCup ? "ชิ้น" : "g";
+    return {
+      ...needToProduce(it, packSum, gSum, havePack, haveG),
+      hasHave: havePack > 0 || haveG > 0,
+      haveText: it.variableYield ? formatOrderQty(havePack, haveG, true, gUnit) : String(havePack),
+    };
+  }
+  // "ไม่ต้องผลิต" = มีของเก่าอยู่ และครบทั้งจำนวนที่ต้องส่ง
+  function noProduceFor(it: Item): boolean {
+    const p = produceFor(it);
+    return p.hasHave && p.none;
+  }
   function isReflected(itemId: string): boolean {
     return (!!reflected[itemId] && Object.keys(reflected[itemId]).length > 0)
       || (!!reflectedG[itemId] && Object.keys(reflectedG[itemId]).length > 0);
@@ -1438,7 +1525,10 @@ function ProductionOrder({
         if (pack === 0 && gramQty === 0 && existingId == null) continue;
         items.push({
           id: existingId, itemId: it.id, branch: branchKeyFromProdField(f.key), qty: pack, qtyG: gramQty,
-          inStockNoProduce: inStockIds.has(it.id),
+          // inStockNoProduce ไม่ใช่ช่องติ๊กแล้ว — ระบบคิดให้จาก "มีของเก่าครบทั้งจำนวน"
+          inStockNoProduce: noProduceFor(it),
+          haveStockQty: parseFloat(haveFor(it.id).qty) || 0,
+          haveStockG: parseFloat(haveFor(it.id).qtyG) || 0,
         });
       }
     }
@@ -1507,7 +1597,7 @@ function ProductionOrder({
       `วันที่สั่งผลิต,${orderDate}`,
       `วันที่จัดส่งเข้าสาขา,${deliveryDate}`,
       "",
-      "หมวด,รายการ,SND,NVP,KCN,อื่นๆ,รวมสั่งผลิต",
+      "หมวด,รายการ,SND,NVP,KCN,อื่นๆ,รวมที่ต้องส่ง,มีของเก่า,ต้องผลิต",
     ];
     for (const g of mainGroups) {
       for (const it of g.items) {
@@ -1516,6 +1606,8 @@ function ProductionOrder({
           csvEscape(fieldTextFor(it, "SND")), csvEscape(fieldTextFor(it, "NVP")),
           csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
           csvEscape(totalFor(it).text),
+          csvEscape(produceFor(it).hasHave ? produceFor(it).haveText : ""),
+          csvEscape(produceFor(it).none ? "ไม่ต้องผลิต" : produceFor(it).text),
         ].join(","));
       }
     }
@@ -1525,15 +1617,17 @@ function ProductionOrder({
         csvEscape(fieldTextFor(it, "SND")), csvEscape(fieldTextFor(it, "NVP")),
         csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
         csvEscape(totalFor(it).text),
+        csvEscape(produceFor(it).hasHave ? produceFor(it).haveText : ""),
+        csvEscape(produceFor(it).none ? "ไม่ต้องผลิต" : produceFor(it).text),
       ].join(","));
     }
     for (const r of extraRows) {
       lines.push([
         csvEscape("รายการพิเศษ (ครั้งเดียว)"), csvEscape(r.name),
         "", "", "", csvEscape(r.qty || "0") + (r.unit ? " " + csvEscape(r.unit) : ""),
-        r.qty || "0",
+        r.qty || "0", "", r.qty || "0",
       ].join(","));
-      if (r.note.trim()) lines.push(",หมายเหตุ: " + csvEscape(r.note.trim()) + ",,,,,");
+      if (r.note.trim()) lines.push(",หมายเหตุ: " + csvEscape(r.note.trim()) + ",,,,,,,");
     }
     if (note.trim()) {
       lines.push("");
@@ -1556,21 +1650,26 @@ function ProductionOrder({
       for (const it of g.items) {
         const total = totalFor(it);
         if (total.raw <= 0) continue;
-        // ข้อ 17: ของที่มีอยู่แล้ว แยกไปกลุ่มท้ายใบ ทีมผลิตจะได้ไม่ผลิตซ้ำ แต่ยังเห็นว่าต้องหยิบไปส่ง
-        pushRow(inStockIds.has(it.id) ? IN_STOCK_CATEGORY : g.category, {
+        // คอลัมน์ "รวม" บนใบพิมพ์ = ยอดที่ครัวต้องผลิตจริง (หักของเก่าแล้ว)
+        // ของเก่าไปอยู่ในหมายเหตุ ให้คนแพ็คของรู้ว่าต้องไปหยิบมากี่ชิ้น
+        const p = produceFor(it);
+        pushRow(p.hasHave && p.none ? IN_STOCK_CATEGORY : g.category, {
           id: it.id, name: it.name,
           snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
-          total: total.text, note: "",
+          total: p.none ? "—" : p.text,
+          note: p.hasHave ? `หยิบของเก่า ${p.haveText}` : "",
         });
       }
     }
     for (const it of dept2Items) {
       const total = totalFor(it);
       if (total.raw <= 0) continue;
-      pushRow(inStockIds.has(it.id) ? IN_STOCK_CATEGORY : "แผนกอื่น", {
+      const p = produceFor(it);
+      pushRow(p.hasHave && p.none ? IN_STOCK_CATEGORY : "แผนกอื่น", {
         id: it.id, name: it.name,
         snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
-        total: total.text, note: "",
+        total: p.none ? "—" : p.text,
+        note: p.hasHave ? `หยิบของเก่า ${p.haveText}` : "",
       });
     }
     for (const r of extraRows) {
@@ -1580,7 +1679,7 @@ function ProductionOrder({
     return out.sort((a, b) =>
       (a.category === IN_STOCK_CATEGORY ? 1 : 0) - (b.category === IN_STOCK_CATEGORY ? 1 : 0)
     );
-  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG, inStockIds]);
+  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG, haveStock]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
@@ -1647,8 +1746,8 @@ function ProductionOrder({
                     onChange={(f, v) => setProd(it.id, f, v)}
                     onChangeG={(f, v) => setProdG(it.id, f, v)}
                     reflected={isReflected(it.id)}
-                    inStock={inStockIds.has(it.id)}
-                    onToggleInStock={() => toggleInStock(it.id)}
+                    have={haveFor(it.id)}
+                    onChangeHave={(v) => setHaveFor(it.id, v)}
                   />
                 ))}
               </div>
@@ -1673,8 +1772,8 @@ function ProductionOrder({
                   tone="orange"
                   isNew={NEW_ITEM_NAMES.includes(it.name)}
                   reflected={isReflected(it.id)}
-                  inStock={inStockIds.has(it.id)}
-                  onToggleInStock={() => toggleInStock(it.id)}
+                  have={haveFor(it.id)}
+                  onChangeHave={(v) => setHaveFor(it.id, v)}
                 />
               ))}
             </div>

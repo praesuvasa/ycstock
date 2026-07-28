@@ -1332,6 +1332,7 @@ export const supabaseStore = {
         qty: i.qty, qty_g: i.qtyG,
         extra_name: i.extraName ?? null, extra_unit: i.extraUnit ?? null, extra_note: i.extraNote ?? null,
         in_stock_no_produce: i.inStockNoProduce ?? false,
+        have_stock_qty: i.haveStockQty ?? 0, have_stock_g: i.haveStockG ?? 0,
       }));
     let items: any[] = [];
     if (rows.length > 0) {
@@ -1362,7 +1363,14 @@ export const supabaseStore = {
       const gridRows = patch.items
         .filter((i) => i.itemId && i.branch)
         .filter((i) => i.qty > 0 || i.qtyG > 0 || existingKeys.has(i.itemId + "|" + i.branch))
-        .map((i) => ({ order_id: id, item_id: i.itemId, branch_key: i.branch, qty: i.qty, qty_g: i.qtyG, updated_at: now }));
+        // เขียน in_stock_no_produce/have_stock_* ตอนแก้ใบด้วย — เดิมเขียนเฉพาะตอนสร้างใบใหม่
+        // ทำให้แก้ใบเก่าแล้วค่าของเก่าที่กรอกไว้ไม่ถูกบันทึก (เจอตอนทำฟีเจอร์ "มีของเก่าบางส่วน")
+        .map((i) => ({
+          order_id: id, item_id: i.itemId, branch_key: i.branch, qty: i.qty, qty_g: i.qtyG,
+          in_stock_no_produce: i.inStockNoProduce ?? false,
+          have_stock_qty: i.haveStockQty ?? 0, have_stock_g: i.haveStockG ?? 0,
+          updated_at: now,
+        }));
       if (gridRows.length > 0) {
         const { error: e2 } = await sb().from("production_order_items")
           .upsert(gridRows, { onConflict: "order_id,item_id,branch_key" });
@@ -1375,6 +1383,7 @@ export const supabaseStore = {
             qty: row.qty, qty_g: row.qtyG,
             extra_name: row.extraName ?? null, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
             in_stock_no_produce: row.inStockNoProduce ?? false,
+            have_stock_qty: row.haveStockQty ?? 0, have_stock_g: row.haveStockG ?? 0,
             updated_at: now,
           }).eq("id", row.id).eq("order_id", id);
           if (e3) throw e3;
@@ -1383,6 +1392,7 @@ export const supabaseStore = {
             order_id: id, item_id: null, branch_key: null, qty: row.qty, qty_g: row.qtyG,
             extra_name: row.extraName, extra_unit: row.extraUnit ?? null, extra_note: row.extraNote ?? null,
             in_stock_no_produce: row.inStockNoProduce ?? false,
+            have_stock_qty: row.haveStockQty ?? 0, have_stock_g: row.haveStockG ?? 0,
           });
           if (e4) throw e4;
         }
@@ -1500,6 +1510,7 @@ function rowFromProdOrderItemDb(r: any): ProductionOrderItem {
     qty: Number(r.qty), qtyG: Number(r.qty_g),
     extraName: r.extra_name ?? undefined, extraUnit: r.extra_unit ?? undefined, extraNote: r.extra_note ?? undefined,
     inStockNoProduce: r.in_stock_no_produce ?? false,
+    haveStockQty: Number(r.have_stock_qty ?? 0), haveStockG: Number(r.have_stock_g ?? 0),
     confirmed: r.confirmed, confirmedQty: r.confirmed_qty ?? undefined, confirmedQtyG: r.confirmed_qty_g ?? undefined,
     confirmedAt: r.confirmed_at ?? undefined, confirmedByName: r.confirmed_by_name ?? undefined,
   };

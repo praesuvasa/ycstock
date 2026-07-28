@@ -106,6 +106,7 @@ interface ProductionOrderItemRec {
   id: number; orderId: number; itemId?: string; branch?: ProdBranchKey;
   qty: number; qtyG: number; extraName?: string; extraUnit?: string; extraNote?: string;
   inStockNoProduce?: boolean;
+  haveStockQty?: number; haveStockG?: number;
   confirmed: boolean; confirmedQty?: number; confirmedQtyG?: number;
   confirmedAt?: string; confirmedByUserId?: string; confirmedByName?: string;
   createdAt: string; updatedAt: string;
@@ -119,6 +120,7 @@ function prodOrderItemToDto(r: ProductionOrderItemRec): ProductionOrderItem {
     id: r.id, itemId: r.itemId, branch: r.branch, qty: r.qty, qtyG: r.qtyG,
     extraName: r.extraName, extraUnit: r.extraUnit, extraNote: r.extraNote,
     inStockNoProduce: r.inStockNoProduce ?? false,
+    haveStockQty: r.haveStockQty ?? 0, haveStockG: r.haveStockG ?? 0,
     confirmed: r.confirmed, confirmedQty: r.confirmedQty, confirmedQtyG: r.confirmedQtyG,
     confirmedAt: r.confirmedAt, confirmedByName: r.confirmedByName,
   };
@@ -1066,6 +1068,7 @@ export const memoryStore = {
         id: itemId, orderId: id, itemId: i.itemId, branch: i.itemId ? i.branch : undefined,
         qty: i.qty, qtyG: i.qtyG, extraName: i.extraName, extraUnit: i.extraUnit, extraNote: i.extraNote,
         inStockNoProduce: i.inStockNoProduce ?? false,
+        haveStockQty: i.haveStockQty ?? 0, haveStockG: i.haveStockG ?? 0,
         confirmed: false, createdAt: now, updatedAt: now,
       });
     }
@@ -1090,12 +1093,18 @@ export const memoryStore = {
         const existing = Array.from(productionOrderItems.values())
           .find((r) => r.orderId === id && r.itemId === i.itemId && r.branch === i.branch);
         if (existing) {
-          existing.qty = i.qty; existing.qtyG = i.qtyG; existing.updatedAt = now;
+          existing.qty = i.qty; existing.qtyG = i.qtyG;
+          existing.inStockNoProduce = i.inStockNoProduce ?? false;
+          existing.haveStockQty = i.haveStockQty ?? 0; existing.haveStockG = i.haveStockG ?? 0;
+          existing.updatedAt = now;
         } else if (i.qty > 0 || i.qtyG > 0) {
           const itemId = prodItemSeq++;
           productionOrderItems.set(itemId, {
             id: itemId, orderId: id, itemId: i.itemId, branch: i.branch,
-            qty: i.qty, qtyG: i.qtyG, confirmed: false, createdAt: now, updatedAt: now,
+            qty: i.qty, qtyG: i.qtyG,
+            inStockNoProduce: i.inStockNoProduce ?? false,
+            haveStockQty: i.haveStockQty ?? 0, haveStockG: i.haveStockG ?? 0,
+            confirmed: false, createdAt: now, updatedAt: now,
           });
         }
       }
@@ -1106,6 +1115,8 @@ export const memoryStore = {
           if (existing && existing.orderId === id) {
             existing.qty = row.qty; existing.qtyG = row.qtyG;
             existing.extraName = row.extraName; existing.extraUnit = row.extraUnit; existing.extraNote = row.extraNote;
+            existing.inStockNoProduce = row.inStockNoProduce ?? false;
+            existing.haveStockQty = row.haveStockQty ?? 0; existing.haveStockG = row.haveStockG ?? 0;
             existing.updatedAt = now;
           }
         } else if (row.extraName) {
@@ -1114,6 +1125,7 @@ export const memoryStore = {
             id: itemId, orderId: id, qty: row.qty, qtyG: row.qtyG,
             extraName: row.extraName, extraUnit: row.extraUnit, extraNote: row.extraNote,
             inStockNoProduce: row.inStockNoProduce ?? false,
+            haveStockQty: row.haveStockQty ?? 0, haveStockG: row.haveStockG ?? 0,
             confirmed: false, createdAt: now, updatedAt: now,
           });
         }

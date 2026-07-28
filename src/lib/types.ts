@@ -341,7 +341,11 @@ export interface ProductionOrderItem {
   confirmedAt?: string;       // ISO
   confirmedByName?: string;
   // ข้อ 17: มีของอยู่แล้ว ไม่ต้องผลิตใหม่ — ยังต้องหยิบไปส่ง จึงยังอยู่ในใบ แต่แยกกลุ่มท้ายใบ
+  // ตั้งแต่ 2026-07-28 เป็นค่าที่ระบบคิดให้ (= มีของเก่าครบทั้งจำนวน) ไม่ใช่ช่องติ๊กของคนอีกแล้ว
   inStockNoProduce?: boolean;
+  // ของเก่าที่มีอยู่แล้ว หักออกจากยอดที่ต้องผลิต — ค่าระดับ "รายการ" เก็บซ้ำทุกแถวสาขาของรายการนั้น
+  haveStockQty?: number;
+  haveStockG?: number;
 }
 
 export interface ProductionOrder {
@@ -380,6 +384,8 @@ export interface ProductionOrderItemInput {
   extraUnit?: string;
   extraNote?: string;
   inStockNoProduce?: boolean;
+  haveStockQty?: number;
+  haveStockG?: number;
 }
 
 // ── ยืนยันรับของ (v1.9) — พนักงานสาขาติ๊กรับจริงจากใบ "ต้องเติม" แก้จำนวนได้ถ้าไม่ตรง เพิ่มรายการนอกใบได้
