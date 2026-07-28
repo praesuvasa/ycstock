@@ -135,6 +135,9 @@ export default function ExpiryPage() {
     });
   }, [filled, items, date]);
 
+  // หน้าต่างสรุปหลังบันทึก (เฉพาะรอบที่มีของส่งคืน)
+  const [done, setDone] = React.useState<{ ret: number; sell: number } | null>(null);
+
   async function save() {
     if (pendingDecision.length > 0) {
       const ok = window.confirm(
@@ -158,7 +161,9 @@ export default function ExpiryPage() {
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       window.dispatchEvent(new Event(EXPIRY_SAVED_EVENT)); // ให้ badge ที่เมนูหายทันที
       setSavedOnce(true);
-      window.alert(`บันทึกผลตรวจแล้ว ✓\nส่งคืน ${countReturn} ชุด · แกะออกจากชั้น ${countSell} ชุด`);
+      // มีของส่งคืน → เด้งหน้าต่างบอกขั้นตอนต่อ · ไม่มีของส่งคืนก็ไม่ต้องให้กดปิดหน้าต่างเปล่า ๆ
+      if (countReturn > 0) setDone({ ret: countReturn, sell: countSell });
+      else window.alert(`บันทึกผลตรวจแล้ว ✓\nแกะออกจากชั้น ${countSell} ชุด`);
       load();
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
@@ -179,11 +184,7 @@ export default function ExpiryPage() {
             <span className="text-[11px] text-brand-ink/50">วันที่ตรวจ</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
           </label>
-          {isDue ? (
-            <p className="rounded-lg bg-warn/10 px-2.5 py-2 text-[12px] font-medium text-warn">
-              ถึงรอบตรวจวันนี้ — ตรวจก่อนรถเข้าพรุ่งนี้ ของส่งคืนจะได้ขึ้นรถทัน
-            </p>
-          ) : (
+          {!isDue && (
             <p className="rounded-lg bg-black/[.03] px-2.5 py-2 text-[11.5px] leading-relaxed text-brand-ink/55">
               วันนี้ไม่ใช่รอบตรวจ (รอบปกติคือ อังคาร + ศุกร์) — ยังบันทึกได้ถ้าต้องตรวจนอกรอบ
             </p>
@@ -191,9 +192,21 @@ export default function ExpiryPage() {
         </div>
       </GlassCard>
 
-      <div className="mb-3 rounded-lg border border-black/10 bg-black/[.02] px-3 py-2.5 text-[12px] leading-relaxed text-brand-ink/60">
-        เดินดูของบนชั้น แล้วกรอก <b>วันหมดอายุที่ใกล้ที่สุดที่เจอ</b> พร้อมจำนวนของวันนั้น —
-        นับของจริงทุกครั้ง ไม่ต้องอิงตัวเลขรอบก่อน
+      {/* กล่องเดียวจบ (แพรขอ 2026-07-28) — เดิมมี 3 กล่องซ้อนกัน: เตือนรอบตรวจ + วิธีทำ + คำอธิบาย
+          พนักงานต้องอ่าน 3 ที่กว่าจะรู้ว่าต้องทำอะไร */}
+      <div className={`mb-3 rounded-xl border px-3.5 py-3 ${isDue ? "border-warn/35 bg-warn/[.07]" : "border-black/10 bg-black/[.02]"}`}>
+        {isDue && <p className="mb-1.5 text-[19px] font-bold leading-tight text-warn">ถึงรอบตรวจวันนี้</p>}
+        <p className="text-[12.5px] leading-relaxed text-brand-ink/75">
+          <b className="font-semibold">สิ่งที่ต้องทำ:</b> เดินดูของบนชั้น แล้วกรอกวันหมดอายุกับจำนวน
+          — นับของจริงทุกครั้ง ไม่ต้องอิงตัวเลขรอบก่อน
+        </p>
+        <div className="mt-2 flex items-start gap-2 rounded-lg border border-ok/40 bg-ok/[.12] px-2.5 py-2">
+          <span className="mt-[1px] grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok text-[10px] font-bold text-white">✓</span>
+          <p className="text-[12px] font-medium leading-relaxed text-ok">
+            ของที่ส่งคืนและแกะขายหน้าร้าน ระบบหักออกจากสต็อกให้เอง
+            <span className="block font-semibold">ไม่ต้องไปกรอกซ้ำที่หน้าเช็คสต็อก</span>
+          </p>
+        </div>
       </div>
 
       {err && (
@@ -327,6 +340,49 @@ export default function ExpiryPage() {
               </div>
             </GlassCard>
           ))}
+        </div>
+      )}
+
+      {done && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-4 py-8">
+          <div className="w-full max-w-sm rounded-2xl bg-brand-cream p-4 shadow-2xl">
+            <p className="text-center text-[17px] font-bold text-ok">บันทึกผลตรวจแล้ว</p>
+            <p className="mb-3 text-center text-[12px] text-brand-ink/55">
+              ส่งคืน {done.ret} ชุด{done.sell > 0 ? ` · แกะขายหน้าร้าน ${done.sell} ชุด` : ""}
+            </p>
+
+            {[
+              { n: 1, t: "แยกของที่ส่งคืนออกมา", s: "เอาออกจากชั้นเลย กันหยิบไปใช้ผิด" },
+              { n: 2, t: "กรอกใบส่งคืนเตรียมไว้", s: "เขียนตามรายการที่เพิ่งบันทึก" },
+              { n: 3, t: "ส่งคืนพร้อมรถรอบถัดไป", s: "ฝากคนขับพร้อมใบส่งคืน" },
+            ].map((st) => (
+              <div key={st.n} className="flex items-start gap-2.5 border-t border-black/[.07] py-2.5">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-ink text-[11px] font-bold text-white">
+                  {st.n}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] font-semibold leading-snug">{st.t}</p>
+                  <p className="text-[11px] leading-relaxed text-brand-ink/50">{st.s}</p>
+                </div>
+              </div>
+            ))}
+
+            <div className="mt-3 flex items-start gap-2 rounded-xl border border-ok/40 bg-ok/[.12] px-3 py-2.5">
+              <span className="mt-[1px] grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok text-[10px] font-bold text-white">✓</span>
+              <p className="text-[12px] font-medium leading-relaxed text-ok">
+                ยอดส่งคืนถูกหักออกจากสต็อกให้แล้ว
+                <span className="block font-semibold">ไม่ต้องไปกรอกซ้ำที่หน้าเช็คสต็อก</span>
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDone(null)}
+              className="mt-3 w-full rounded-xl bg-brand-ink px-4 py-3 text-[13px] font-semibold text-white"
+            >
+              รับทราบ
+            </button>
+          </div>
         </div>
       )}
 
