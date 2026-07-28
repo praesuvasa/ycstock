@@ -229,34 +229,34 @@ function PrintSheet({
   function renderColumn(colGroups: typeof printGroups, withExtra: boolean) {
     return (
       <div className="flex-1">
-        <table className="w-full border-collapse text-[12px]">
+        <table className="w-full table-fixed border-collapse text-[10.5px] leading-tight">
           <thead>
             <tr className="border-b-2 border-black">
-              <th className="w-4 py-1"></th>
-              <th className="py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">รายการ</th>
-              <th className="w-9 py-1 text-center text-[10px] uppercase tracking-wide text-neutral-500">จำนวน</th>
-              <th className="w-12 py-1 text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+              <th className="w-4 py-0.5"></th>
+              <th className="py-0.5 text-left text-[9px] uppercase tracking-wide text-neutral-500">รายการ</th>
+              <th className="w-8 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">จำนวน</th>
+              <th className="w-11 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
             </tr>
           </thead>
           <tbody>
             {colGroups.map((g) => (
               <React.Fragment key={g.category}>
                 <tr>
-                  <td colSpan={4} className="pt-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-600">
+                  <td colSpan={4} className="pt-1 text-[9.5px] font-bold uppercase tracking-wide text-neutral-600">
                     {g.category}
                   </td>
                 </tr>
                 {g.items.map((r) => (
-                  <tr key={r.itemId} className="border-b border-neutral-300">
-                    <td className="py-[3.5px]"><span className="inline-block h-[13px] w-[13px] border-[1.4px] border-black" /></td>
-                    <td className="py-[3.5px] leading-tight text-black">
+                  <tr key={r.itemId} className="break-inside-avoid border-b border-neutral-300">
+                    <td className="py-[1.5px]"><span className="inline-block h-[11px] w-[11px] border-[1.3px] border-black" /></td>
+                    <td className="py-[1.5px] text-black">
                       <span className="inline-flex items-center gap-1">
                         {itemIcon(r.name)}
                         <span>{r.name}</span>
                       </span>
                     </td>
-                    <td className="py-[3.5px] text-center text-[15px] font-bold leading-tight text-black">{r.qty}</td>
-                    <td className="border-b border-neutral-400 py-[3.5px]" />
+                    <td className="py-[1.5px] text-center text-[13px] font-bold text-black">{r.qty}</td>
+                    <td className="border-b border-neutral-400 py-[1.5px]" />
                   </tr>
                 ))}
               </React.Fragment>
@@ -265,20 +265,20 @@ function PrintSheet({
         </table>
         {withExtra && (
           <div className="mt-3">
-            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
+            <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
             {/* รายการที่กรอกไว้ในระบบ (ข้อ 16) พิมพ์ออกมาเลย — ที่เหลือเว้นบรรทัดว่างให้เขียนเพิ่มหน้างาน */}
             {(extras ?? []).map((e, i) => (
               <div key={`x${i}`} className="mb-1 flex items-baseline gap-1.5 border-b border-neutral-400 pb-[2px]">
-                <span className="inline-block h-[13px] w-[13px] shrink-0 border-[1.4px] border-black" />
-                <span className="flex-1 text-[12px] leading-tight text-black">
+                <span className="inline-block h-[11px] w-[11px] shrink-0 border-[1.3px] border-black" />
+                <span className="flex-1 text-[10.5px] leading-tight text-black">
                   {e.name}
-                  {e.note ? <span className="text-[10px] text-neutral-600"> · {e.note}</span> : null}
+                  {e.note ? <span className="text-[9px] text-neutral-600"> · {e.note}</span> : null}
                 </span>
-                <span className="text-[15px] font-bold text-black">{e.qty || ""}</span>
+                <span className="text-[13px] font-bold text-black">{e.qty || ""}</span>
               </div>
             ))}
             {[0, 1, 2].map((i) => (
-              <div key={i} className="mb-1 h-[17px] border-b border-dotted border-neutral-400" />
+              <div key={i} className="mb-1 h-[13px] border-b border-dotted border-neutral-400" />
             ))}
           </div>
         )}
@@ -287,19 +287,19 @@ function PrintSheet({
   }
 
   return (
-    <div className="print-sheet hidden print:block">
-      <style>{"@page { size: A4; margin: 10mm; }"}</style>
-      <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
+    <div className="print-sheet hidden overflow-hidden print:block">
+      <style>{"@page { size: A4; margin: 8mm; }"}</style>
+      <div className="mb-1.5 flex items-end justify-between border-b-[3px] border-black pb-1.5">
         <div>
-          <div className="text-[27px] font-bold leading-tight text-black">ใบส่งของเข้าสาขา</div>
+          <div className="text-[22px] font-bold leading-tight text-black">ใบส่งของเข้าสาขา</div>
           <div className="mt-0.5 flex items-baseline gap-2.5">
-            <span className="text-[34px] font-bold leading-none text-black">{branch}</span>
-            <span className="text-[26px] font-bold leading-none text-black">{BRANCH_LABEL_TH[branch]}</span>
+            <span className="text-[28px] font-bold leading-none text-black">{branch}</span>
+            <span className="text-[21px] font-bold leading-none text-black">{BRANCH_LABEL_TH[branch]}</span>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[23px] font-bold leading-none text-black">{thaiDateSlash(date)}</div>
-          <div className="mt-0.5 text-[13px] text-neutral-600">{weekdayLabel}</div>
+          <div className="text-[19px] font-bold leading-none text-black">{thaiDateSlash(date)}</div>
+          <div className="mt-0.5 text-[11px] text-neutral-600">{weekdayLabel}</div>
         </div>
       </div>
       {note && note.trim() && (
@@ -319,16 +319,16 @@ function PrintSheet({
         {renderColumn(col2, true)}
       </div>
 
-      <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
+      <div className="mt-2 flex gap-6 border-t-[1.3px] border-black pt-2">
         <div className="flex-1">
-          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้ส่ง)</div>
+          <div className="mb-3 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้ส่ง)</div>
           <div className="mb-1 border-b border-black" />
           <div className="flex justify-between text-[8px] text-neutral-600">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
           </div>
         </div>
         <div className="flex-1">
-          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้รับสินค้า (สาขา)</div>
+          <div className="mb-3 text-[8.5px] text-neutral-600">ผู้รับสินค้า (สาขา)</div>
           <div className="mb-1 border-b border-black" />
           <div className="flex justify-between text-[8px] text-neutral-600">
             <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
