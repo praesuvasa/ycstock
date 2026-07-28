@@ -104,7 +104,7 @@ function BiscuitIcon() {
     for (const cy of [9.5, 14, 18.5]) dots.push(<circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={1} fill="#7B4A2D" />);
   }
   return (
-    <svg viewBox="0 0 32 28" className="inline-block h-[11px] w-[13px] align-[-1px]" aria-hidden="true">
+    <svg viewBox="0 0 32 28" className="inline-block h-[14px] w-[17px] align-[-2px]" aria-hidden="true">
       <path
         d="M4,4 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0
            a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4
