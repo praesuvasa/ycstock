@@ -792,6 +792,9 @@ export const memoryStore = {
       requireLocation: appSettings.get("time_clock_require_location") === "1",
     };
   },
+  getAppSetting(key: string): string | null {
+    return appSettings.get(key) ?? null;
+  },
   setAppSetting(key: string, value: string, _updatedBy: string): void {
     appSettings.set(key, value);
   },

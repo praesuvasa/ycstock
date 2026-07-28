@@ -201,6 +201,8 @@ export const db = {
   // ── ลงเวลาเข้า-ออกงาน (v1.22) ──
   getTimeClockSettings: (): Promise<TimeClockSettings> =>
     useSupabase ? supabaseStore.getTimeClockSettings() : Promise.resolve(memoryStore.getTimeClockSettings()),
+  getAppSetting: (key: string): Promise<string | null> =>
+    useSupabase ? supabaseStore.getAppSetting(key) : Promise.resolve(memoryStore.getAppSetting(key)),
   setAppSetting: (key: string, value: string, updatedBy: string): Promise<void> =>
     useSupabase ? supabaseStore.setAppSetting(key, value, updatedBy) : Promise.resolve(memoryStore.setAppSetting(key, value, updatedBy)),
   getBranchGeo: (branch: Branch) =>

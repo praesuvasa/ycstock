@@ -16,12 +16,13 @@ function fail(e: unknown, msg: string) {
 export async function GET() {
   try {
     await requireAdmin();
-    const [settings, ...geos] = await Promise.all([
+    const [settings, expiryFlag, ...geos] = await Promise.all([
       db.getTimeClockSettings(),
+      db.getAppSetting("expiry_check_enabled"),
       ...BRANCHES.map((b) => db.getBranchGeo(b)),
     ]);
-    const branches = BRANCHES.map((b, i) => ({ branch: b, geo: geos[i] ?? null }));
-    return NextResponse.json({ settings, branches });
+    const branches = BRANCHES.map((b, i) => ({ branch: b, geo: (geos[i] as any) ?? null }));
+    return NextResponse.json({ settings, branches, expiryCheckEnabled: expiryFlag === "1" });
   } catch (e) {
     return fail(e, "settings failed");
   }
@@ -36,6 +37,15 @@ export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
     const body = await req.json();
+
+    // เมนูตรวจวันหมดอายุ — เปิดวันที่พนักงานเริ่มใช้จริง (แพรสั่งปิดไว้ก่อน 2026-07-28)
+    if (typeof body?.expiryCheckEnabled === "boolean") {
+      await db.setAppSetting("expiry_check_enabled", body.expiryCheckEnabled ? "1" : "0", s.name);
+      await writeAudit(s, "feature_toggle", {
+        detail: `เมนูตรวจวันหมดอายุ: ${body.expiryCheckEnabled ? "เปิด" : "ปิด"}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
 
     if (body?.settings) {
       const map: Record<string, string> = {

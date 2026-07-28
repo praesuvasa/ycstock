@@ -30,12 +30,15 @@ export async function GET() {
     const branch = s.branchScope as Branch;
     const date = todayISO();
 
-    const [pendingReceipt, stockRows, salesToday, expiryDone] = await Promise.all([
+    const [pendingReceipt, stockRows, salesToday, expiryDone, expiryFlag] = await Promise.all([
       db.getPendingReceiptCount(branch),
       db.getStock(branch, date),
       db.getSales(branch, date),
       db.getBranchesWithExpiryCheck(date),
+      db.getAppSetting("expiry_check_enabled"),
     ]);
+    // ยังไม่เปิดใช้ = ไม่ต้องเอามาใส่เช็คลิสต์ ไม่งั้นขึ้นว่า "งานวันนี้ยังไม่ครบ" ทุกวันโดยไม่มีใครทำได้
+    const expiryEnabled = expiryFlag === "1";
 
     const sum = (r: typeof salesToday) => r.cash + r.qr + r.edc + r.grab + r.lineman;
     // นับว่า "เช็คสต็อกแล้ว" เมื่อมีแถวที่พนักงานยืนยันคงเหลือเองจริง ๆ
@@ -58,7 +61,7 @@ export async function GET() {
         status: sum(salesToday) > 0 ? "done" : "todo",
       },
     ];
-    if (expiryDue) {
+    if (expiryDue && expiryEnabled) {
       tasks.push({
         key: "expiry", label: "ตรวจสอบวันหมดอายุ", href: "/expiry",
         status: expiryDone.includes(branch) ? "done" : "due",

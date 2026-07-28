@@ -910,6 +910,11 @@ export const supabaseStore = {
     };
   },
 
+  async getAppSetting(key: string): Promise<string | null> {
+    const { data } = await sb().from("app_settings").select("value").eq("key", key).maybeSingle();
+    return (data as any)?.value ?? null;
+  },
+
   async setAppSetting(key: string, value: string, updatedBy: string): Promise<void> {
     const { error } = await sb().from("app_settings")
       .upsert({ key, value, updated_by: updatedBy, updated_at: new Date().toISOString() }, { onConflict: "key" });

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Role, BranchScope } from "@/lib/types";
 
-export type Me = { id: string; name: string; role: Role; branchScope: BranchScope; allowanceEnabled?: boolean; mustEnrollFace?: boolean };
+export type Me = {
+  id: string; name: string; role: Role; branchScope: BranchScope;
+  allowanceEnabled?: boolean; mustEnrollFace?: boolean;
+  // เมนูที่แอดมินยังไม่เปิดใช้ — ซ่อนทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
+  features?: { expiryCheck?: boolean };
+};
 
 type IconKey =
   | "home" | "clipboard" | "truck" | "inbox" | "package" | "banknote" | "bank" | "cup"
@@ -88,7 +93,7 @@ const ADMIN_MENU: Tab[] = [
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
   { href: "/users", label: "ผู้ใช้", icon: "users" },
-  { href: "/timeclock-admin", label: "ตั้งค่าลงเวลา", icon: "clock" },
+  { href: "/timeclock-admin", label: "ตั้งค่าระบบ", icon: "clock" },
   { href: "/notices", label: "ประกาศ", icon: "megaphone" },
   { href: "/audit", label: "Audit Log", icon: "list" },
 ];
@@ -97,8 +102,13 @@ const RESTOCK_TABS: Tab[] = [
   { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "package" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
 ];
-const tabsForMe = (me: Me | null): Tab[] =>
-  me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
+const tabsForMe = (me: Me | null): Tab[] => {
+  const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
+  // ยังไม่เปิดใช้ตรวจวันหมดอายุ = ตัดออกจากเมนูไปเลย (แพรสั่ง 2026-07-28)
+  // ระหว่างนี้ของที่ต้องส่งคืนให้ไปกรอกที่หน้า "ส่งคืน" ตามเดิม
+  if (me?.features?.expiryCheck) return base;
+  return base.filter((t) => t.href !== "/expiry");
+};
 
 // กลุ่ม "ข้อมูลของฉัน" — ของส่วนตัวรายคน แยกจากเมนูงานประจำวัน (แพรจัด 2026-07-27)
 // "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว — ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้
@@ -217,7 +227,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
   // สาขาที่ยังไม่ได้ตรวจวันหมดอายุ — role restock ไม่เกี่ยวกับงานนี้ (เห็นแค่ 2 หน้า) จึงไม่ต้องยิง
   const refreshExpiryDue = React.useCallback(() => {
-    if (!me || me.role === "restock") return;
+    if (!me || me.role === "restock" || !me.features?.expiryCheck) return;
     fetch("/api/expiry-checks/pending-count")
       .then((r) => (r.ok ? r.json() : { count: 0 }))
       .then((d) => setExpiryDue(d.count ?? 0))

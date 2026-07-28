@@ -19,6 +19,7 @@ export async function GET() {
   try {
     const s = await requireSession();
     const today = todayISO();
+    if ((await db.getAppSetting("expiry_check_enabled")) !== "1") return NextResponse.json({ count: 0, due: false });
     if (!isExpiryCheckDue(weekdayFromDate(today))) return NextResponse.json({ count: 0, due: false });
 
     const done = new Set(await db.getBranchesWithExpiryCheck(today));

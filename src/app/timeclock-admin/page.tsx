@@ -12,6 +12,7 @@ interface Geo { lat: number; lng: number; radiusM: number }
 interface Resp {
   settings: { enabled: boolean; requireFace: boolean; requireLocation: boolean };
   branches: { branch: Branch; geo: Geo | null }[];
+  expiryCheckEnabled: boolean;
   error?: string;
 }
 
@@ -115,7 +116,7 @@ export default function TimeClockAdminPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
-      <PageTitle title="ตั้งค่าระบบลงเวลา" />
+      <PageTitle title="ตั้งค่าระบบ" />
 
       {msg && (
         <div className="mb-3 rounded-xl border border-ok/35 bg-ok/10 px-3.5 py-2.5 text-[12.5px] font-medium text-ok">
@@ -124,7 +125,26 @@ export default function TimeClockAdminPage() {
       )}
 
       <GlassCard className="mb-3">
-        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">สวิตช์</p>
+        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">เมนูที่เปิดให้พนักงานใช้</p>
+        <Toggle
+          on={data.expiryCheckEnabled} label="ตรวจสอบวันหมดอายุ"
+          hint="ปิดอยู่ = ไม่มีเมนูนี้ ไม่มีในเช็คลิสต์งานวันนี้ และไม่มีเลขเตือน · ของที่ต้องส่งคืนให้กรอกที่หน้า “ส่งคืน” ตามเดิม"
+          onChange={async (v) => {
+            setSaving(true);
+            try {
+              await fetch("/api/time-clock/settings", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ expiryCheckEnabled: v }),
+              });
+              setData((d) => (d ? { ...d, expiryCheckEnabled: v } : d));
+              setMsg("บันทึกแล้ว");
+            } finally { setSaving(false); }
+          }}
+        />
+      </GlassCard>
+
+      <GlassCard className="mb-3">
+        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">ลงเวลาเข้า-ออกงาน</p>
         <div className="grid gap-2">
           <Toggle
             on={s.enabled} label="เปิดให้พนักงานลงเวลา"
