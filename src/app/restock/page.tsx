@@ -95,13 +95,34 @@ const PRINT_NAME: Record<string, string> = {
 function printName(name: string): string {
   return PRINT_NAME[name] ?? name;
 }
+// บิสกิตสี่เหลี่ยมขอบหยัก (แพรส่งรูปมา) — วาดเป็น SVG เอง ไม่ใช้ emoji
+// emoji 🍪 เป็นคุกกี้กลมช็อกชิป คนละหน้าตากับบิสกิต Biscoff ที่ของจริงเป็นแผ่นสี่เหลี่ยม
+// ขอบหยักสร้างจาก arc ต่อกันรอบรูป (บน 6 · ข้าง 5 หยัก) จุดบนแผ่นเป็นตาราง 4×3
+function BiscuitIcon() {
+  const dots: React.ReactNode[] = [];
+  for (const cx of [9, 14, 19, 24]) {
+    for (const cy of [9.5, 14, 18.5]) dots.push(<circle key={`${cx}-${cy}`} cx={cx} cy={cy} r={1} fill="#7B4A2D" />);
+  }
+  return (
+    <svg viewBox="0 0 32 28" className="inline-block h-[11px] w-[13px] align-[-1px]" aria-hidden="true">
+      <path
+        d="M4,4 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0 a2,2 0 0 1 4,0
+           a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4 a2,2 0 0 1 0,4
+           a2,2 0 0 1 -4,0 a2,2 0 0 1 -4,0 a2,2 0 0 1 -4,0 a2,2 0 0 1 -4,0 a2,2 0 0 1 -4,0 a2,2 0 0 1 -4,0
+           a2,2 0 0 1 0,-4 a2,2 0 0 1 0,-4 a2,2 0 0 1 0,-4 a2,2 0 0 1 0,-4 a2,2 0 0 1 0,-4 z"
+        fill="#E3B98C"
+        stroke="#7B4A2D"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      {dots}
+    </svg>
+  );
+}
 // ไอคอนที่วางไว้ "หลังชื่อ" — ต่างจาก itemIcon (ผลไม้) ที่อยู่หน้าชื่อ
 // จับชื่อแบบตรงตัวเท่านั้น กัน "Overnight oats biscoff" ติดไปด้วย
-const PRINT_ICON_AFTER: Record<string, string> = { Biscoff: "🍪" };
 function itemIconAfter(name: string): React.ReactNode | null {
-  const icon = PRINT_ICON_AFTER[name];
-  if (!icon) return null;
-  return <span className="text-[11px] leading-none">{icon}</span>;
+  return name === "Biscoff" ? <BiscuitIcon /> : null;
 }
 function itemIcon(name: string): React.ReactNode | null {
   const key = ITEM_ICON_KEY[name];
