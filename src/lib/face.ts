@@ -25,20 +25,26 @@ export class FaceNotConfiguredError extends Error {
   }
 }
 
-export const faceConfigured = (): boolean =>
-  !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_REGION);
+// ตัดช่องว่าง/บรรทัดใหม่/เครื่องหมายคำพูดที่ติดมาตอน copy-paste เสมอ
+// AWS เอาค่าไปต่อเป็น Authorization header ตรง ๆ ถ้ามีอักขระแปลกปนจะพังด้วย error
+// "Invalid key=value pair (missing equal-sign) in Authorization header" ซึ่งอ่านแล้วไม่มีทางเดาถูกว่าเกิดจากช่องว่าง
+const envClean = (v: string | undefined): string =>
+  (v ?? "").trim().replace(/^["']|["']$/g, "");
 
-const COLLECTION = process.env.REKOGNITION_COLLECTION_ID || "yc-staff-faces";
+export const faceConfigured = (): boolean =>
+  !!(envClean(process.env.AWS_ACCESS_KEY_ID) && envClean(process.env.AWS_SECRET_ACCESS_KEY) && envClean(process.env.AWS_REGION));
+
+const COLLECTION = envClean(process.env.REKOGNITION_COLLECTION_ID) || "yc-staff-faces";
 
 let client: RekognitionClient | null = null;
 function rk(): RekognitionClient {
   if (!faceConfigured()) throw new FaceNotConfiguredError();
   if (!client) {
     client = new RekognitionClient({
-      region: process.env.AWS_REGION!,
+      region: envClean(process.env.AWS_REGION),
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: envClean(process.env.AWS_ACCESS_KEY_ID),
+        secretAccessKey: envClean(process.env.AWS_SECRET_ACCESS_KEY),
       },
     });
   }
