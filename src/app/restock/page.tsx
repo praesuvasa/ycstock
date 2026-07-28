@@ -1032,13 +1032,10 @@ function ProductionRow({
         })}
       </div>
       <div className={`mt-2 text-right text-xs font-semibold ${isOrange ? "text-orange-700" : "text-brand-ink/70"}`}>
+        {/* โชว์ตามที่กรอกตรง ๆ ไม่แปลงเศษเป็นแพ็ค (แพรขอ 2026-07-28)
+            การแปลงทำให้ตัวเลขบนจอไม่ตรงกับที่เพิ่งพิมพ์ไป ต้องมานั่งคิดตามว่ามันไปยังไงมายังไง */}
         {hasG
-          ? `รวมสั่งผลิต: ${formatOrderQty(
-              Math.floor(totalG / item.gramsPerUOM),
-              totalG % item.gramsPerUOM,
-              true,
-              gUnit
-            )} (${totalG.toLocaleString()}${gUnit})`
+          ? `รวมสั่งผลิต: ${formatOrderQty(packSum, gSum, true, gUnit)}`
           : `รวมสั่งผลิต: ${packSum}`}
       </div>
     </div>
@@ -1392,10 +1389,10 @@ function ProductionOrder({
     if (!it.variableYield) return { raw: packSum, text: String(packSum) };
     const gv = gValuesFor(it.id);
     const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gv[f.key] ?? "") || 0), 0);
+    // raw ยังคิดเป็นกรัมรวม (ใช้เช็คแค่ว่ามีของให้โชว์ไหม) แต่ text โชว์ตามที่กรอกจริง ไม่แปลงเศษเป็นแพ็ค
+    // เดิมแปลงให้ (1 แพ็ค + 2,300g → "2 แพ็ค + 300g") ซึ่งถูกทางเลข แต่คนอ่านใบต้องมานั่งไล่ว่าเลขมาจากไหน
     const totalG = packSum * it.gramsPerUOM + gSum;
-    const wholePacks = Math.floor(totalG / it.gramsPerUOM);
-    const remG = totalG % it.gramsPerUOM;
-    return { raw: totalG, text: formatOrderQty(wholePacks, remG, true, it.isCup ? "ชิ้น" : "g") };
+    return { raw: totalG, text: formatOrderQty(packSum, gSum, true, it.isCup ? "ชิ้น" : "g") };
   }
   function isReflected(itemId: string): boolean {
     return (!!reflected[itemId] && Object.keys(reflected[itemId]).length > 0)
