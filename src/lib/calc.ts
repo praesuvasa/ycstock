@@ -24,9 +24,11 @@ export function remainGrams(carryG: unknown, inG: unknown, used: unknown): numbe
  */
 export function variance(
   carry: unknown, inQty: unknown, used: unknown, returned: unknown, remain: unknown,
-  transferIn: unknown = 0, transferOut: unknown = 0
+  transferIn: unknown = 0, transferOut: unknown = 0, packAdjust: unknown = 0
 ): number {
-  return n(carry) + n(inQty) + n(transferIn) - n(used) - n(returned) - n(transferOut) - n(remain);
+  // packAdjust = ของที่แพคมีเกิน/ขาดจากที่ระบุ (เจอตอนเปิดแพค) — อยู่ฝั่ง "ของที่มี" เหมือนรับเข้า
+  // ไม่งั้นคนนับจะโดนสงสัยทุกครั้งที่แพคไม่ครบ ทั้งที่นับถูก
+  return n(carry) + n(inQty) + n(transferIn) + n(packAdjust) - n(used) - n(returned) - n(transferOut) - n(remain);
 }
 
 /** ต้องเติม = MAX(Par − คงเหลือ, 0) ; par = null (—) → null (ไม่เติม) */

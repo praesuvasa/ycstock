@@ -35,7 +35,9 @@ const varianceOf = (r: StockRow, gpu = 0): number =>
   variance(
     r.carryPack, r.inPack, r.used, r.returned, r.remainPack,
     gpu > 0 ? Math.floor((r.transferInG ?? 0) / gpu) : 0,
-    r.transferOut ?? 0
+    r.transferOut ?? 0,
+    // แพคไม่ครบ/เกิน (ชิ้น) → แปลงเป็นแพ็คก่อน เพราะสมการนี้คิดเป็นแพ็ค
+    gpu > 0 ? Math.floor((r.packAdjust ?? 0) / gpu) : 0
   );
 
 const isFilled = (r: StockRow): boolean =>
@@ -247,6 +249,9 @@ export default function StockPage() {
   // ลูกค้าเอาแก้วมาเอง — เก็บเป็น map ตามขนาด กรอกในหมวดถ้วย บันทึกไปพร้อมปุ่มบันทึกสต็อก
   const [ownCups, setOwnCups] = React.useState<Record<string, number>>({});
   const [ownCupOpen, setOwnCupOpen] = React.useState(false);
+  // แพคถ้วยมีของไม่ตรงจำนวน — ยุบไว้เหมือนกล่องอื่น ๆ ที่เป็นเคสนาน ๆ ที
+  // กางเองถ้าวันนั้นมีค่าบันทึกไว้แล้ว ไม่งั้นค่าที่กรอกไปจะถูกซ่อนจนไม่มีใครรู้ว่ามี
+  const [packAdjOpen, setPackAdjOpen] = React.useState(false);
 
   // ด่านยืนยันวันที่/สาขา ก่อนเข้าหน้ากรอกจริง (แพรขอ 2026-07-26)
   // เดิมเปิดหน้ามาก็โชว์ข้อมูลวันนี้เลย ทำให้เผลอกรอกผิดวัน/ผิดสาขาโดยไม่ทันดู
@@ -342,6 +347,12 @@ export default function StockPage() {
     const usedG = availG - remainG;
     return { leaderId, availG, remainG, usedG, overG: usedG < 0 ? -usedG : 0 };
   }, [groupIds, itemById, rows]);
+
+  // ไอเทมถ้วยทั้งหมด (ใช้จับคู่ขนาด → itemId ตอนกรอกส่วนต่างแพค)
+  const cupItems = React.useMemo(
+    () => (meta?.items ?? []).filter((it) => it.isCup),
+    [meta]
+  );
 
   // CUP/ถ้วย: ผลรวม "ใช้/ขาย" (ชิ้น) ของทุกไอเทม isCup ต่อ category — โชว์เป็น banner บน accordion
   const cupSummaryByCategory = React.useMemo(() => {
@@ -439,6 +450,18 @@ export default function StockPage() {
       return { ...prev, [itemId]: next };
     });
     // พิมพ์ค่าใดๆ ในไอเทมนี้ = ถือว่ายืนยันแล้ว (ไม่ต้องกดปุ่ม "✓ เท่ายกมา" ซ้ำ)
+    setConfirmed((prev) => (prev[itemId] ? prev : { ...prev, [itemId]: true }));
+  }
+
+  // แพคมีของไม่ตรงจำนวน (แพรขอ 2026-07-29) — กรอกเป็นส่วนต่างชิ้น +2 / -1
+  // เก็บแยกจากช่องรับเข้า เพื่อให้ย้อนดูได้ว่าของที่เกินมาไม่ใช่ของที่สั่ง
+  function setPackAdjust(itemId: string, raw: string) {
+    const val = Math.max(-20, Math.min(20, Math.trunc(Number(raw) || 0)));
+    setRows((prev) => {
+      const cur = prev[itemId];
+      if (!cur) return prev;
+      return { ...prev, [itemId]: { ...cur, packAdjust: val } };
+    });
     setConfirmed((prev) => (prev[itemId] ? prev : { ...prev, [itemId]: true }));
   }
 
@@ -1030,6 +1053,55 @@ export default function StockPage() {
                         className="rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-1.5 text-left text-[11px] font-medium text-brand-ink/55"
                       >
                         + ลูกค้าเอาแก้วมาเอง (กดถ้ามี)
+                      </button>
+                    )}
+
+                    {/* แพคมีของไม่ตรงจำนวน (แพรขอ 2026-07-29) — เจอตอนเปิดแพคใช้ ซึ่งเลยขั้นตอนยืนยันรับของไปแล้ว
+                        กรอกเป็นส่วนต่างชิ้น (+2 = เกิน · -1 = ขาด) ระบบบวกเข้าฝั่ง "ของที่มี" ให้เอง
+                        คนนับจะได้ไม่โดนสงสัยทุกครั้งที่แพคไม่ครบ ทั้งที่นับถูก */}
+                    {packAdjOpen || cupItems.some((ci) => (rows[ci.id]?.packAdjust ?? 0) !== 0) ? (
+                      <div className="rounded-lg border border-brand-blue/40 bg-white/60 px-2.5 py-2">
+                        <div className="mb-1.5 flex items-start justify-between gap-2">
+                          <p className="text-[11px] font-medium text-sky-700">
+                            เปิดแพคแล้วนับได้ไม่ตรง
+                            <span className="block text-[10px] font-normal text-brand-ink/45">
+                              ใส่ส่วนต่างเป็นชิ้น — เกินใส่ 2 · ขาดใส่ -1 · ระบบจะแจ้งแอดมินให้เอง
+                            </span>
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setPackAdjOpen(false)}
+                            className="shrink-0 text-[10.5px] font-medium text-brand-ink/45 underline underline-offset-2"
+                          >
+                            ซ่อน
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {CUP_SIZES.map((cs) => {
+                            const ci = cupItems.find((x) => x.cupSize === cs.size);
+                            return (
+                              <label key={cs.size} className="flex flex-col gap-0.5">
+                                <span className="text-[9px] text-brand-ink/45">{cs.label}</span>
+                                <input
+                                  inputMode="numeric"
+                                  value={ci ? (rows[ci.id]?.packAdjust || "") : ""}
+                                  disabled={!ci}
+                                  onChange={(e) => ci && setPackAdjust(ci.id, e.target.value)}
+                                  placeholder="0"
+                                  className="field px-1 py-1 text-center text-[12px]"
+                                />
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPackAdjOpen(true)}
+                        className="rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-1.5 text-left text-[11px] font-medium text-brand-ink/55"
+                      >
+                        + แพคถ้วยไม่ครบ/เกิน (กดเมื่อเจอ)
                       </button>
                     )}
 

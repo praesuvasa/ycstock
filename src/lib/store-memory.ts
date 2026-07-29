@@ -288,7 +288,7 @@ export const memoryStore = {
       const prev = latestBefore(branch, r.itemId, date);
       const carryPack = prev?.remainPack ?? 0;
       const carryG = prev?.remainG ?? 0;
-      const v = variance(carryPack, r.inPack, r.used, r.returned, r.remainPack);
+      const v = variance(carryPack, r.inPack, r.used, r.returned, r.remainPack, 0, 0, r.packAdjust ?? 0);
       const existing = stock.get(key);
       if (existing) updated++; else inserted++;
       let inAutoPack = existing?.inAutoPack;
@@ -433,7 +433,7 @@ export const memoryStore = {
       const s = it ? stockById.get(it.id) : undefined;
       const conv = it?.gramsPerUOM || 50;
       const start = s ? s.carryPack * conv + s.carryG : 0;
-      const inQ = s ? s.inPack * conv + s.inG : 0;
+      const inQ = s ? s.inPack * conv + s.inG + (s.packAdjust ?? 0) : 0;
       const remain = s ? s.remainPack * conv + s.remainG : 0;
       const rec = cups.get(ck(date, branch, size));
       return { size, start, in: inQ, remain, sold: rec?.sold ?? 0, ownCup: rec?.ownCup ?? 0 };

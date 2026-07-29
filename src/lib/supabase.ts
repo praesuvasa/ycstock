@@ -207,7 +207,7 @@ export const supabaseStore = {
   async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
-      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g")
+      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g,pack_adjust")
       .eq("branch_id", branch).eq("date", date);
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
     // แถวเดิมของวันนี้ ไว้เทียบว่า "แก้ย้อนหลัง" เปลี่ยนค่าอะไรไปบ้าง
@@ -260,6 +260,19 @@ export const supabaseStore = {
         });
       }
 
+      // 3) แพคมีของไม่ตรงจำนวน (แพรขอ 2026-07-29) — ของส่วนเกินเก็บเป็นของร้านใช้ได้เลย
+      //    แต่แอดมินต้องรู้ เพราะถ้าเกิดบ่อยกับซัพพลายเออร์เจ้าเดิม ต้องไปคุยกับต้นทาง
+      //    เตือนเฉพาะตอนค่าเปลี่ยน ไม่ใช่ทุกครั้งที่กดบันทึกซ้ำ
+      const prevAdjust = Number((prevRowMap.get(r.itemId) as any)?.pack_adjust ?? 0);
+      const nowAdjust = Number(r.packAdjust ?? 0);
+      if (nowAdjust !== 0 && nowAdjust !== prevAdjust) {
+        flags.push({
+          branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
+          reason: "cup_pack_mismatch",
+          detail: `เปิดแพคแล้วนับได้ ${nowAdjust > 0 ? "เกิน" : "ขาด"} ${Math.abs(nowAdjust)} หน่วย (บันทึก ${nowAdjust > 0 ? "+" : ""}${nowAdjust})`,
+        });
+      }
+
       // 2) ย้อนไปแก้ยอดของวันก่อนหน้า — เฉพาะตอนค่าเปลี่ยนจริง (กดบันทึกซ้ำเฉย ๆ ไม่ต้องเตือน)
       const before: any = prevRowMap.get(r.itemId);
       if (isBackdated && before && before.remain_confirmed) {
@@ -281,6 +294,7 @@ export const supabaseStore = {
         carry_pack: carryPack, carry_g: carryG, in_pack: r.inPack, in_g: r.inG,
         used: r.used, remain_pack: r.remainPack, remain_g: r.remainG, returned: r.returned,
         returned_g: r.returnedG ?? 0,
+        pack_adjust: r.packAdjust ?? 0,
         note: r.note,
         // ไม่เขียน transfer_out/transfer_in_g ที่นี่ — ระบบตรวจวันหมดอายุเป็นเจ้าของ 2 ช่องนี้
         // (หน้าสต็อกไม่มีช่องให้กรอก ถ้าเขียนทับจะล้างยอดที่การแกะบันทึกไว้)
@@ -288,7 +302,9 @@ export const supabaseStore = {
         variance: variance(
           carryPack, r.inPack, r.used, r.returned, r.remainPack,
           gramsToPacks(prevRowMap.get(r.itemId)?.transfer_in_g, gramsPerUomOf.get(r.itemId) ?? 0),
-          prevRowMap.get(r.itemId)?.transfer_out ?? 0
+          prevRowMap.get(r.itemId)?.transfer_out ?? 0,
+          // ส่วนต่างจากแพคไม่ครบเป็นหน่วยย่อย (ชิ้น/กรัม) ต้องแปลงเป็นแพ็คก่อนเข้าสมการเดียวกัน
+          gramsToPacks(r.packAdjust ?? 0, gramsPerUomOf.get(r.itemId) ?? 0)
         ),
         in_auto_pack: inAutoPack, in_auto_g: inAutoG, remain_confirmed: true,
       });
@@ -427,7 +443,9 @@ export const supabaseStore = {
       const s = it ? stockById.get(it.id) : undefined;
       const conv = it?.gramsPerUOM || 50;
       const start = s ? s.carryPack * conv + s.carryG : 0;
-      const inQ = s ? s.inPack * conv + s.inG : 0;
+      // แพคไม่ครบ/เกิน นับเป็นของที่เข้ามาจริง (แพรสั่ง 2026-07-29: บวกลบตามจำนวนที่ขาดเกิน)
+      // ไม่งั้นหน้าเทียบยอดถ้วยจะฟ้อง "ใช้เกินที่ขาย" ทุกครั้งที่เจอแพคไม่ครบ
+      const inQ = s ? s.inPack * conv + s.inG + (s.packAdjust ?? 0) : 0;
       const remain = s ? s.remainPack * conv + s.remainG : 0;
       return { size, start, in: inQ, remain, sold: soldMap.get(size) ?? 0, ownCup: ownMap.get(size) ?? 0 };
     });
@@ -1669,6 +1687,7 @@ function rowFromDb(s: any): StockRow {
     used: s.used, remainPack: s.remain_pack, remainG: s.remain_g, returned: s.returned,
     returnedG: s.returned_g ?? 0,
     transferOut: Number(s.transfer_out ?? 0), transferInG: Number(s.transfer_in_g ?? 0),
+    packAdjust: Number(s.pack_adjust ?? 0),
     note: s.note ?? "", variance: s.variance, hasEntry: !!s.remain_confirmed,
   };
 }
