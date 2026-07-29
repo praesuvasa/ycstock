@@ -59,7 +59,7 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
   }
 
   const { data: existing } = await sb().from("stock_daily")
-    .select("carry_pack,carry_g,in_pack,in_g,in_auto_pack")
+    .select("carry_pack,carry_g,in_pack,in_g,in_auto_pack,remain_confirmed,used,returned,remain_pack,transfer_in_g,transfer_out,pack_adjust")
     .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
 
   if (existing) {
@@ -87,8 +87,38 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
     // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะจากรายการอื่นย้ายไปอยู่ transfer_in_g
     // จึงเขียนทับด้วย sumPack ได้ตรง ๆ ไม่ต้องกลัวไปล้างส่วนที่มาจากการแกะเหมือนเดิม
     // ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว
+    const changed = Number(existing.in_pack ?? 0) !== sumPack || Number(existing.in_g ?? 0) !== sumG;
+
+    // ยืนยันรับของ "หลัง" มีคนนับ+ยืนยันคงเหลือของวันนั้นไปแล้ว (แพรถามเคสนี้ 2026-07-29)
+    // เกิดได้จาก: เคลียร์ใบเก่าค้าง · ของมาไม่พร้อมกันแล้วนับก่อน · เพิ่มรายการนอกใบ · แก้/ยกเลิกติ๊ก
+    //
+    // ยอดรับเข้าที่เติมใหม่ถูกต้อง (ของมาจริง) แต่คงเหลือยังเป็นเลขที่นับไว้ตอนของยังไม่มา
+    // ผลต่างจึงเปลี่ยนไปเงียบ ๆ หลังคนนับปิดงานไปแล้ว — คนนับอาจดูเหมือนนับขาดทั้งที่ไม่ได้ทำอะไรผิด
+    if (changed && existing.remain_confirmed) {
+      const { data: itRow } = await sb().from("items").select("name").eq("id", itemId).maybeSingle();
+      await sb().from("stock_admin_flags").insert({
+        branch_id: branch, date: todayStr, item_id: itemId,
+        item_name: itRow?.name ?? itemId,
+        reason: "receipt_after_count",
+        detail:
+          `นับสต็อกไปแล้ว (คงเหลือ ${existing.remain_pack})` +
+          ` · ยืนยันรับของทีหลัง รับเข้า ${existing.in_pack} → ${sumPack}` +
+          ` — ระบบอัปเดตรับเข้าให้แล้ว แต่คงเหลือยังเป็นยอดที่นับก่อนของมา`,
+      });
+    }
+
+    // คิดผลต่างใหม่ด้วย — ไม่งั้นเลขผลต่างที่เก็บไว้จะเป็นของยอดรับเข้าชุดเก่า (ค้างผิดในฐานข้อมูล
+    // แม้หน้าเว็บจะคิดสดให้ถูกก็ตาม — รายงาน/ตรวจย้อนหลังอ่านจากคอลัมน์นี้)
+    const { data: gpuRow } = await sb().from("items").select("grams_per_uom").eq("id", itemId).maybeSingle();
+    const gpu = Number(gpuRow?.grams_per_uom) || 0;
+    const newVariance = variance(
+      existing.carry_pack, sumPack, existing.used, existing.returned, existing.remain_pack,
+      gramsToPacks(existing.transfer_in_g, gpu), existing.transfer_out ?? 0,
+      gramsToPacks(existing.pack_adjust ?? 0, gpu)
+    );
+
     const { error: updErr } = await sb().from("stock_daily").update({
-      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG,
+      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG, variance: newVariance,
     }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
     if (updErr) throw updErr;
   } else {

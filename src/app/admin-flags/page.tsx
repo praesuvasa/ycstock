@@ -15,6 +15,7 @@ const REASON_LABEL: Record<AdminFlagReason, string> = {
   stock_backdated_edit: "แก้ยอดย้อนหลัง",
   receipt_vs_manual: "ยืนยันรับไม่ตรงยอดที่กรอกเอง",
   cup_pack_mismatch: "แพคถ้วยไม่ครบ/เกิน",
+  receipt_after_count: "ยืนยันรับของหลังนับสต็อก",
 };
 const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
   receipt_mismatch: "warn",
@@ -26,6 +27,7 @@ const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
   stock_backdated_edit: "orange",
   receipt_vs_manual: "warn",
   cup_pack_mismatch: "orange",
+  receipt_after_count: "warn",
 };
 
 function fmtWhen(iso: string): string {

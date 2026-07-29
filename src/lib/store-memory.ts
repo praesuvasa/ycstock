@@ -223,8 +223,24 @@ function recomputeAutoFillForToday(branch: Branch, itemId: string, todayStr: str
       }
       return;
     }
+    // ยืนยันรับของหลังมีคนนับ+ยืนยันคงเหลือไปแล้ว → รับเข้าเปลี่ยน แต่คงเหลือยังเป็นเลขที่นับก่อนของมา
+    // ผลต่างเปลี่ยนเงียบ ๆ หลังคนนับปิดงาน — ต้องมีคนมาดู (แพรถามเคสนี้ 2026-07-29)
+    if ((existing.inPack !== sumPack || existing.inG !== sumG) && existing.remainConfirmed) {
+      pushAdminFlag(
+        branch, todayStr, itemId,
+        ITEMS.find((i) => i.id === itemId)?.name ?? itemId,
+        "receipt_after_count",
+        `นับสต็อกไปแล้ว (คงเหลือ ${existing.remainPack})` +
+          ` · ยืนยันรับของทีหลัง รับเข้า ${existing.inPack} → ${sumPack}` +
+          ` — ระบบอัปเดตรับเข้าให้แล้ว แต่คงเหลือยังเป็นยอดที่นับก่อนของมา`
+      );
+    }
     // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะย้ายไปอยู่ transferInG
-    stock.set(key, { ...existing, inPack: sumPack, inG: sumG, inAutoPack: sumPack, inAutoG: sumG });
+    stock.set(key, {
+      ...existing, inPack: sumPack, inG: sumG, inAutoPack: sumPack, inAutoG: sumG,
+      // คิดผลต่างใหม่ให้ตรงกับยอดรับเข้าชุดใหม่ ไม่ให้เลขเก่าค้าง
+      variance: variance(existing.carryPack, sumPack, existing.used, existing.returned, existing.remainPack),
+    });
   } else {
     const prev = latestBefore(branch, itemId, todayStr);
     const carryPack = prev?.remainPack ?? 0;

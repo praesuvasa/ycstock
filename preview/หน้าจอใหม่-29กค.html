@@ -1,0 +1,374 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preview · หน้าจอใหม่ 29 ก.ค.</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --red:#F2565C; --blue:#84D7FF; --orange:#FF8C33; --ink:#2A2A2E; --cream:#FBF7F0;
+    --ok:#2FA36B; --warn:#E0483F;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Kanit,system-ui,sans-serif; font-weight:300; color:var(--ink);
+    background:
+      radial-gradient(60vw 60vw at 12% -8%, rgba(132,215,255,.28), transparent 60%),
+      radial-gradient(55vw 55vw at 108% 4%, rgba(255,140,51,.22), transparent 58%),
+      radial-gradient(60vw 60vw at 50% 118%, rgba(242,86,92,.20), transparent 60%),
+      var(--cream);
+    background-attachment:fixed;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 60px}
+  h1{font-size:24px;font-weight:600;margin:0 0 2px}
+  .lead{font-size:13.5px;color:rgba(42,42,46,.55);margin:0 0 22px;line-height:1.7}
+  .lead b{font-weight:500;color:rgba(42,42,46,.8)}
+  h2{font-size:15px;font-weight:600;margin:30px 0 3px;display:flex;align-items:center;gap:8px}
+  h2 .n{display:grid;place-items:center;width:22px;height:22px;border-radius:99px;background:var(--ink);color:#fff;font-size:11px;font-weight:600}
+  .note{font-size:12.5px;color:rgba(42,42,46,.55);line-height:1.75;margin:0 0 14px 30px;max-width:760px}
+  .row{display:flex;gap:16px;flex-wrap:wrap;margin-left:30px}
+
+  /* โทรศัพท์ */
+  .phone{width:340px;border-radius:26px;background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.8);
+    box-shadow:0 8px 32px rgba(20,15,10,.10);padding:14px;position:relative;overflow:hidden}
+  .cap{font-size:11px;font-weight:500;color:rgba(42,42,46,.5);margin:0 0 8px 2px;display:flex;gap:6px;align-items:center}
+  .cap .dot{width:6px;height:6px;border-radius:99px;background:var(--red)}
+
+  .glass{background:rgba(255,255,255,.62);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.75);
+    border-radius:16px;box-shadow:0 8px 32px rgba(20,15,10,.08);padding:12px}
+  .soft{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.65);border-radius:12px;padding:9px 10px}
+  .field{width:100%;border:1px solid rgba(0,0,0,.1);background:rgba(255,255,255,.85);border-radius:11px;
+    padding:6px 8px;text-align:center;font-family:inherit;font-size:12px;font-weight:400}
+  .lbl{font-size:8.5px;color:rgba(42,42,46,.5);display:block;margin-bottom:2px;line-height:1.2}
+
+  .title{font-size:17px;font-weight:600;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+  .badge{font-size:11px;font-weight:500;border-radius:99px;padding:2px 9px}
+  .b-blue{background:rgba(132,215,255,.3);color:#0369a1}
+  .b-ok{background:rgba(47,163,107,.15);color:var(--ok)}
+  .b-gray{background:rgba(0,0,0,.05);color:rgba(42,42,46,.7)}
+
+  .seg{display:flex;gap:6px;flex:1;min-width:0}
+  .seg button{flex:1;border:none;border-radius:11px;padding:7px 0;font-family:inherit;font-size:12.5px;font-weight:400;
+    background:rgba(255,255,255,.6);color:var(--ink);border:1px solid rgba(0,0,0,.05)}
+  .seg button.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:500}
+
+  .btn{width:100%;border:none;border-radius:12px;padding:11px;font-family:inherit;font-size:14px;font-weight:600;background:var(--red);color:#fff}
+  .btn.dark{background:var(--ink)}
+  .btn.ghost{background:#fff;color:var(--ink);border:1px solid rgba(0,0,0,.1);font-weight:500;font-size:12.5px;padding:9px}
+  .btn.ok{background:var(--ok)}
+  .btn.warn{background:var(--warn)}
+
+  .ok-box{border:1px solid rgba(47,163,107,.4);background:rgba(47,163,107,.1);border-radius:12px;padding:9px 11px}
+  .warn-box{border:1px solid rgba(224,72,63,.4);background:rgba(224,72,63,.08);border-radius:12px;padding:9px 11px}
+  .ok-box p,.warn-box p{margin:0}
+  .t-ok{color:var(--ok);font-weight:600;font-size:13px}
+  .t-warn{color:var(--warn);font-weight:600;font-size:12.5px}
+  .sm{font-size:11px;color:rgba(42,42,46,.6);line-height:1.65}
+  .xs{font-size:10.5px;color:rgba(42,42,46,.5);line-height:1.6}
+
+  /* popup */
+  .modal{position:relative;border-radius:20px;background:rgba(255,255,255,.97);box-shadow:0 8px 32px rgba(20,15,10,.14);
+    padding:20px 18px 16px;text-align:center;border:1px solid rgba(255,255,255,.9)}
+  .modal .ring{width:46px;height:46px;border-radius:99px;display:grid;place-items:center;margin:0 auto 9px;font-size:21px}
+  .r-ok{background:rgba(47,163,107,.15);color:var(--ok)}
+  .r-warn{background:rgba(224,72,63,.15);color:var(--warn)}
+  .modal h3{font-size:15.5px;font-weight:600;margin:0;line-height:1.4}
+  .modal .body{font-size:12.5px;color:rgba(42,42,46,.6);line-height:1.7;margin:6px 0 0}
+  .modal .sec{width:100%;background:none;border:none;font-family:inherit;font-size:12.5px;font-weight:500;color:rgba(42,42,46,.55);padding:8px;margin-top:5px}
+  .scrim{background:rgba(0,0,0,.25);border-radius:18px;padding:22px 14px}
+
+  .stack{display:grid;gap:9px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+  .stat{background:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.65);border-radius:12px;padding:8px 10px}
+  .stat .k{font-size:10.5px;color:rgba(42,42,46,.5)}
+  .stat .v{font-size:19px;font-weight:600;line-height:1.25}
+
+  .before{position:relative}
+  .tagline{display:inline-block;font-size:10.5px;font-weight:500;border-radius:99px;padding:2px 9px;margin-bottom:7px}
+  .t-old{background:rgba(0,0,0,.06);color:rgba(42,42,46,.55)}
+  .t-new{background:rgba(47,163,107,.15);color:var(--ok)}
+  .arrow{display:grid;place-items:center;font-size:22px;color:rgba(42,42,46,.3);align-self:center}
+  .foot{margin:40px 0 0;font-size:11.5px;color:rgba(42,42,46,.45);text-align:center;border-top:1px solid rgba(0,0,0,.07);padding-top:14px}
+  @media (max-width:760px){ .row{margin-left:0} .note{margin-left:0} .phone{width:100%} }
+</style>
+
+<div class="wrap">
+  <h1>หน้าจอใหม่ที่ปรับวันนี้</h1>
+  <p class="lead">
+    ภาพจำลองหน้าจอจริงบนมือถือ (ขนาดเท่าของจริง) · <b>29 ก.ค. 2026</b><br>
+    ทุกหน้าขึ้น production แล้ว — เข้าไปลองกดของจริงได้เลยที่ yogurtculturestock.vercel.app
+  </p>
+
+  <!-- 1 -->
+  <h2><span class="n">1</span> ยอดขาย — ตรวจด้วยรูปรายงาน POS</h2>
+  <p class="note">ช่องพิมพ์ “ยอดขายรวมตาม POS iPad” หายไปแล้ว · แทนด้วยการถ่ายรูปหน้ารายงานมาแนบ ระบบอ่านยอด–วันที่ในรูปเทียบให้เอง</p>
+  <div class="row">
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ยังไม่แนบรูป</p>
+      <div class="glass">
+        <div class="g3" style="margin-bottom:11px">
+          <div class="stat"><div class="k">In-store</div><div class="v" style="font-size:16px">฿450</div></div>
+          <div class="stat"><div class="k">Delivery</div><div class="v" style="font-size:16px">฿1,195</div></div>
+          <div class="stat"><div class="k">รวมทั้งวัน</div><div class="v" style="font-size:16px;color:var(--ok)">฿1,645</div></div>
+        </div>
+        <div style="border-top:1px solid rgba(0,0,0,.06);padding-top:11px">
+          <p style="margin:0;font-size:13px;font-weight:600">ตรวจกับรายงานใน POS iPad</p>
+          <p class="sm" style="margin:1px 0 0">เปิดหน้า “รายงาน” ของวันนี้บน POS แล้วถ่ายรูปมาแนบ — ระบบอ่านยอดกับวันที่ในรูปให้เอง</p>
+          <button class="btn ghost" style="margin-top:9px">📷 แนบรูปหน้ารายงาน POS</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> แนบแล้ว · ตรงทุกอย่าง</p>
+      <div class="glass">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div style="min-width:0">
+            <p style="margin:0;font-size:13px;font-weight:600">ตรวจกับรายงานใน POS iPad</p>
+            <p class="sm" style="margin:1px 0 0">เปิดหน้า “รายงาน” ของวันนี้บน POS แล้วถ่ายรูปมาแนบ</p>
+          </div>
+          <div style="width:46px;height:46px;border-radius:10px;flex:none;border:1px solid rgba(0,0,0,.1);
+            background:linear-gradient(160deg,#33b5c9 0 26%,#fff 26% 100%);display:grid;place-items:end center;font-size:8px;color:#7c9">
+            <span style="color:var(--ok);font-weight:600;padding-bottom:9px">1,645</span>
+          </div>
+        </div>
+        <button class="btn ghost" style="margin-top:9px">แนบรูปใหม่</button>
+        <div class="ok-box" style="margin-top:9px">
+          <p class="t-ok" style="font-size:14px">ข้อมูลถูกต้อง ✓</p>
+          <p class="sm">ตรงกับรายงาน POS ทั้งยอดรวมและเงินสด · ยอดในรูป ฿1,645 · 7 บิล</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ไม่ตรง — บอกว่าไม่ตรงตรงไหน</p>
+      <div class="glass">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div style="min-width:0">
+            <p style="margin:0;font-size:13px;font-weight:600">ตรวจกับรายงานใน POS iPad</p>
+            <p class="sm" style="margin:1px 0 0">เปิดหน้า “รายงาน” ของวันนี้บน POS แล้วถ่ายรูปมาแนบ</p>
+          </div>
+          <div style="width:46px;height:46px;border-radius:10px;flex:none;border:1px solid rgba(0,0,0,.1);
+            background:linear-gradient(160deg,#33b5c9 0 26%,#fff 26% 100%)"></div>
+        </div>
+        <button class="btn ghost" style="margin-top:9px">แนบรูปใหม่</button>
+        <div class="warn-box" style="margin-top:9px">
+          <p class="t-warn">ไม่ตรงกับรายงาน POS</p>
+          <p class="sm">ยอดขายทั้งหมดในรูป ฿1,645 แต่ผลรวมที่กรอก ฿1,635 · เงินสดในรูป ฿165 แต่กรอกไว้ ฿155</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 -->
+  <h2><span class="n">2</span> ตรวจผ่านแล้ว เด้งให้กดบันทึกทันที</h2>
+  <p class="note">จุดที่ลืมบ่อยที่สุด — เห็น “ถูกต้อง” แล้วเข้าใจว่าจบงาน ทั้งที่ยังไม่ได้กดบันทึก · ปุ่มในหน้าต่างนี้บันทึกให้เลย</p>
+  <div class="row">
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ทันทีหลังตรวจรูปผ่าน</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-ok">✓</div>
+          <h3>ตรวจแล้ว ข้อมูลถูกต้อง ✓</h3>
+          <p class="body">เหลืออีกขั้นเดียว — ยังไม่ได้บันทึกยอดขายของวันนี้</p>
+          <button class="btn ok" style="margin-top:14px">บันทึกยอดขายเลย</button>
+          <button class="sec">ไว้ก่อน</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> กดบันทึกแล้ว</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-ok">✓</div>
+          <h3>บันทึกยอดขายสำเร็จ</h3>
+          <p class="body">สาขา NVP · 29 ก.ค. 2569 · รวมทั้งวัน ฿1,645</p>
+          <button class="btn ok" style="margin-top:14px">เรียบร้อย</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ถ้ายอดไม่ตรง — ไม่มีทางลัดให้บันทึก</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-warn">!</div>
+          <h3>ยอดยังไม่ตรงกับรายงาน POS</h3>
+          <p class="body">ยอดขายทั้งหมดในรูป ฿1,645 แต่ผลรวมที่กรอก ฿1,635</p>
+          <button class="btn warn" style="margin-top:14px">กลับไปแก้ตัวเลข</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 -->
+  <h2><span class="n">3</span> บันทึกสต็อกเสร็จ → ไปบันทึกรายงานยอดขาย</h2>
+  <p class="note">ปุ่มล็อกไว้ที่ยอดขายเสมอแล้ว ไม่ไปโผล่เป็น “ยืนยันรับของ” อีก · และตัดยืนยันรับของออกจากงานถัดไปของทั้ง 2 หน้า เพราะกดตอนนี้จะทับยอดรับเข้าที่นับไปแล้ว</p>
+  <div class="row">
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> หลังกด “บันทึกสต็อกวันนี้”</p>
+      <div class="scrim" style="padding-top:60px">
+        <div class="modal" style="text-align:left;border-radius:20px 20px 14px 14px">
+          <div class="ring r-ok" style="margin-bottom:7px">✓</div>
+          <h3 style="text-align:center;color:var(--ok)">บันทึกสต็อกสำเร็จ</h3>
+          <p class="xs" style="text-align:center;margin:2px 0 0">สาขา NVP · 29 ก.ค. 2569</p>
+          <button class="btn" style="margin-top:13px">ไปบันทึกรายงานยอดขาย →</button>
+          <div style="margin-top:11px;border:1px solid rgba(0,0,0,.1);background:rgba(255,255,255,.7);border-radius:14px;padding:11px 13px">
+            <p style="margin:0;font-size:13px;font-weight:400">ยังเหลืออีก <span style="color:var(--red);font-weight:500">1</span> อย่างที่ต้องทำวันนี้</p>
+            <p class="xs" style="margin:2px 0 0">รายงานยอดขาย</p>
+            <p style="margin:9px 0 0;text-align:center;font-size:12px;font-weight:500;color:rgba(42,42,46,.55);text-decoration:underline">กลับไปเช็คที่หน้าหลัก</p>
+          </div>
+          <p class="sec" style="margin-top:4px;text-align:center">ปิด</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ยืนยันรับของ — เตือนตั้งแต่เปิดหน้า</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-warn">!</div>
+          <h3>กดยืนยันเฉพาะรายการที่ได้รับจริงวันนี้เท่านั้น</h3>
+          <p class="body">ของที่ยังไม่มาถึง อย่าเพิ่งติ๊ก — ยอดที่ยืนยันจะเข้าช่อง “รับเข้า” ที่หน้าเช็คสต็อกทันที ทำให้สต็อกวันนี้เกินของที่มีจริง</p>
+          <button class="btn warn" style="margin-top:14px">เข้าใจแล้ว</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 -->
+  <h2><span class="n">4</span> หน้าเช็คสต็อก — บีบให้เลื่อนสั้นลง</h2>
+  <p class="note">สาขากับวันที่รวมบรรทัดเดียว · การ์ดสรุป 3 ใบยุบเหลือบรรทัดเดียว · แถวรายการชิดขึ้น — ตัวเลขและปุ่มทุกอย่างเท่าเดิม</p>
+  <div class="row">
+
+    <div class="phone before">
+      <span class="tagline t-old">ก่อนแก้</span>
+      <div class="title">กรอกสต็อกรายวัน <span class="badge b-blue">29 ก.ค. 2569</span></div>
+      <div class="glass" style="padding:16px;margin-bottom:12px">
+        <div class="seg" style="margin-bottom:12px">
+          <button>สาขา SND</button><button class="on">สาขา NVP</button><button>สาขา KCN</button>
+        </div>
+        <span class="lbl" style="font-size:11px">วันที่</span>
+        <input class="field" value="29 / 07 / 2569" readonly>
+      </div>
+      <div class="g3" style="margin-bottom:12px">
+        <div class="stat"><div class="k">ยืนยันแล้ว</div><div class="v">12/40</div></div>
+        <div class="stat"><div class="k">ค้างยืนยัน</div><div class="v" style="color:var(--warn)">28</div></div>
+        <div class="stat"><div class="k">เกิน / ผิด</div><div class="v">—</div></div>
+      </div>
+      <div class="soft" style="padding:11px 12px;margin-bottom:9px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:9px">
+          <span style="font-size:14px;font-weight:400">Greek Yogurt 1kg</span>
+          <span class="badge b-gray">ถุง</span>
+        </div>
+        <div class="g4">
+          <div><span class="lbl">ยกมา</span><input class="field" value="3" readonly style="background:rgba(0,0,0,.05)"></div>
+          <div><span class="lbl">รับเข้า</span><input class="field" value="6" readonly style="background:rgba(47,163,107,.15);color:var(--ok);font-weight:500"></div>
+          <div><span class="lbl">แกะ/ออก</span><input class="field" value="2" readonly></div>
+          <div><span class="lbl">คงเหลือ</span><input class="field" value="7" readonly style="background:rgba(132,215,255,.18)"></div>
+        </div>
+      </div>
+      <div class="soft" style="padding:11px 12px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:9px">
+          <span style="font-size:14px;font-weight:400">Plain Yogurt (ธรรมชาติ)</span>
+          <span class="badge b-gray">ถุง</span>
+        </div>
+        <div class="g4">
+          <div><span class="lbl">ยกมา</span><input class="field" value="2" readonly style="background:rgba(0,0,0,.05)"></div>
+          <div><span class="lbl">รับเข้า</span><input class="field" value="4" readonly style="background:rgba(47,163,107,.15);color:var(--ok);font-weight:500"></div>
+          <div><span class="lbl">แกะ/ออก</span><input class="field" value="1" readonly></div>
+          <div><span class="lbl">คงเหลือ</span><input class="field" value="5" readonly style="background:rgba(132,215,255,.18)"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">→</div>
+
+    <div class="phone">
+      <span class="tagline t-new">หลังแก้ · สั้นลงประมาณ 1 หน้าจอครึ่ง</span>
+      <div class="title">กรอกสต็อกรายวัน <span class="badge b-blue">29 ก.ค. 2569</span></div>
+      <div class="glass" style="padding:10px;margin-bottom:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="seg">
+            <button>SND</button><button class="on">NVP</button><button>KCN</button>
+          </div>
+          <input class="field" value="29/07/2569" readonly style="width:118px;flex:none;font-size:12px;padding:7px 4px">
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;border:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.7);
+        border-radius:12px;padding:7px 12px;font-size:12px;color:rgba(42,42,46,.55);margin-bottom:10px">
+        <span>ยืนยันแล้ว <b style="font-size:14px;color:var(--ink);font-weight:600">12/40</b></span>
+        <span>ค้าง <b style="font-size:14px;color:var(--warn);font-weight:600">28</b></span>
+      </div>
+      <div class="soft" style="padding:8px 10px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:13.5px;font-weight:400">Greek Yogurt 1kg</span>
+          <span class="badge b-gray">ถุง</span>
+        </div>
+        <div class="g4">
+          <div><span class="lbl">ยกมา</span><input class="field" value="3" readonly style="background:rgba(0,0,0,.05)"></div>
+          <div><span class="lbl">รับเข้า</span><input class="field" value="6" readonly style="background:rgba(47,163,107,.15);color:var(--ok);font-weight:500"></div>
+          <div><span class="lbl">แกะ/ออก</span><input class="field" value="2" readonly></div>
+          <div><span class="lbl">คงเหลือ</span><input class="field" value="7" readonly style="background:rgba(132,215,255,.18)"></div>
+        </div>
+      </div>
+      <div class="soft" style="padding:8px 10px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:13.5px;font-weight:400">Plain Yogurt (ธรรมชาติ)</span>
+          <span class="badge b-gray">ถุง</span>
+        </div>
+        <div class="g4">
+          <div><span class="lbl">ยกมา</span><input class="field" value="2" readonly style="background:rgba(0,0,0,.05)"></div>
+          <div><span class="lbl">รับเข้า</span><input class="field" value="4" readonly style="background:rgba(47,163,107,.15);color:var(--ok);font-weight:500"></div>
+          <div><span class="lbl">แกะ/ออก</span><input class="field" value="1" readonly></div>
+          <div><span class="lbl">คงเหลือ</span><input class="field" value="5" readonly style="background:rgba(132,215,255,.18)"></div>
+        </div>
+      </div>
+      <div class="soft" style="padding:8px 10px;margin-bottom:6px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-size:13.5px;font-weight:400">ACAI 500g</span>
+          <span class="badge b-gray">ถุง</span>
+        </div>
+        <div class="g4">
+          <div><span class="lbl">ยกมา</span><input class="field" value="1" readonly style="background:rgba(0,0,0,.05)"></div>
+          <div><span class="lbl">รับเข้า</span><input class="field" value="2" readonly style="background:rgba(47,163,107,.15);color:var(--ok);font-weight:500"></div>
+          <div><span class="lbl">แกะ/ออก</span><input class="field" value="1" readonly></div>
+          <div><span class="lbl">คงเหลือ</span><input class="field" value="2" readonly style="background:rgba(132,215,255,.18)"></div>
+        </div>
+      </div>
+      <p class="xs" style="text-align:center;margin:8px 0 0">↑ ที่ว่างที่ได้คืน = เห็นรายการเพิ่มอีก 1 รายการต่อหน้าจอ</p>
+    </div>
+  </div>
+
+  <!-- 5 -->
+  <h2><span class="n">5</span> popup “บันทึกสำเร็จ” ที่หน้าอื่น</h2>
+  <p class="note">เพิ่มให้ทุกหน้าที่กดบันทึกแล้วเคยเงียบ — ถ้วย · โอนเงินสด · ยืนยันรับของทั้งใบ · และถ้าบันทึกไม่สำเร็จก็เด้งบอกเหมือนกัน</p>
+  <div class="row">
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ยืนยันรับของทั้งใบ</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-ok">✓</div>
+          <h3>บันทึกสำเร็จ</h3>
+          <p class="body">ยืนยันรับ 24 รายการ · ไม่ได้รับ 2 รายการ ของใบ 29 ก.ค. 2569</p>
+          <button class="btn ok" style="margin-top:14px">เรียบร้อย</button>
+        </div>
+      </div>
+    </div>
+    <div class="phone">
+      <p class="cap"><span class="dot"></span> ถ้าบันทึกไม่ผ่าน — ไม่เงียบอีกแล้ว</p>
+      <div class="scrim">
+        <div class="modal">
+          <div class="ring r-warn">!</div>
+          <h3>ยังบันทึกไม่สำเร็จ</h3>
+          <p class="body">ลองกดใหม่อีกครั้ง — ถ้ายังไม่ได้ แจ้งแอดมิน</p>
+          <button class="btn warn" style="margin-top:14px">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">ภาพจำลองเพื่อดูหน้าตาเท่านั้น · ของจริงกดใช้งานได้ที่เว็บ</p>
+</div>
