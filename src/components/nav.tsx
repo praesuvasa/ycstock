@@ -93,7 +93,8 @@ const ADMIN_MENU: Tab[] = [
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
   { href: "/users", label: "ผู้ใช้", icon: "users" },
-  { href: "/timeclock-admin", label: "ตั้งค่าระบบ", icon: "clock" },
+  { href: "/timeclock-report", label: "รายงานลงเวลา", icon: "clock" },
+  { href: "/timeclock-admin", label: "ตั้งค่าระบบ", icon: "sliders" },
   { href: "/notices", label: "ประกาศ", icon: "megaphone" },
   { href: "/audit", label: "Audit Log", icon: "list" },
 ];
