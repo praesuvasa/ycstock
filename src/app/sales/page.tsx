@@ -677,7 +677,7 @@ export default function SalesPage() {
         </div>
       </GlassCard>
 
-      <TodayNextStep show={savedOnce} hideTask="sales" />
+      <TodayNextStep show={savedOnce} hideTask={["sales", "receipt"]} />
 
       {dialog && (
         <Dialog

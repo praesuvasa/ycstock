@@ -18,7 +18,12 @@ interface HomeTask {
 
 // noPrimary = หน้าที่เรียกมีปุ่ม "ไปทำงานถัดไป" ของตัวเองอยู่แล้ว (เช่นหน้าสต็อกที่ต้องไปยอดขายเสมอ)
 // ตรงนี้เหลือแค่บอกว่าเหลืออะไรบ้าง จะได้ไม่มีปุ่มใหญ่ 2 อันชี้คนละทางในกล่องเดียวกัน
-export function TodayNextStep({ show, hideTask, noPrimary }: { show: boolean; hideTask?: string; noPrimary?: boolean }) {
+// hideTask รับได้ทั้งชื่อเดียวและหลายชื่อ — หน้ายอดขายซ่อน "ยืนยันรับของ" ด้วย (แพรสั่ง 2026-07-29)
+// เพราะมาถึงหน้ายอดขายแปลว่ารับของ+นับสต็อกจบไปแล้ว · ถ้าชวนย้อนกลับไปกดรับของตอนนี้
+// ยอด "รับเข้า" จะถูกเขียนทับตัวเลขที่นับไว้แล้ว แล้วสต็อกทั้งวันเพี้ยน
+export function TodayNextStep({ show, hideTask, noPrimary }: {
+  show: boolean; hideTask?: string | string[]; noPrimary?: boolean;
+}) {
   const [data, setData] = React.useState<{ remaining: number; tasks: HomeTask[] } | null>(null);
 
   React.useEffect(() => {
@@ -35,7 +40,13 @@ export function TodayNextStep({ show, hideTask, noPrimary }: { show: boolean; hi
 
   // งานที่เพิ่งบันทึกอาจยังไม่ทันสะท้อนใน API (เช่นบันทึกยอดขายเป็น 0 บาทจริง ๆ)
   // จึงตัดตัวเองออกจากลิสต์ที่โชว์ ไม่งั้นจะขึ้นว่า "ยังไม่ได้ทำ" ทั้งที่เพิ่งกดไป
-  const left = data.tasks.filter((t) => t.status !== "done" && t.key !== hideTask);
+  const hidden = new Set(Array.isArray(hideTask) ? hideTask : hideTask ? [hideTask] : []);
+  const pending = data.tasks.filter((t) => t.status !== "done");
+  const left = pending.filter((t) => !hidden.has(t.key));
+
+  // ยังมีงานค้างจริง แต่เป็นงานที่หน้านี้ไม่ควรชวนให้ไปทำ → ไม่ต้องขึ้นอะไรเลย
+  // (ห้ามตกไปที่ "งานวันนี้ครบแล้ว" เพราะนั่นจะเป็นการบอกข้อมูลผิด)
+  if (left.length === 0 && pending.length > 0) return null;
 
   if (left.length === 0) {
     return (

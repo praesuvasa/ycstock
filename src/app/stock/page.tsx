@@ -1172,7 +1172,7 @@ export default function StockPage() {
               ไปบันทึกรายงานยอดขาย →
             </Link>
             {/* ใต้ปุ่ม บอกตามจริงว่าวันนี้ยังเหลืออะไรอีกไหม (v1.19) */}
-            <TodayNextStep show={showSavePrompt} hideTask="stock" noPrimary />
+            <TodayNextStep show={showSavePrompt} hideTask={["stock", "receipt"]} noPrimary />
             <button
               type="button"
               onClick={() => setShowSavePrompt(false)}
