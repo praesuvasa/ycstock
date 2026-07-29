@@ -46,8 +46,8 @@ export default function ConfirmReceiptPage() {
   const [activeDate, setActiveDate] = React.useState<string | null>(null);
   const [clearing, setClearing] = React.useState(false);
   // เตือนก่อนเริ่มติ๊ก (แพรสั่ง 2026-07-29) — เคสที่กลัวคือกด "เลือกทั้งหมด" ทั้งที่ของยังมาไม่ครบ
-  // ขึ้นทุกครั้งที่เปิดหน้า ไม่จำว่าเคยอ่านแล้ว เพราะเป็นการเตือนก่อนลงมือ ไม่ใช่ข่าวสาร
-  const [intro, setIntro] = React.useState(true);
+  // ขึ้นทุกครั้งที่เปิดหน้าและมีใบให้ยืนยัน (ไม่ขึ้นถ้ายืนยันครบแล้ว — ไม่มีอะไรให้เตือน)
+  const [introSeen, setIntroSeen] = React.useState(false);
 
   // ปิดใบเก่าทั้งใบว่า "ไม่ได้รับ" — ใช้ endpoint batch เดิม ระบบจะยิงแจ้งแอดมินให้ทุกรายการ
   // ต้องถามยืนยันก่อน เพราะปิดแล้วใบหายจากลิสต์ ถ้าที่จริงของมาแล้วต้องไปแก้ที่หน้าสต็อกเอง
@@ -91,10 +91,10 @@ export default function ConfirmReceiptPage() {
   return (
     <div>
       <Dialog
-        open={intro} tone="warn" icon="!"
+        open={!introSeen && !loadingSheets && dueSheets.length > 0} tone="warn" icon="!"
         title="กดยืนยันเฉพาะรายการที่ได้รับจริงวันนี้เท่านั้น"
         actionLabel="เข้าใจแล้ว"
-        onClose={() => setIntro(false)}
+        onClose={() => setIntroSeen(true)}
       >
         ของที่ยังไม่มาถึง อย่าเพิ่งติ๊ก — ยอดที่ยืนยันจะเข้าช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกทันที
         ทำให้สต็อกวันนี้เกินของที่มีจริง
