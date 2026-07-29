@@ -114,9 +114,14 @@ export function SaveBar({ children }: { children: React.ReactNode }) {
 //
 // แพรเจอปัญหาจริง: พนักงานกดบันทึกแล้วไม่รู้ว่าเสร็จหรือยัง เลยกดออกจากหน้าไปก่อนที่จะบันทึกจริง
 // แถบสถานะเล็ก ๆ ในหน้าไม่พอ เพราะอยู่คนละที่กับนิ้วที่เพิ่งกด — popup บังจอต้องกดปิดถึงจะผ่าน
-export function Dialog({ open, tone = "ok", icon, title, children, actionLabel = "ปิด", onClose }: {
+// onAction = ให้ปุ่มหลักทำงานต่อได้เลย (เช่น "บันทึกยอดขายเลย") ไม่ใช่แค่ปิดหน้าต่าง
+// — ลดขั้นตอนที่คนลืมบ่อยที่สุด คือกดปิดแล้วเดินจากไปโดยยังไม่ได้กดบันทึก
+export function Dialog({
+  open, tone = "ok", icon, title, children, actionLabel = "ปิด", onAction, secondaryLabel, onClose,
+}: {
   open: boolean; tone?: "ok" | "warn" | "info"; icon?: string; title: string;
-  children?: React.ReactNode; actionLabel?: string; onClose: () => void;
+  children?: React.ReactNode; actionLabel?: string; onAction?: () => void;
+  secondaryLabel?: string; onClose: () => void;
 }) {
   if (!open) return null;
   const ring = tone === "warn" ? "bg-warn/15 text-warn" : tone === "info" ? "bg-brand-blue/25 text-sky-700" : "bg-ok/15 text-ok";
@@ -133,11 +138,19 @@ export function Dialog({ open, tone = "ok", icon, title, children, actionLabel =
         <p className="text-[16px] font-semibold leading-snug">{title}</p>
         {children && <div className="mt-1.5 text-[12.5px] leading-relaxed text-brand-ink/60">{children}</div>}
         <button
-          type="button" onClick={onClose}
+          type="button" onClick={onAction ?? onClose}
           className={`mt-4 w-full rounded-xl px-4 py-3 text-[14.5px] font-semibold ${btn}`}
         >
           {actionLabel}
         </button>
+        {secondaryLabel && (
+          <button
+            type="button" onClick={onClose}
+            className="mt-1.5 w-full px-4 py-2 text-[12.5px] font-medium text-brand-ink/55"
+          >
+            {secondaryLabel}
+          </button>
+        )}
       </div>
     </div>
   );

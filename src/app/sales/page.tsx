@@ -258,7 +258,10 @@ export default function SalesPage() {
   // กล่องเคสยุบไว้เป็นดีฟอลต์ · กางเองเมื่อวันนั้นมีเคสบันทึกไว้แล้ว จะได้ไม่ต้องไล่กดหา
   const [incidentOpen, setIncidentOpen] = React.useState(false);
   // popup ยืนยันผลการบันทึก (แพรสั่ง 2026-07-29) — พนักงานเคยกดออกจากหน้าก่อนบันทึกเสร็จเพราะไม่มีอะไรบอก
-  const [dialog, setDialog] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
+  const [dialog, setDialog] = React.useState<{
+    tone: "ok" | "warn"; title: string; body?: string;
+    actionLabel?: string; onAction?: () => void; secondaryLabel?: string;
+  } | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -672,6 +675,26 @@ export default function SalesPage() {
               setPosReading(reading);
               // ยอดรวมที่อ่านได้จากรูปคือค่าที่เก็บลง posTotal — ไม่ต้องให้ใครพิมพ์เอง
               if (reading?.total != null) setForm((p) => ({ ...p, posTotal: String(reading.total) }));
+              // ตรวจเสร็จแล้วเด้งถามทันที (แพรสั่ง 2026-07-29) — จุดที่ลืมบ่อยที่สุดคือ
+              // แนบรูปเห็นว่า "ถูกต้อง" แล้วเข้าใจว่าจบงาน ทั้งที่ยังไม่ได้กดบันทึก
+              // ปุ่มในหน้าต่างนี้บันทึกให้เลย ไม่ต้องกลับไปหาปุ่มด้านล่าง
+              if (row.matchStatus === "ok") {
+                setDialog({
+                  tone: "ok",
+                  title: "ตรวจแล้ว ข้อมูลถูกต้อง ✓",
+                  body: "เหลืออีกขั้นเดียว — ยังไม่ได้บันทึกยอดขายของวันนี้",
+                  actionLabel: "บันทึกยอดขายเลย",
+                  onAction: () => { setDialog(null); save(); },
+                  secondaryLabel: "ไว้ก่อน",
+                });
+              } else {
+                setDialog({
+                  tone: "warn",
+                  title: row.matchStatus === "unclear" ? "อ่านรูปไม่ชัด" : "ยอดยังไม่ตรงกับรายงาน POS",
+                  body: row.mismatchNote ?? "ตรวจตัวเลขที่กรอกอีกครั้ง แล้วแนบรูปใหม่",
+                  actionLabel: "กลับไปแก้ตัวเลข",
+                });
+              }
             }}
           />
         </div>
@@ -682,7 +705,9 @@ export default function SalesPage() {
       {dialog && (
         <Dialog
           open tone={dialog.tone} title={dialog.title}
-          actionLabel={dialog.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          actionLabel={dialog.actionLabel ?? (dialog.tone === "ok" ? "เรียบร้อย" : "ปิด")}
+          onAction={dialog.onAction}
+          secondaryLabel={dialog.secondaryLabel}
           onClose={() => setDialog(null)}
         >
           {dialog.body}
