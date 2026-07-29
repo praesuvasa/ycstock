@@ -8,7 +8,7 @@ import React from "react";
 import Link from "next/link";
 import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, RestockReceiptBatchEntry } from "@/lib/types";
 import { useMe } from "@/components/nav";
-import { GlassCard, BranchPicker, PageTitle, Badge } from "@/components/ui";
+import { GlassCard, BranchPicker, PageTitle, Badge, Dialog } from "@/components/ui";
 import { TodayNextStep } from "@/components/today-next-step";
 import { thaiDate, todayISO } from "@/lib/fmt";
 
@@ -45,6 +45,9 @@ export default function ConfirmReceiptPage() {
 
   const [activeDate, setActiveDate] = React.useState<string | null>(null);
   const [clearing, setClearing] = React.useState(false);
+  // เตือนก่อนเริ่มติ๊ก (แพรสั่ง 2026-07-29) — เคสที่กลัวคือกด "เลือกทั้งหมด" ทั้งที่ของยังมาไม่ครบ
+  // ขึ้นทุกครั้งที่เปิดหน้า ไม่จำว่าเคยอ่านแล้ว เพราะเป็นการเตือนก่อนลงมือ ไม่ใช่ข่าวสาร
+  const [intro, setIntro] = React.useState(true);
 
   // ปิดใบเก่าทั้งใบว่า "ไม่ได้รับ" — ใช้ endpoint batch เดิม ระบบจะยิงแจ้งแอดมินให้ทุกรายการ
   // ต้องถามยืนยันก่อน เพราะปิดแล้วใบหายจากลิสต์ ถ้าที่จริงของมาแล้วต้องไปแก้ที่หน้าสต็อกเอง
@@ -87,6 +90,16 @@ export default function ConfirmReceiptPage() {
 
   return (
     <div>
+      <Dialog
+        open={intro} tone="warn" icon="!"
+        title="กดยืนยันเฉพาะรายการที่ได้รับจริงวันนี้เท่านั้น"
+        actionLabel="เข้าใจแล้ว"
+        onClose={() => setIntro(false)}
+      >
+        ของที่ยังไม่มาถึง อย่าเพิ่งติ๊ก — ยอดที่ยืนยันจะเข้าช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกทันที
+        ทำให้สต็อกวันนี้เกินของที่มีจริง
+      </Dialog>
+
       <PageTitle title="ยืนยันรับของ" />
 
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
@@ -202,19 +215,25 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   // ช่วงนั้นปุ่มกลับเป็นปกติแล้วแต่หน้าจอยังไม่อัปเดต — คนกดเลยไม่แน่ใจว่าสำเร็จไหม
   const [status, setStatus] = React.useState<{ tone: "busy" | "ok" | "warn"; text: string } | null>(null);
   const okTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // popup ยืนยันผล (แพรสั่ง 2026-07-29) — แถบสถานะยังอยู่ แต่ไม่พอสำหรับ "ยืนยันทั้งใบ"
+  // เพราะพนักงานกดแล้วเดินไปทำอย่างอื่นทันที ไม่ได้มองจอ · popup ต้องกดปิดถึงจะผ่าน
+  const [popup, setPopup] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
   React.useEffect(() => () => { if (okTimer.current) clearTimeout(okTimer.current); }, []);
 
   /** ห่อทุกการบันทึกให้มีสถานะเหมือนกันหมด — กำลังบันทึก → เรียบร้อย (หายเองใน 3 วิ) → ถ้าพังก็บอกว่าพัง */
-  async function runSave(busyText: string, okText: string, fn: () => Promise<void>) {
+  async function runSave(busyText: string, okText: string, fn: () => Promise<void>): Promise<boolean> {
     if (okTimer.current) clearTimeout(okTimer.current);
     setStatus({ tone: "busy", text: busyText });
     try {
       await fn();
       setStatus({ tone: "ok", text: okText });
       okTimer.current = setTimeout(() => setStatus(null), 3000);
+      return true;
     } catch (e: any) {
       // เดิมไม่เช็คผลเลย พังแล้วเงียบ — พนักงานคิดว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก
       setStatus({ tone: "warn", text: e?.message ?? "บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง" });
+      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดใหม่อีกครั้ง — ถ้ายังไม่ได้ แจ้งแอดมิน" });
+      return false;
     }
   }
 
@@ -376,7 +395,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
     if (!window.confirm(`ยืนยันรับ ${receivedCount} รายการ ไม่ได้รับ ${notReceivedCount} รายการ?`)) return;
     setBatchSubmitting(true);
     try {
-      await runSave(
+      const ok = await runSave(
         `กำลังบันทึก ${entries.length} รายการ…`,
         `บันทึกเรียบร้อย — ยืนยันรับ ${receivedCount} รายการ${notReceivedCount > 0 ? ` · ไม่ได้รับ ${notReceivedCount}` : ""}`,
         async () => {
@@ -390,6 +409,13 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           onChanged();
         }
       );
+      if (ok) {
+        setPopup({
+          tone: "ok",
+          title: "บันทึกสำเร็จ",
+          body: `ยืนยันรับ ${receivedCount} รายการ${notReceivedCount > 0 ? ` · ไม่ได้รับ ${notReceivedCount} รายการ` : ""} ของใบ ${thaiDate(date)}`,
+        });
+      }
     } finally {
       setBatchSubmitting(false);
     }
@@ -403,6 +429,15 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   return (
     <GlassCard>
+      {popup && (
+        <Dialog
+          open tone={popup.tone} title={popup.title}
+          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          onClose={() => setPopup(null)}
+        >
+          {popup.body}
+        </Dialog>
+      )}
       {status && (
         <div
           className={`sticky top-2 z-10 mb-2 flex items-center gap-2 rounded-xl px-3 py-2.5 text-[13px] font-medium shadow-sm ${

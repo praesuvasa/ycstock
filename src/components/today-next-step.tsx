@@ -44,6 +44,9 @@ export function TodayNextStep({ show, hideTask }: { show: boolean; hideTask?: st
     );
   }
 
+  // v1.24: พาไปงานถัดไปตรง ๆ (แพรขอ 2026-07-29 — "บันทึกสต็อกเสร็จแล้วให้ขึ้นว่าไปบันทึกยอดขายเหมือนเดิม")
+  // ปุ่มหลัก = งานที่ค้างอันแรก · กลับหน้าหลักลดเป็นลิงก์รอง เพราะเป็นทางอ้อมกว่า
+  const next = left[0];
   return (
     <div className="mt-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3.5">
       <p className="text-[13.5px] font-medium">
@@ -53,8 +56,14 @@ export function TodayNextStep({ show, hideTask }: { show: boolean; hideTask?: st
         {left.map((t) => t.label).join(" · ")}
       </p>
       <Link
+        href={next.href}
+        className="mt-2.5 block rounded-xl bg-brand-red px-4 py-3 text-center text-[14px] font-semibold text-white"
+      >
+        ไป{next.label} →
+      </Link>
+      <Link
         href="/"
-        className="mt-2.5 block rounded-xl bg-brand-ink px-4 py-2.5 text-center text-[13px] font-medium text-white"
+        className="mt-1.5 block px-4 py-1.5 text-center text-[12px] font-medium text-brand-ink/55 underline underline-offset-2"
       >
         กลับไปเช็คที่หน้าหลัก
       </Link>

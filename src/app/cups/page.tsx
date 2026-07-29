@@ -5,7 +5,7 @@ import type { Branch, CupRow, CupSize, Item, Meta, StockRow } from "@/lib/types"
 import { cupReconcile, variance } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
-  PageTitle, GlassCard, BranchPicker, Stat, Badge, Button, SaveBar,
+  PageTitle, GlassCard, BranchPicker, Stat, Badge, Button, SaveBar, Dialog,
 } from "@/components/ui";
 import { useMe } from "@/components/nav";
 
@@ -224,6 +224,9 @@ export default function CupsPage() {
     return out;
   }, [catalog.items, stockByItem]);
 
+  // popup ยืนยันผล (แพรสั่ง 2026-07-29) — ข้อความเล็ก ๆ ข้างปุ่มพนักงานไม่ทันเห็น กดออกจากหน้าก่อนบันทึกเสร็จ
+  const [popup, setPopup] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
+
   const save = async () => {
     setSaving(true);
     setMsg("");
@@ -236,8 +239,10 @@ export default function CupsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       setMsg("บันทึกแล้ว ✓");
+      setPopup({ tone: "ok", title: "บันทึกสำเร็จ", body: `สาขา ${branch} · ${thaiDate(date)}` });
     } catch (e: any) {
       setMsg(e?.message ?? "บันทึกไม่สำเร็จ");
+      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดบันทึกอีกครั้ง" });
     } finally {
       setSaving(false);
     }
@@ -245,6 +250,15 @@ export default function CupsPage() {
 
   return (
     <div>
+      {popup && (
+        <Dialog
+          open tone={popup.tone} title={popup.title}
+          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          onClose={() => setPopup(null)}
+        >
+          {popup.body}
+        </Dialog>
+      )}
       <PageTitle
         title="สรุปจำนวนขายออก 🥤"
         right={<Badge tone="neutral">{thaiDate(date)}</Badge>}

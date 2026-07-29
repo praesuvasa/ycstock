@@ -7,8 +7,9 @@ import type { EvidenceType, MatchStatus } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 const isDate = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+// "pos" (รูปหน้ารายงาน POS) มีเส้นทางของตัวเองที่ /api/sales/pos-report — ห้ามอัปโหลดผ่านเส้นนี้
 const TYPES: EvidenceType[] = ["qr", "grab", "lineman"];
-const TYPE_LABEL: Record<EvidenceType, string> = { qr: "QR", grab: "Grab", lineman: "Lineman" };
+const TYPE_LABEL: Record<EvidenceType, string> = { qr: "QR", grab: "Grab", lineman: "Lineman", pos: "รายงาน POS" };
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
 function fail(e: unknown, msg: string) {

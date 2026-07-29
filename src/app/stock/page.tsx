@@ -11,7 +11,7 @@ import type { Branch, Item, Meta, StockRow } from "@/lib/types";
 import { remainPieces, variance, isCheckDue, weekdayFromDate } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
-  GlassCard, Badge, Button, BranchPicker, Accordion, Stat, SaveBar, PageTitle,
+  GlassCard, Badge, Button, BranchPicker, Accordion, SaveBar, PageTitle,
 } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import { TodayNextStep } from "@/components/today-next-step";
@@ -555,35 +555,37 @@ export default function StockPage() {
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
       <PageTitle title="กรอกสต็อกรายวัน" right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
 
-      <GlassCard className="mb-3">
-        <div className="grid gap-3">
-          <BranchPicker
-            value={branch}
-            onChange={(b) => { setBranch(b); setStarted(false); }}
-            locked={scoped}
-          />
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่</span>
+      {/* สาขา + วันที่ อยู่บรรทัดเดียวกัน (แพรขอ 2026-07-29) — พนักงานทำงานบนมือถือ ทุกบรรทัดที่ตัดได้คือการเลื่อนที่หายไป */}
+      <div className="glass mb-2.5 p-2.5">
+        <div className="grid gap-2">
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <BranchPicker
+                value={branch}
+                onChange={(b) => { setBranch(b); setStarted(false); }}
+                locked={scoped}
+              />
+            </div>
             <input
               type="date" value={date}
               onChange={(e) => { setDate(e.target.value); setStarted(false); }}
-              className="field"
+              className="field w-[122px] shrink-0 px-2 py-2 text-[12.5px]"
             />
-            {date !== todayISO() && (
-              <span className="text-[11px] font-medium text-warn">⚠️ ไม่ใช่วันนี้ — {thaiDate(date)}</span>
-            )}
-          </label>
+          </div>
+          {date !== todayISO() && (
+            <span className="text-[11px] font-medium text-warn">⚠️ ไม่ใช่วันนี้ — {thaiDate(date)}</span>
+          )}
           {!started && (
             <button
               type="button"
               onClick={() => setStarted(true)}
-              className="w-full rounded-xl bg-brand-red px-4 py-3 text-[15px] font-semibold text-white shadow-glass"
+              className="w-full rounded-xl bg-brand-red px-4 py-2.5 text-[15px] font-semibold text-white shadow-glass"
             >
               ยืนยัน แล้วเริ่มนับสต็อก
             </button>
           )}
         </div>
-      </GlassCard>
+      </div>
 
       {!started && pendingToday > 0 && (
         <div className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-3">
@@ -647,10 +649,21 @@ export default function StockPage() {
         </Link>
       )}
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <Stat label="ยืนยันแล้ว" value={`${filledCount}/${total}`} tone={total > 0 && filledCount === total ? "ok" : "default"} />
-        <Stat label="ค้างยืนยัน" value={unconfirmedCount > 0 ? `${unconfirmedCount}` : "0"} tone={unconfirmedCount > 0 ? "warn" : "ok"} />
-        <Stat label="เกิน / ผิด" value={errorCount > 0 ? `⚠️ ${errorCount}` : "—"} tone={errorCount > 0 ? "warn" : "default"} />
+      {/* สรุปหัวหน้าเป็นบรรทัดเดียวแทนการ์ด 3 ใบ — ตัวเลขชุดเดิมทั้งหมด แค่กินที่น้อยลง (แพรขอ 2026-07-29) */}
+      <div className="mb-2.5 flex items-center gap-3 rounded-xl border border-black/[.06] bg-white/70 px-3 py-2 text-[12px] text-brand-ink/55">
+        <span>
+          ยืนยันแล้ว{" "}
+          <b className={`text-[14px] tabular-nums ${total > 0 && filledCount === total ? "text-ok" : "text-brand-ink"}`}>
+            {filledCount}/{total}
+          </b>
+        </span>
+        <span>
+          ค้าง{" "}
+          <b className={`text-[14px] tabular-nums ${unconfirmedCount > 0 ? "text-warn" : "text-ok"}`}>{unconfirmedCount}</b>
+        </span>
+        {errorCount > 0 && (
+          <span className="ml-auto font-semibold text-warn">⚠️ เกิน/ผิด {errorCount}</span>
+        )}
       </div>
 
       {hiddenTodayCount > 0 && (
@@ -734,7 +747,7 @@ export default function StockPage() {
               count={`${g.items.length} รายการ`}
               defaultOpen={gi === 0 || isHiddenGroup}
             >
-              <div className="grid gap-2 py-1">
+              <div className="grid gap-1.5 py-0.5">
                 {rowEntries.map((e) => {
                   if (e.kind === "toggle") {
                     const key = `${g.category}|${e.label}`;
@@ -803,9 +816,9 @@ export default function StockPage() {
                     : `${xferInG}g`;
 
                   return (
-                    <div key={it.id} className="glass-soft px-3 py-2.5">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium">{it.name}</span>
+                    <div key={it.id} className="glass-soft px-2.5 py-2">
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <span className="text-[13.5px] font-medium leading-tight">{it.name}</span>
                         <div className="flex flex-shrink-0 items-center gap-1.5">
                           {par != null && <Badge tone="blue">Par {par}</Badge>}
                           <Badge>{it.unit}</Badge>
@@ -1147,7 +1160,8 @@ export default function StockPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-full bg-ok/15 text-lg text-ok">✓</div>
-            <p className="text-center text-[15px] font-semibold">บันทึกสต็อกวันนี้แล้ว</p>
+            <p className="text-center text-[16px] font-semibold text-ok">บันทึกสต็อกสำเร็จ</p>
+            <p className="mt-0.5 text-center text-[12px] text-brand-ink/55">สาขา {branch} · {thaiDate(date)}</p>
             {/* แทนที่ปุ่มลัดตายตัวเดิม — บอกตามจริงว่าวันนี้เหลืออะไรอีกไหม (v1.19) */}
             <TodayNextStep show={showSavePrompt} hideTask="stock" />
             <button

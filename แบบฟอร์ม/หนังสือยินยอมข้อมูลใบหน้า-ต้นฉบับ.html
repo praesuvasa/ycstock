@@ -1,0 +1,128 @@
+<meta charset="utf-8">
+<title>หนังสือให้ความยินยอมเก็บและใช้ข้อมูลใบหน้า</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 14mm 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Kanit", sans-serif; font-weight: 300; color: #111; font-size: 11.5px; line-height: 1.75; margin: 0; }
+  h1 { font-size: 18px; font-weight: 700; text-align: center; margin: 0 0 2px; }
+  .sub { text-align: center; font-size: 11px; color: #555; margin-bottom: 14px; }
+  .company { border: 1.2px solid #111; padding: 8px 11px; margin-bottom: 14px; font-size: 11px; }
+  .company b { font-weight: 600; }
+  h2 { font-size: 12.5px; font-weight: 600; margin: 14px 0 4px; border-bottom: 1.2px solid #111; padding-bottom: 3px; }
+  ul { margin: 4px 0 0; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  .fill { display: inline-block; border-bottom: 1px dotted #666; min-width: 150px; }
+  .fill.sm { min-width: 90px; }
+  .fill.lg { min-width: 250px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  td, th { border: 1px solid #999; padding: 5px 7px; font-size: 10.5px; vertical-align: top; }
+  th { background: #f2f2f2; font-weight: 600; text-align: left; }
+  .box { border: 1.2px solid #111; padding: 9px 11px; margin-top: 10px; }
+  .check { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; }
+  .check span.sq { display: inline-block; width: 12px; height: 12px; border: 1.3px solid #111; flex: none; margin-top: 3px; }
+  .sign { display: flex; gap: 26px; margin-top: 22px; }
+  .sign div { flex: 1; }
+  .sign .line { border-bottom: 1px solid #111; height: 34px; }
+  .sign .lb { font-size: 10px; color: #444; margin-top: 3px; display: flex; justify-content: space-between; }
+  .foot { margin-top: 16px; font-size: 9.5px; color: #666; text-align: center; border-top: 1px solid #ccc; padding-top: 6px; }
+</style>
+
+<h1>หนังสือให้ความยินยอมเก็บและใช้ข้อมูลใบหน้า</h1>
+<p class="sub">เพื่อการลงเวลาเข้า–ออกงาน · ตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</p>
+
+<div class="company">
+  <b>ผู้ควบคุมข้อมูลส่วนบุคคล:</b> Bangkok Quality Milk Products Co., Ltd.
+  (ชื่อภาษาไทยตามหนังสือรับรอง <span class="fill"></span>) · เลขประจำตัวผู้เสียภาษี 0105551105970<br>
+  <b>ที่อยู่:</b> <span class="fill lg"></span>
+  <b>ผู้ประสานงาน:</b> <span class="fill"></span> <b>โทร</b> <span class="fill sm"></span>
+</div>
+
+<h2>1. ข้อมูลผู้ให้ความยินยอม</h2>
+<p style="margin:4px 0 0">
+  ข้าพเจ้า <span class="fill lg"></span> ตำแหน่ง <span class="fill"></span><br>
+  สาขา/หน่วยงาน <span class="fill"></span> วันที่เริ่มงาน <span class="fill sm"></span>
+</p>
+
+<h2>2. ข้อมูลที่บริษัทเก็บและวิธีเก็บ</h2>
+<table>
+  <tr><th style="width:32%">ข้อมูล</th><th>รายละเอียด</th></tr>
+  <tr>
+    <td>ข้อมูลใบหน้า<br>(ข้อมูลชีวมิติ)</td>
+    <td>
+      ระบบถ่ายภาพใบหน้าครั้งเดียวตอนลงทะเบียน แล้ว<b>แปลงเป็นชุดตัวเลข</b>สำหรับเปรียบเทียบ
+      โดยจัดเก็บที่ผู้ให้บริการ Amazon Web Services (AWS Rekognition) ศูนย์ข้อมูลประเทศสิงคโปร์ ·
+      <b>บริษัทไม่ได้เก็บภาพถ่ายใบหน้าไว้เพื่อการเปรียบเทียบ</b>
+    </td>
+  </tr>
+  <tr>
+    <td>เวลาเข้า–ออกงาน</td>
+    <td>วัน–เวลาที่กดลงเวลา และผลการตรวจสอบใบหน้า (เปอร์เซ็นต์ความตรงกัน)</td>
+  </tr>
+  <tr>
+    <td>ตำแหน่งที่กดลงเวลา</td>
+    <td>พิกัด GPS เฉพาะขณะกดลงเวลาเท่านั้น เพื่อยืนยันว่าลงเวลาจากที่ร้าน · ระบบไม่ติดตามตำแหน่งในเวลาอื่น</td>
+  </tr>
+</table>
+
+<h2>3. วัตถุประสงค์การใช้</h2>
+<ul>
+  <li>ยืนยันว่าผู้ลงเวลาคือเจ้าของบัญชีจริง ป้องกันการลงเวลาแทนกัน</li>
+  <li>คำนวณชั่วโมงทำงาน ค่าจ้าง ค่าล่วงเวลา และจัดทำเอกสารตามกฎหมายแรงงาน</li>
+  <li><b>ไม่ใช้เพื่อวัตถุประสงค์อื่น</b> ไม่ใช้ประเมินอารมณ์/พฤติกรรม และไม่เปิดเผยแก่บุคคลภายนอก
+      เว้นแต่เป็นการปฏิบัติตามกฎหมายหรือคำสั่งของหน่วยงานรัฐ</li>
+</ul>
+
+<h2>4. ระยะเวลาการเก็บรักษา</h2>
+<ul>
+  <li><b>ข้อมูลใบหน้า:</b> เก็บตลอดระยะเวลาการเป็นพนักงาน และ<b>ลบภายใน 30 วัน</b>นับจากวันพ้นสภาพ
+      หรือนับจากวันที่แจ้งถอนความยินยอม</li>
+  <li><b>ข้อมูลเวลาเข้า–ออกงาน:</b> เก็บตามระยะเวลาที่กฎหมายแรงงานและกฎหมายภาษีกำหนด</li>
+</ul>
+
+<h2>5. สิทธิของเจ้าของข้อมูล</h2>
+<ul>
+  <li>ขอเข้าถึง ขอสำเนา ขอแก้ไขให้ถูกต้อง หรือขอลบข้อมูลของตน</li>
+  <li><b>ถอนความยินยอมเมื่อใดก็ได้</b> โดยแจ้งผู้ประสานงานข้างต้น — บริษัทจะลบข้อมูลใบหน้าและ
+      เปลี่ยนวิธีลงเวลาเป็นแบบอื่นให้แทน</li>
+  <li>ร้องเรียนต่อสำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล หากเห็นว่าบริษัทไม่ปฏิบัติตามกฎหมาย</li>
+</ul>
+
+<h2>6. ผลของการไม่ให้ความยินยอม</h2>
+<p style="margin:4px 0 0">
+  การไม่ให้ความยินยอม <b>ไม่มีผลต่อการจ้างงาน</b> ค่าจ้าง หรือการพิจารณาใด ๆ ทั้งสิ้น
+  บริษัทจะจัดวิธีลงเวลาแบบอื่นให้แทน
+</p>
+
+<div class="box">
+  <div class="check">
+    <span class="sq"></span>
+    <span><b>ข้าพเจ้ายินยอม</b> ให้บริษัทเก็บและใช้ข้อมูลใบหน้าของข้าพเจ้าเพื่อการลงเวลาเข้า–ออกงาน
+    ตามรายละเอียดข้างต้น</span>
+  </div>
+  <div class="check">
+    <span class="sq"></span>
+    <span><b>ข้าพเจ้าไม่ยินยอม</b> และขอใช้วิธีลงเวลาแบบอื่น</span>
+  </div>
+  <p style="margin:8px 0 0; font-size:10.5px; color:#444">
+    ข้าพเจ้าได้อ่านและเข้าใจเนื้อหาทั้งหมดแล้ว และให้ความยินยอมนี้โดยสมัครใจ
+  </p>
+</div>
+
+<div class="sign">
+  <div>
+    <div class="line"></div>
+    <div class="lb"><span>ลายมือชื่อพนักงาน</span><span>วันที่ ___/___/______</span></div>
+    <div style="font-size:10px;color:#444;margin-top:2px">ชื่อ–สกุล ตัวบรรจง <span class="fill sm"></span></div>
+  </div>
+  <div>
+    <div class="line"></div>
+    <div class="lb"><span>ลายมือชื่อผู้รับความยินยอม (บริษัท)</span><span>วันที่ ___/___/______</span></div>
+    <div style="font-size:10px;color:#444;margin-top:2px">ชื่อ–สกุล ตัวบรรจง <span class="fill sm"></span></div>
+  </div>
+</div>
+
+<p class="foot">
+  จัดทำ 2 ฉบับ · พนักงานเก็บ 1 ฉบับ บริษัทเก็บ 1 ฉบับ ·
+  เอกสารนี้เป็นแบบร่างสำหรับใช้ภายใน ควรให้ที่ปรึกษากฎหมายตรวจก่อนใช้จริง
+</p>

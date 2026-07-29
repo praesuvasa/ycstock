@@ -4,7 +4,7 @@
 import React from "react";
 import type { Branch, CashRemittance, MatchStatus } from "@/lib/types";
 import { baht, thaiDate, todayISO } from "@/lib/fmt";
-import { GlassCard, BranchPicker, Button, PageTitle, Badge } from "@/components/ui";
+import { GlassCard, BranchPicker, Button, PageTitle, Badge, Dialog } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import { resizeImageToBase64 } from "@/lib/image-client";
 
@@ -33,6 +33,8 @@ export default function CashRemittancePage() {
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // popup ยืนยันผล (แพรสั่ง 2026-07-29) — อัปโหลดสลิปใช้เวลาอ่านรูป ถ้าไม่มีอะไรเด้งบอก พนักงานจะเดินออกก่อนเสร็จ
+  const [popup, setPopup] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -76,8 +78,10 @@ export default function CashRemittancePage() {
       const data = await res.json();
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       await load();
+      setPopup({ tone: "ok", title: "บันทึกสำเร็จ", body: "แนบสลิปโอนเงินสดเรียบร้อย" });
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
+      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองแนบสลิปใหม่อีกครั้ง" });
     } finally {
       setSubmitting(false);
     }
@@ -101,6 +105,15 @@ export default function CashRemittancePage() {
 
   return (
     <div>
+      {popup && (
+        <Dialog
+          open tone={popup.tone} title={popup.title}
+          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          onClose={() => setPopup(null)}
+        >
+          {popup.body}
+        </Dialog>
+      )}
       <PageTitle title="การจัดการเงินสด" />
 
       <GlassCard className="mb-3">

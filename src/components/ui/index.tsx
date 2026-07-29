@@ -110,6 +110,39 @@ export function SaveBar({ children }: { children: React.ReactNode }) {
   return <div className="sticky bottom-0 -mx-4 mt-3 border-t border-black/5 bg-gradient-to-t from-white/90 to-white/40 px-4 py-3 backdrop-blur-md sm:-mx-5">{children}</div>;
 }
 
+// v1.24 · popup กลางจอ — ใช้ 2 งาน: ยืนยันว่า "บันทึกสำเร็จ" และเตือนก่อนเริ่มทำงานบางหน้า
+//
+// แพรเจอปัญหาจริง: พนักงานกดบันทึกแล้วไม่รู้ว่าเสร็จหรือยัง เลยกดออกจากหน้าไปก่อนที่จะบันทึกจริง
+// แถบสถานะเล็ก ๆ ในหน้าไม่พอ เพราะอยู่คนละที่กับนิ้วที่เพิ่งกด — popup บังจอต้องกดปิดถึงจะผ่าน
+export function Dialog({ open, tone = "ok", icon, title, children, actionLabel = "ปิด", onClose }: {
+  open: boolean; tone?: "ok" | "warn" | "info"; icon?: string; title: string;
+  children?: React.ReactNode; actionLabel?: string; onClose: () => void;
+}) {
+  if (!open) return null;
+  const ring = tone === "warn" ? "bg-warn/15 text-warn" : tone === "info" ? "bg-brand-blue/25 text-sky-700" : "bg-ok/15 text-ok";
+  const btn = tone === "warn" ? "bg-warn text-white" : tone === "info" ? "bg-brand-ink text-white" : "bg-ok text-white";
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-5 backdrop-blur-[2px]" onClick={onClose}>
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white/95 px-5 pb-5 pt-6 text-center shadow-glass backdrop-blur-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className={`mx-auto mb-2.5 grid h-12 w-12 place-items-center rounded-full text-[22px] ${ring}`}>
+          {icon ?? (tone === "warn" ? "!" : tone === "info" ? "i" : "✓")}
+        </div>
+        <p className="text-[16px] font-semibold leading-snug">{title}</p>
+        {children && <div className="mt-1.5 text-[12.5px] leading-relaxed text-brand-ink/60">{children}</div>}
+        <button
+          type="button" onClick={onClose}
+          className={`mt-4 w-full rounded-xl px-4 py-3 text-[14.5px] font-semibold ${btn}`}
+        >
+          {actionLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function PageTitle({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
     <div className="mb-3 flex items-center justify-between gap-3">

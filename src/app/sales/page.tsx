@@ -2,8 +2,8 @@
 import React from "react";
 import type { Branch, SalesRow, SalesEvidence, EvidenceType, MatchStatus, PaymentIncident, PaymentIncidentKind } from "@/lib/types";
 import { incidentAdjustment, sumIncidentAdjustments } from "@/lib/calc";
-import { baht, todayISO } from "@/lib/fmt";
-import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge } from "@/components/ui";
+import { baht, todayISO, thaiDate } from "@/lib/fmt";
+import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge, Dialog } from "@/components/ui";
 import { TodayNextStep } from "@/components/today-next-step";
 import { useMe } from "@/components/nav";
 import { resizeImageToBase64 } from "@/lib/image-client";
@@ -88,6 +88,108 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
   );
 }
 
+// v1.24 · ตรวจยอดด้วยรูปหน้ารายงานของ POS iPad (แพรสั่ง 2026-07-29)
+//
+// เดิมเป็นช่องให้พิมพ์ "ยอดขายรวมตาม POS" เอง — แพรบอกพนักงานสับสน ไม่รู้ว่าเลขนี้เอามาจากไหน
+// เปลี่ยนเป็นถ่ายรูปหน้ารายงานมาแนบ แล้วระบบอ่านยอด+วันที่ในรูปเทียบให้เอง ไม่มีเลขให้กรอกผิด
+interface PosReading {
+  total: number | null; cash: number | null; other: number | null;
+  billCount: number | null; dateFrom: string | null; dateTo: string | null;
+}
+
+function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, onDone }: {
+  branch: Branch; date: string; enteredTotal: number; enteredCash: number;
+  row?: SalesEvidence; reading: PosReading | null;
+  onDone: (row: SalesEvidence, reading: PosReading | null) => void;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { base64, mediaType } = await resizeImageToBase64(file);
+      const res = await fetch("/api/sales/pos-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, date, imageBase64: base64, mediaType, enteredTotal, enteredCash }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "แนบรูปไม่สำเร็จ");
+      onDone(data.evidence as SalesEvidence, (data.reading ?? null) as PosReading | null);
+    } catch (e: any) {
+      setErr(e?.message ?? "แนบรูปไม่สำเร็จ");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ยอดที่กรอกเปลี่ยนไปหลังแนบรูป → ผลตรวจเดิมใช้ไม่ได้แล้ว ต้องบอกให้ตรวจใหม่ ไม่งั้นจะเห็น "ถูกต้อง" ค้างทั้งที่เลขเปลี่ยน
+  const stale = !!row && Math.abs(row.enteredAmount - enteredTotal) > 1;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold">ตรวจกับรายงานใน POS iPad</p>
+          <p className="text-[11.5px] leading-relaxed text-brand-ink/55">
+            เปิดหน้า &ldquo;รายงาน&rdquo; ของวันนี้บน POS แล้วถ่ายรูปมาแนบ — ระบบอ่านยอดกับวันที่ในรูปให้เอง
+          </p>
+        </div>
+        {row?.imageUrl && (
+          <a href={row.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
+            <img src={row.imageUrl} alt="รายงาน POS" className="h-12 w-12 rounded-lg border border-black/10 object-cover" />
+          </a>
+        )}
+      </div>
+
+      <button
+        type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+        className="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-ink disabled:opacity-50"
+      >
+        {busy ? "กำลังอ่านรูป…" : row ? "แนบรูปใหม่" : "📷 แนบรูปหน้ารายงาน POS"}
+      </button>
+      <input
+        ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+      />
+
+      {err && <p className="mt-1.5 text-[11.5px] text-warn">{err}</p>}
+
+      {row && (
+        stale ? (
+          <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
+            <p className="text-[13px] font-semibold text-warn">ยอดที่กรอกเปลี่ยนหลังแนบรูป</p>
+            <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
+              ตอนแนบตรวจกับยอด {baht(row.enteredAmount)} แต่ตอนนี้กรอกรวม {baht(enteredTotal)} — แนบรูปใหม่เพื่อตรวจอีกครั้ง
+            </p>
+          </div>
+        ) : row.matchStatus === "ok" ? (
+          <div className="mt-2 rounded-xl border border-ok/40 bg-ok/10 px-3 py-2.5">
+            <p className="text-[14px] font-semibold text-ok">ข้อมูลถูกต้อง ✓</p>
+            <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
+              ตรงกับรายงาน POS ทั้งยอดรวมและเงินสด
+              {reading?.total != null && <> · ยอดในรูป {baht(reading.total)}</>}
+              {reading?.billCount != null && <> · {reading.billCount} บิล</>}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
+            <p className="text-[13px] font-semibold text-warn">
+              {row.matchStatus === "unclear" ? "อ่านรูปไม่ชัด" : "ไม่ตรงกับรายงาน POS"}
+            </p>
+            <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
+              {row.mismatchNote ?? "ตรวจสอบตัวเลขที่กรอกอีกครั้ง"}
+            </p>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
 // เก็บ input เป็น string เพื่อให้ลบ/พิมพ์ได้ลื่น แล้วค่อยแปลงเป็นเลขตอนคำนวณ
 type Field = "cash" | "qr" | "edc" | "grab" | "lineman" | "posTotal";
 type Form = Record<Field, string>;
@@ -155,6 +257,8 @@ export default function SalesPage() {
   const [savedOnce, setSavedOnce] = React.useState(false);
   // กล่องเคสยุบไว้เป็นดีฟอลต์ · กางเองเมื่อวันนั้นมีเคสบันทึกไว้แล้ว จะได้ไม่ต้องไล่กดหา
   const [incidentOpen, setIncidentOpen] = React.useState(false);
+  // popup ยืนยันผลการบันทึก (แพรสั่ง 2026-07-29) — พนักงานเคยกดออกจากหน้าก่อนบันทึกเสร็จเพราะไม่มีอะไรบอก
+  const [dialog, setDialog] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -191,8 +295,11 @@ export default function SalesPage() {
     load();
   }, [load]);
 
-  // หลักฐาน QR/Grab/Lineman ของสาขา+วันที่นี้
+  // หลักฐาน QR/Grab/Lineman/รายงาน POS ของสาขา+วันที่นี้
   const [evidence, setEvidence] = React.useState<Partial<Record<EvidenceType, SalesEvidence>>>({});
+  // ตัวเลขที่อ่านได้จากรูปรายงาน POS รอบล่าสุด — ใช้โชว์รายละเอียด (จำนวนบิล/ยอดในรูป) เท่านั้น
+  // ไม่ได้เก็บลง DB จึงเป็น null ตอนเพิ่งเปิดหน้ามาเจอรูปที่แนบไว้เมื่อวาน — สถานะตรวจยังอ่านจาก evidence ได้ปกติ
+  const [posReading, setPosReading] = React.useState<PosReading | null>(null);
   const loadEvidence = React.useCallback(() => {
     fetch(`/api/sales-evidence?branch=${branch}&date=${date}`)
       .then((r) => r.json())
@@ -200,6 +307,7 @@ export default function SalesPage() {
         const map: Partial<Record<EvidenceType, SalesEvidence>> = {};
         for (const row of d.rows ?? []) map[row.type] = row;
         setEvidence(map);
+        setPosReading(null); // รูปของสาขา/วันที่ใหม่ — รายละเอียดที่อ่านไว้รอบก่อนใช้ไม่ได้แล้ว
       })
       .catch(() => {});
   }, [branch, date]);
@@ -211,8 +319,6 @@ export default function SalesPage() {
   const inStore = toNum(form.cash) + toNum(form.qr) + toNum(form.edc);
   const delivery = toNum(form.grab) + toNum(form.lineman);
   const total = inStore + delivery;
-  // ส่วนต่างระหว่างผลรวมที่กรอกกับยอดที่ POS สรุป — 0 = กรอกครบถูกต้อง
-  const posDiff = form.posTotal === "" ? 0 : total - toNum(form.posTotal);
 
   // v1.11: ยอด "เงินเข้าจริง" = ยอด POS ที่กรอก + ผลรวมเคสรับเงินไม่ตรงบิล
   // ตัวนี้คือตัวที่ต้องตรงกับสลิปธนาคาร/เงินในลิ้นชัก จึงใช้เทียบตอนอัปโหลดหลักฐาน
@@ -247,7 +353,7 @@ export default function SalesPage() {
       setSavedIncidents(saved);
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกเคสไม่สำเร็จ");
-      alert(e?.message ?? "บันทึกเคสไม่สำเร็จ");
+      setDialog({ tone: "warn", title: "บันทึกเคสไม่สำเร็จ", body: e?.message ?? "ลองใหม่อีกครั้ง" });
     } finally {
       setSavingIncidents(false);
     }
@@ -280,10 +386,10 @@ export default function SalesPage() {
       if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
       setSavedIncidents(incidents); // ปุ่มนี้บันทึกเคสให้ด้วย — sync สถานะ ไม่ให้ค้างว่า "ยังไม่บันทึก"
       setSavedOnce(true);
-      alert("บันทึกยอดขายเรียบร้อย ✓");
+      setDialog({ tone: "ok", title: "บันทึกยอดขายสำเร็จ", body: `สาขา ${branch} · ${thaiDate(date)} · รวมทั้งวัน ${baht(total)}` });
     } catch (e: any) {
       setErr(e?.message ?? "บันทึกไม่สำเร็จ");
-      alert(e?.message ?? "บันทึกไม่สำเร็จ");
+      setDialog({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดบันทึกอีกครั้ง" });
     } finally {
       setSaving(false);
     }
@@ -545,10 +651,10 @@ export default function SalesPage() {
         </div>
       </GlassCard>
 
-      {/* รวมทั้งวัน + ตรวจกับยอด POS
-          POS สรุป "อื่นๆ" มาเป็นก้อนเดียว (QR + Grab + Lineman) พนักงานต้องลบเลขเองกว่าจะได้ยอด QR
-          ซึ่งพลาดง่ายและไม่มีอะไรฟ้อง · ให้กรอกยอดรวมจาก POS มาเทียบ จะดักได้ทุกช่องที่กรอกผิด
-          ไม่ใช่แค่ QR — รวมถึงเคสเผลอเอายอดจากแอปธนาคารมาใส่ */}
+      {/* รวมทั้งวัน + ตรวจกับรายงาน POS
+          POS สรุป "อื่นๆ" มาเป็นก้อนเดียว (QR + EDC + Grab + Lineman) พนักงานต้องลบเลขเองกว่าจะได้ยอด QR
+          ซึ่งพลาดง่ายและไม่มีอะไรฟ้อง · v1.24 เปลี่ยนจาก "พิมพ์ยอดรวม POS เอง" เป็นถ่ายรูปหน้ารายงานมาแนบ
+          ระบบอ่านยอด+วันที่ในรูปแล้วเทียบให้ — ไม่มีเลขให้กรอกผิด และรูปยังเป็นหลักฐานย้อนหลังได้ */}
       <GlassCard className="mb-3">
         <div className="grid grid-cols-3 gap-2.5">
           <Stat label="In-store" value={baht(inStore)} />
@@ -557,31 +663,31 @@ export default function SalesPage() {
         </div>
 
         <div className="mt-3 border-t border-black/[.06] pt-3">
-          <NumberField label="ยอดขายรวมตาม POS iPad" value={form.posTotal} onChange={set("posTotal")} />
-          {form.posTotal === "" ? (
-            <p className="mt-1.5 text-[11px] leading-relaxed text-brand-ink/45">
-              ใส่ยอดรวมที่ POS สรุป แล้วระบบจะตรวจให้ว่ากรอกครบถูกต้องไหม
-            </p>
-          ) : posDiff === 0 ? (
-            <div className="mt-2 rounded-xl border border-ok/40 bg-ok/10 px-3 py-2.5">
-              <p className="text-[13px] font-semibold text-ok">ตรงกับ POS ✓</p>
-              <p className="text-[11.5px] text-brand-ink/55">ผลรวมที่กรอก {baht(total)} = ยอด POS {baht(toNum(form.posTotal))}</p>
-            </div>
-          ) : (
-            <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
-              <p className="text-[13px] font-semibold text-warn">
-                ไม่ตรงกับ POS — {posDiff > 0 ? "เกิน" : "ขาด"} {baht(Math.abs(posDiff))}
-              </p>
-              <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
-                ผลรวมที่กรอก {baht(total)} · ยอด POS {baht(toNum(form.posTotal))}
-                <span className="block">ไล่เช็คทีละช่อง — ถ้าเกินพอดีกับเงินที่คืนลูกค้า แปลว่าเผลอเอายอดจากแอปธนาคารมาใส่</span>
-              </p>
-            </div>
-          )}
+          <PosReportSlot
+            branch={branch} date={date}
+            enteredTotal={total} enteredCash={toNum(form.cash)}
+            row={evidence.pos} reading={posReading}
+            onDone={(row, reading) => {
+              setEvidence((p) => ({ ...p, pos: row }));
+              setPosReading(reading);
+              // ยอดรวมที่อ่านได้จากรูปคือค่าที่เก็บลง posTotal — ไม่ต้องให้ใครพิมพ์เอง
+              if (reading?.total != null) setForm((p) => ({ ...p, posTotal: String(reading.total) }));
+            }}
+          />
         </div>
       </GlassCard>
 
       <TodayNextStep show={savedOnce} hideTask="sales" />
+
+      {dialog && (
+        <Dialog
+          open tone={dialog.tone} title={dialog.title}
+          actionLabel={dialog.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          onClose={() => setDialog(null)}
+        >
+          {dialog.body}
+        </Dialog>
+      )}
 
       <SaveBar>
         <Button onClick={save} disabled={saving || loading}>

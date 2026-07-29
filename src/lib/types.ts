@@ -344,7 +344,9 @@ export interface Requisition {
 
 // ── หลักฐานยอดขาย (v1.7) — แนบรูปสลิป/สรุปยอด ให้ Claude vision อ่านยอด+ชื่อผู้รับ เทียบกับที่กรอก ──
 // v1.8: เพิ่มตรวจจับเอกสารซ้ำ (อัปโหลดซ้ำ/ถ่ายคนละมุม/ใช้ยอดเดิมหลายวัน/ถ่ายจอซ้ำ) โดยเทียบเลขอ้างอิงที่อ่านได้จากรูป
-export type EvidenceType = "qr" | "grab" | "lineman";
+// v1.24: "pos" = รูปหน้าสรุปรายงานยอดขายบน POS iPad — ระบบอ่านยอด+วันที่ในรูป แล้วเทียบกับที่กรอก
+// (แทนช่องให้พิมพ์ยอดรวม POS เอง ซึ่งพนักงานสับสนว่าต้องเอาเลขจากไหน)
+export type EvidenceType = "qr" | "grab" | "lineman" | "pos";
 export type MatchStatus = "ok" | "mismatch" | "unclear" | "duplicate" | "pending";
 
 export interface SalesEvidence {

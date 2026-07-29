@@ -15,11 +15,12 @@ export interface OcrResult {
 }
 
 // เงินสด (บัญชีปลายทางต้องตรวจสอบ) → เช็คชื่อ; QR (เงินเข้าบัญชีบริษัทเสมออยู่แล้ว) → เช็ควันที่แทน; Grab/Lineman → เช็คแค่ยอด
+// pos = รูปหน้ารายงานสรุปยอดของ POS — มีเส้นทางอ่านของตัวเอง (readPosReportImage) ไม่ผ่าน readEvidenceImage
 const CHECK_NAME: Record<EvidenceType | "cash", boolean> = {
-  qr: false, cash: true, grab: false, lineman: false,
+  qr: false, cash: true, grab: false, lineman: false, pos: false,
 };
 const CHECK_DATE: Record<EvidenceType | "cash", boolean> = {
-  qr: true, cash: false, grab: false, lineman: false,
+  qr: true, cash: false, grab: false, lineman: false, pos: true,
 };
 
 export function checkFlags(kind: EvidenceType | "cash"): { checkName: boolean; checkDate: boolean } {
@@ -122,6 +123,109 @@ export function describeMismatch(enteredAmount: number, ocr: OcrResult, checkNam
   if (reasons.length === 0) return null;
   const suffix = !amountWrong ? " (ยอดถูกต้อง)" : "";
   return `${reasons.join(" และ ")}ไม่ตรงกับที่ควรจะเป็น${suffix}`;
+}
+
+// ── อ่านหน้ารายงานสรุปยอดขายบน POS iPad (v1.24) ──
+//
+// แทนที่ช่อง "ยอดขายรวมตาม POS" ที่ให้พิมพ์เอง — แพรบอกพนักงานสับสนว่าต้องเอาเลขจากไหน
+// ถ่ายรูปหน้ารายงานมาแนบแทน แล้วระบบอ่านเอง 4 ค่า: ยอดขายทั้งหมด · เงินสด · อื่นๆ · ช่วงวันที่
+//
+// "อื่นๆ" ของ POS = ทุกช่องทางที่ไม่ใช่เงินสด (QR + EDC + Grab + Lineman) รวมเป็นก้อนเดียว
+// จึงเทียบได้แค่ 3 ตัว: ยอดรวม · เงินสด · ที่เหลือ — ซึ่งพอดักการกรอกผิดช่องได้แล้ว
+export interface PosReportReading {
+  total: number | null;      // ยอดขายทั้งหมด
+  cash: number | null;       // เงินสด
+  other: number | null;      // อื่นๆ (ไม่ใช่เงินสด)
+  billCount: number | null;  // จำนวนบิล
+  dateFrom: string | null;   // yyyy-mm-dd — ช่วงวันที่ของรายงาน (ซ้ายมือ)
+  dateTo: string | null;     // yyyy-mm-dd — (ขวามือ)
+  clarity: "clear" | "unclear";
+}
+
+export async function readPosReportImage(base64: string, mediaType: string): Promise<PosReportReading> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ยังไม่ได้ตั้งค่า ANTHROPIC_API_KEY — ติดต่อแอดมินเพื่อเปิดใช้การอ่านยอดอัตโนมัติ");
+
+  const schema = {
+    type: "object",
+    properties: {
+      total: { type: ["number", "null"], description: "ยอดขายทั้งหมด (ตัวเลขใหญ่สีเขียว หรือช่อง 'ยอดรวม') เป็นตัวเลขล้วนไม่มี comma — null ถ้าอ่านไม่ได้" },
+      cash: { type: ["number", "null"], description: "ยอดช่อง 'เงินสด' — null ถ้าไม่มี/อ่านไม่ได้" },
+      other: { type: ["number", "null"], description: "ยอดช่อง 'อื่นๆ' — null ถ้าไม่มี/อ่านไม่ได้" },
+      billCount: { type: ["number", "null"], description: "จำนวนบิล — null ถ้าไม่มี/อ่านไม่ได้" },
+      dateFrom: { type: ["string", "null"], description: "วันที่เริ่มของช่วงรายงาน รูปแบบ YYYY-MM-DD (แปลง พ.ศ. เป็น ค.ศ. ให้ด้วย เช่น 29 กรกฎาคม 2568 = 2025-07-29) — null ถ้าอ่านไม่ได้" },
+      dateTo: { type: ["string", "null"], description: "วันที่สิ้นสุดของช่วงรายงาน รูปแบบ YYYY-MM-DD — ถ้ารายงานเป็นวันเดียวให้ตอบเท่ากับ dateFrom" },
+      clarity: { type: "string", enum: ["clear", "unclear"], description: "unclear ถ้าภาพเบลอ/มืด/เอียงจนไม่มั่นใจตัวเลขหรือวันที่ หรือรูปนี้ไม่ใช่หน้ารายงานสรุปยอดของ POS" },
+    },
+    required: ["total", "cash", "other", "billCount", "dateFrom", "dateTo", "clarity"],
+  };
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-5",
+      max_tokens: 512,
+      tools: [{ name: "report_pos", description: "รายงานตัวเลขที่อ่านได้จากหน้ารายงานสรุปยอดขายของ POS", input_schema: schema }],
+      tool_choice: { type: "tool", name: "report_pos" },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          {
+            type: "text",
+            text: "รูปนี้คือหน้า 'รายงาน' สรุปยอดขายรายวันของระบบ POS ในร้าน อ่านแล้วรายงาน: "
+              + "1) ยอดขายทั้งหมด 2) ยอดเงินสด 3) ยอดอื่นๆ 4) จำนวนบิล 5) ช่วงวันที่ของรายงาน (วันที่เริ่ม–วันที่สิ้นสุด) "
+              + "— อ่านเฉพาะตัวเลขที่เห็นจริงในรูป ห้ามคำนวณหรือเดาแทน ถ้าช่องไหนอ่านไม่ออกให้ตอบ null "
+              + "และถ้ารูปนี้ไม่ใช่หน้ารายงานสรุปยอดของ POS ให้ตอบ clarity = unclear",
+          },
+        ],
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Anthropic API error (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const toolUse = (data?.content ?? []).find((b: any) => b.type === "tool_use");
+  if (!toolUse) throw new Error("อ่านผลจาก Claude ไม่สำเร็จ (ไม่มี tool_use block)");
+  const i = toolUse.input ?? {};
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+  return {
+    total: num(i.total),
+    cash: num(i.cash),
+    other: num(i.other),
+    billCount: num(i.billCount),
+    dateFrom: day(i.dateFrom),
+    dateTo: day(i.dateTo),
+    clarity: i.clarity === "unclear" ? "unclear" : "clear",
+  };
+}
+
+// ตรวจรูปรายงาน POS เทียบกับที่พนักงานกรอก — คืนสถานะ + เหตุผลที่ไม่ผ่านเป็นภาษาคน
+// เทียบ 3 ด่าน: วันที่ของรายงาน → ยอดรวม → เงินสด (ที่เหลือคืออื่นๆ ซึ่งตรงเองถ้า 2 ตัวแรกตรง)
+export function checkPosReport(
+  r: PosReportReading, expectedDate: string, enteredTotal: number, enteredCash: number
+): { status: MatchStatus; note: string | null } {
+  if (r.clarity === "unclear" || r.total === null) {
+    return { status: "unclear", note: "อ่านรูปไม่ชัด — ถ่ายใหม่ให้เห็นทั้งหน้าจอรายงาน ตรงและสว่างพอ" };
+  }
+  const reasons: string[] = [];
+  if (r.dateFrom && r.dateFrom !== expectedDate) {
+    reasons.push(`รายงานในรูปเป็นวันที่ ${r.dateFrom} ไม่ใช่ ${expectedDate}`);
+  } else if (r.dateTo && r.dateTo !== expectedDate) {
+    reasons.push(`ช่วงวันที่ในรูปไม่ใช่วันเดียว (${r.dateFrom ?? "?"} ถึง ${r.dateTo})`);
+  }
+  if (Math.abs(r.total - enteredTotal) > 1) {
+    reasons.push(`ยอดขายทั้งหมดในรูป ${baht(r.total)} แต่ผลรวมที่กรอก ${baht(enteredTotal)}`);
+  }
+  if (r.cash !== null && Math.abs(r.cash - enteredCash) > 1) {
+    reasons.push(`เงินสดในรูป ${baht(r.cash)} แต่กรอกไว้ ${baht(enteredCash)}`);
+  }
+  return reasons.length ? { status: "mismatch", note: reasons.join(" · ") } : { status: "ok", note: null };
 }
 
 // ── อ่านบิลสิทธิ์พนักงาน (v1.13 เฟส 2) ──
