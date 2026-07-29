@@ -16,7 +16,9 @@ interface HomeTask {
   status: "done" | "todo" | "due";
 }
 
-export function TodayNextStep({ show, hideTask }: { show: boolean; hideTask?: string }) {
+// noPrimary = หน้าที่เรียกมีปุ่ม "ไปทำงานถัดไป" ของตัวเองอยู่แล้ว (เช่นหน้าสต็อกที่ต้องไปยอดขายเสมอ)
+// ตรงนี้เหลือแค่บอกว่าเหลืออะไรบ้าง จะได้ไม่มีปุ่มใหญ่ 2 อันชี้คนละทางในกล่องเดียวกัน
+export function TodayNextStep({ show, hideTask, noPrimary }: { show: boolean; hideTask?: string; noPrimary?: boolean }) {
   const [data, setData] = React.useState<{ remaining: number; tasks: HomeTask[] } | null>(null);
 
   React.useEffect(() => {
@@ -55,12 +57,14 @@ export function TodayNextStep({ show, hideTask }: { show: boolean; hideTask?: st
       <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
         {left.map((t) => t.label).join(" · ")}
       </p>
-      <Link
-        href={next.href}
-        className="mt-2.5 block rounded-xl bg-brand-red px-4 py-3 text-center text-[14px] font-semibold text-white"
-      >
-        ไป{next.label} →
-      </Link>
+      {!noPrimary && (
+        <Link
+          href={next.href}
+          className="mt-2.5 block rounded-xl bg-brand-red px-4 py-3 text-center text-[14px] font-semibold text-white"
+        >
+          ไป{next.label} →
+        </Link>
+      )}
       <Link
         href="/"
         className="mt-1.5 block px-4 py-1.5 text-center text-[12px] font-medium text-brand-ink/55 underline underline-offset-2"

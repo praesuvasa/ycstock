@@ -1162,8 +1162,17 @@ export default function StockPage() {
             <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-full bg-ok/15 text-lg text-ok">✓</div>
             <p className="text-center text-[16px] font-semibold text-ok">บันทึกสต็อกสำเร็จ</p>
             <p className="mt-0.5 text-center text-[12px] text-brand-ink/55">สาขา {branch} · {thaiDate(date)}</p>
-            {/* แทนที่ปุ่มลัดตายตัวเดิม — บอกตามจริงว่าวันนี้เหลืออะไรอีกไหม (v1.19) */}
-            <TodayNextStep show={showSavePrompt} hideTask="stock" />
+            {/* ลำดับงานหลังนับสต็อกคือไปรายงานยอดขายเสมอ (แพรยืนยัน 2026-07-29)
+                เคยให้ปุ่มนี้ชี้ "งานค้างอันแรก" แล้วมันไปโผล่เป็นยืนยันรับของ เพราะมักมีใบเก่าค้างอยู่
+                — ซึ่งไม่ใช่งานถัดไปของคนที่เพิ่งนับสต็อกเสร็จ */}
+            <Link
+              href={`/sales?branch=${branch}&date=${date}`}
+              className="mt-3 block rounded-xl bg-brand-red px-4 py-3 text-center text-[15px] font-semibold text-white"
+            >
+              ไปบันทึกรายงานยอดขาย →
+            </Link>
+            {/* ใต้ปุ่ม บอกตามจริงว่าวันนี้ยังเหลืออะไรอีกไหม (v1.19) */}
+            <TodayNextStep show={showSavePrompt} hideTask="stock" noPrimary />
             <button
               type="button"
               onClick={() => setShowSavePrompt(false)}
