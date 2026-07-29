@@ -119,6 +119,7 @@ const userRow = (r: any): User => ({
   mustSetPasscode: !!r.must_set_passcode,
   allowanceEnabled: r.allowance_enabled ?? false,
   allowanceMonthly: Number(r.allowance_monthly ?? ALLOWANCE_DEFAULT_MONTHLY),
+  workUnit: (r.work_unit ?? "store") as User["workUnit"],
 });
 
 const allowanceRow = (r: any): StaffAllowanceUse => ({
@@ -558,13 +559,13 @@ export const supabaseStore = {
   // อ่านผู้ใช้รายคน — ใช้ตอนเช็ค session ทุก request จึงต้องเบา (แถวเดียว ไม่ใช่ทั้งตาราง)
   async getUserById(id: string): Promise<User | null> {
     const { data } = await sb().from("users")
-      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode")
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit")
       .eq("id", id).maybeSingle();
     return data ? userRow(data) : null;
   },
 
   async listUsers(): Promise<User[]> {
-    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode").order("created_at");
+    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit").order("created_at");
     return (data ?? []).map(userRow);
   },
   // ไม่รับ PIN จากแอดมินอีกต่อไป (v1.15) — สร้างบัญชีพร้อม "รหัสตั้งค่า" แล้วให้เจ้าตัวไปตั้ง PIN เอง
@@ -582,7 +583,7 @@ export const supabaseStore = {
     if (error) throw error;
     return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true, setupCode };
   },
-  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number }): Promise<User | null> {
+  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"] }): Promise<User | null> {
     const upd: any = {};
     if (patch.name !== undefined) upd.name = patch.name;
     if (patch.role !== undefined) upd.role = patch.role;
@@ -590,7 +591,8 @@ export const supabaseStore = {
     if (patch.active !== undefined) upd.active = patch.active;
     if (patch.allowanceEnabled !== undefined) upd.allowance_enabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) upd.allowance_monthly = patch.allowanceMonthly;
-    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").maybeSingle();
+    if (patch.workUnit !== undefined) upd.work_unit = patch.workUnit;
+    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit").maybeSingle();
     if (error) throw error;
     return data ? userRow(data) : null;
   },
@@ -697,7 +699,7 @@ export const supabaseStore = {
   async getAllowanceOverview(month: string): Promise<{ summaries: AllowanceSummary[]; needsReview: StaffAllowanceUse[] }> {
     const { from, to } = monthRange(month);
     const { data: users, error: uErr } = await sb().from("users")
-      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly").eq("allowance_enabled", true).eq("active", true).order("created_at");
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit").eq("allowance_enabled", true).eq("active", true).order("created_at");
     if (uErr) throw uErr;
     const { data: uses, error: rErr } = await sb().from("staff_allowance_uses")
       .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,ocr_discount,needs_review,review_note,note,created_by_name,created_at")
@@ -991,7 +993,7 @@ export const supabaseStore = {
   },
 
   async clockIn(input: {
-    branch: Branch; userId: string; userName: string; workDate: string;
+    branch: Branch | null; userId: string; userName: string; workDate: string;
     photoPath?: string | null; similarity?: number | null;
     lat?: number | null; lng?: number | null; distanceM?: number | null;
   }): Promise<TimeClockEntry> {

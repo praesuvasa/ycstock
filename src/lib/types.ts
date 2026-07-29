@@ -190,7 +190,8 @@ export interface TimeClockSettings {
 
 export interface TimeClockEntry {
   id: number;
-  branch: Branch;
+  // null = ฝ่ายผลิต (ไม่ได้สังกัดสาขาขาย) — v1.24
+  branch: Branch | null;
   userId: string;
   userName: string;
   workDate: string;      // yyyy-mm-dd
@@ -271,7 +272,17 @@ export interface User {
   allowanceMonthly?: number;   // วงเงินต่อเดือน (default 400)
   // v1.15 — true = มีแต่ "รหัสตั้งค่า" ยังไม่ได้ตั้ง PIN ของตัวเอง (หน้าผู้ใช้โชว์ป้ายเตือน)
   mustSetPasscode?: boolean;
+  // ── หน่วยงาน (v1.24) — คนละเรื่องกับ branchScope ──
+  // branchScope = เห็นข้อมูลสาขาไหนได้ · workUnit = ทำงานอยู่หน่วยไหน
+  // ฝ่ายผลิตไม่ได้สังกัดสาขาขาย เห็นแค่เมนูลงเวลากับข้อมูลของตัวเอง
+  workUnit?: WorkUnit;
 }
+
+export type WorkUnit = "store" | "production";
+export const WORK_UNIT_LABEL: Record<WorkUnit, string> = {
+  store: "หน้าร้าน",
+  production: "ฝ่ายผลิต",
+};
 
 // ── สิทธิ์ซื้อของในร้าน (v1.13) — วงเงินส่วนลด 400 บาท/คน/เดือน คิดที่ราคาขายเต็ม ──
 // แบ่งใช้หลายบิลได้ · ยอดที่ตัดสิทธิ์คือ "ส่วนลดบนบิล" ไม่ใช่ยอดที่จ่ายจริง

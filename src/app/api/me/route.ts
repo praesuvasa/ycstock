@@ -16,12 +16,14 @@ export async function GET() {
   // ที่มั่นใจได้ว่าคนที่ถ่ายคือเจ้าของบัญชีจริง โดยที่แอดมินไม่ต้องไปยืนดูทุกคน
   // ลงทะเบียนไว้ก่อนได้เลย แม้ระบบลงเวลายังไม่เปิด — เปิดวันไหนก็ใช้ได้ทันที ไม่ต้องไล่เก็บทีหลัง
   let mustEnrollFace = false;
+  let workUnit: "store" | "production" = "store";
   // เมนูที่ยังไม่เปิดใช้ — ปิดไว้ทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
   // ถ้าปิดแค่เมนู งานจะยังค้างอยู่ในเช็คลิสต์ แล้วขึ้นว่า "งานวันนี้ยังไม่ครบ" ทุกวันโดยไม่มีใครทำได้
   let expiryCheckEnabled = false;
   try {
     const u = await db.getUserById(s.userId);
     allowanceEnabled = !!u?.allowanceEnabled;
+    workUnit = u?.workUnit ?? "store";
     expiryCheckEnabled = (await db.getAppSetting("expiry_check_enabled")) === "1";
     if (s.role !== "admin" && faceConfigured()) {
       const enrollment = await db.getFaceEnrollment(s.userId);
@@ -31,6 +33,6 @@ export async function GET() {
     // อ่านไม่ได้ = ถือว่ายังไม่ได้รับสิทธิ์ (ซ่อนเมนู) ดีกว่าโชว์เมนูที่กดแล้วพัง
   }
   return NextResponse.json({
-    user: { id: s.userId, name: s.name, role: s.role, branchScope: s.branchScope, allowanceEnabled, mustEnrollFace, features: { expiryCheck: expiryCheckEnabled } },
+    user: { id: s.userId, name: s.name, role: s.role, branchScope: s.branchScope, allowanceEnabled, mustEnrollFace, workUnit, features: { expiryCheck: expiryCheckEnabled } },
   });
 }

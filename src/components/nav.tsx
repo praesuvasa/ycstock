@@ -7,6 +7,8 @@ import type { Role, BranchScope } from "@/lib/types";
 export type Me = {
   id: string; name: string; role: Role; branchScope: BranchScope;
   allowanceEnabled?: boolean; mustEnrollFace?: boolean;
+  // หน่วยงาน (v1.24) — ฝ่ายผลิตเห็นแค่เมนูลงเวลา ไม่เห็นงานหน้าร้าน
+  workUnit?: "store" | "production";
   // เมนูที่แอดมินยังไม่เปิดใช้ — ซ่อนทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
   features?: { expiryCheck?: boolean };
 };
@@ -104,6 +106,9 @@ const RESTOCK_TABS: Tab[] = [
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
 ];
 const tabsForMe = (me: Me | null): Tab[] => {
+  // ฝ่ายผลิต — ยังไม่มีเมนูงานผลิตในระบบ จึงเห็นแค่หน้าหลักไว้ดูว่าล็อกอินเป็นใคร
+  // เมนูลงเวลาอยู่ในกลุ่ม "ข้อมูลของฉัน" อยู่แล้ว ไม่ต้องซ้ำอีกที่
+  if (me?.workUnit === "production" && me.role !== "admin") return [];
   const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
   // ยังไม่เปิดใช้ตรวจวันหมดอายุ = ตัดออกจากเมนูไปเลย (แพรสั่ง 2026-07-28)
   // ระหว่างนี้ของที่ต้องส่งคืนให้ไปกรอกที่หน้า "ส่งคืน" ตามเดิม
@@ -163,7 +168,10 @@ export function useAdminFlagsCount(): number {
 // บรรทัดล่างโลโก้ = "ชื่อคน · สาขา" (แพรขอ 2026-07-27) — เดิมขึ้นแค่ตำแหน่ง ซึ่งพนักงานไม่ได้อยากรู้
 // พนักงานอยากเห็นว่า "ฉันล็อกอินเป็นใคร สาขาไหน" มากกว่า โดยเฉพาะตอนใช้เครื่องร่วมกัน
 const scopeLabel = (me: Me | null): string =>
-  !me ? "" : me.branchScope === "all" ? `${me.name} · ทุกสาขา` : `${me.name} · สาขา ${me.branchScope}`;
+  !me ? ""
+    : me.workUnit === "production" ? `${me.name} · ฝ่ายผลิต`
+    : me.branchScope === "all" ? `${me.name} · ทุกสาขา`
+    : `${me.name} · สาขา ${me.branchScope}`;
 
 function useLogout() {
   const router = useRouter();
@@ -286,7 +294,11 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
         className={compact ? "h-9 w-auto" : "h-11 w-auto"}
       />
       <div className="leading-tight">
-        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>ระบบหน้าร้าน</div>
+        {/* หัวจอเปลี่ยนตามหน่วยงาน (v1.24) — ฝ่ายผลิตไม่ได้ทำงานหน้าร้าน เห็นคำว่า "ระบบหน้าร้าน" แล้วสับสน
+            โลโก้ยังเป็น YC เหมือนเดิม เพราะครัวกลางผลิตของให้ YC อยู่แล้ว */}
+        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>
+          {me?.workUnit === "production" ? "ระบบฝ่ายผลิต" : "ระบบหน้าร้าน"}
+        </div>
         <div className="text-[11px] text-brand-ink/50">{scopeLabel(me)}</div>
       </div>
     </div>

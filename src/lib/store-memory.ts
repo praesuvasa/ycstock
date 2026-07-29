@@ -539,7 +539,7 @@ export const memoryStore = {
     const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = u;
     return { ...pub, setupCode };
   },
-  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number }): User | null {
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"] }): User | null {
     const u = users.find((x) => x.id === id);
     if (!u) return null;
     if (patch.name !== undefined) u.name = patch.name;
@@ -548,6 +548,7 @@ export const memoryStore = {
     if (patch.active !== undefined) u.active = patch.active;
     if (patch.allowanceEnabled !== undefined) u.allowanceEnabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) u.allowanceMonthly = patch.allowanceMonthly;
+    if (patch.workUnit !== undefined) u.workUnit = patch.workUnit;
     const { passcodeHash, ...pub } = u;
     return pub;
   },
@@ -817,7 +818,7 @@ export const memoryStore = {
     return [...timeClock.values()].find((e) => e.userId === userId && !e.clockOut) ?? null;
   },
   clockIn(input: {
-    branch: Branch; userId: string; userName: string; workDate: string;
+    branch: Branch | null; userId: string; userName: string; workDate: string;
     photoPath?: string | null; similarity?: number | null;
     lat?: number | null; lng?: number | null; distanceM?: number | null;
   }): TimeClockEntry {

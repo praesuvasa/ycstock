@@ -11,6 +11,10 @@ const ROLE_OPTS: { value: Role; label: string }[] = [
   { value: "admin", label: "ผู้ดูแล" },
 ];
 const ROLE_LABEL_TH: Record<Role, string> = { user: "พนักงาน", restock: "จนท. Restock", admin: "ผู้ดูแล" };
+const UNIT_OPTS = [
+  { value: "store", label: "หน้าร้าน" },
+  { value: "production", label: "ฝ่ายผลิต" },
+];
 const SCOPE_OPTS: { value: BranchScope; label: string }[] = [
   { value: "all" as BranchScope, label: "ทุกสาขา" },
   ...BRANCHES.map((b) => ({ value: b as BranchScope, label: b })),
@@ -239,11 +243,24 @@ export default function UsersPage() {
                       <Segmented options={ROLE_OPTS} value={u.role}
                         onChange={(v) => v !== u.role && patch(u.id, { role: v })} />
                     </div>
+                    {/* หน่วยงาน (v1.24) — ฝ่ายผลิตเห็นแค่เมนูลงเวลา ไม่เห็นงานหน้าร้าน
+                        และลงเวลาได้โดยไม่ต้องผูกสาขา จึงซ่อนช่องสาขาไปเลยเมื่อเลือกฝ่ายผลิต
+                        (โชว์ไว้แล้วกดได้ทั้งที่ไม่มีผล = ทำให้เข้าใจผิดว่าตั้งแล้วมีความหมาย) */}
                     <div>
-                      <span className="mb-1 block text-[11px] text-brand-ink/50">สาขา</span>
-                      <Segmented options={SCOPE_OPTS} value={u.branchScope}
-                        onChange={(v) => v !== u.branchScope && patch(u.id, { branchScope: v })} />
+                      <span className="mb-1 block text-[11px] text-brand-ink/50">หน่วยงาน</span>
+                      <Segmented
+                        options={UNIT_OPTS}
+                        value={(u.workUnit ?? "store") as string}
+                        onChange={(v) => v !== (u.workUnit ?? "store") && patch(u.id, { workUnit: v })}
+                      />
                     </div>
+                    {(u.workUnit ?? "store") === "store" && (
+                      <div>
+                        <span className="mb-1 block text-[11px] text-brand-ink/50">สาขา</span>
+                        <Segmented options={SCOPE_OPTS} value={u.branchScope}
+                          onChange={(v) => v !== u.branchScope && patch(u.id, { branchScope: v })} />
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-black/[.03] px-2.5 py-2">
                       <div className="min-w-0">
                         <div className="text-[12.5px]">สิทธิ์ซื้อของในร้าน</div>

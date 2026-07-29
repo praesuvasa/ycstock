@@ -108,7 +108,8 @@ export default function TimeClockReportPage() {
                 <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[13.5px] font-medium">
-                      {e.userName} <span className="text-brand-ink/40">· {e.branch}</span>
+                      {/* ฝ่ายผลิตไม่ได้ผูกสาขา — เก็บ branch เป็นค่าว่าง (v1.24) */}
+                      {e.userName} <span className="text-brand-ink/40">· {e.branch ?? "ฝ่ายผลิต"}</span>
                     </p>
                     <p className="text-[11.5px] text-brand-ink/50">{thaiDate(e.workDate)}</p>
                   </div>
@@ -195,7 +196,9 @@ function EditDialog({ row, onClose, onSaved }: { row: Row; onClose: () => void; 
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-4 py-8">
       <div className="w-full max-w-sm rounded-2xl bg-brand-cream p-4 shadow-2xl">
         <p className="text-[15px] font-semibold">แก้เวลา · {row.userName}</p>
-        <p className="mb-3 text-[12px] text-brand-ink/50">{thaiDate(row.workDate)} · สาขา {row.branch}</p>
+        <p className="mb-3 text-[12px] text-brand-ink/50">
+          {thaiDate(row.workDate)} · {row.branch ? `สาขา ${row.branch}` : "ฝ่ายผลิต"}
+        </p>
 
         <div className="grid grid-cols-2 gap-2">
           <label className="flex flex-col gap-1">

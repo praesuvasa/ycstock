@@ -56,10 +56,13 @@ export async function POST(req: Request) {
     if (!settings.enabled) {
       return NextResponse.json({ error: "ระบบลงเวลายังไม่เปิดใช้งาน" }, { status: 400 });
     }
-    if (s.branchScope === "all") {
+    // ฝ่ายผลิตไม่ได้สังกัดสาขาขาย — ลงเวลาได้โดย branch = null (v1.24)
+    const me = await db.getUserById(s.userId);
+    const isProduction = me?.workUnit === "production";
+    if (!isProduction && s.branchScope === "all") {
       return NextResponse.json({ error: "บัญชีที่ไม่ผูกสาขาลงเวลาไม่ได้" }, { status: 400 });
     }
-    const branch = s.branchScope as Branch;
+    const branch = (isProduction ? null : (s.branchScope as Branch)) as Branch | null;
     const body = await req.json();
     const action = body?.action === "out" ? "out" : "in";
 
@@ -92,7 +95,8 @@ export async function POST(req: Request) {
     let dist: number | null = null;
     const lat = typeof body?.lat === "number" ? body.lat : null;
     const lng = typeof body?.lng === "number" ? body.lng : null;
-    if (settings.requireLocation) {
+    // ฝ่ายผลิตยังไม่มีพิกัดที่ตั้ง จึงข้ามด่านตำแหน่งไปก่อน (เปิดใช้ทีหลังเมื่อมีพิกัดครัวกลาง)
+    if (settings.requireLocation && branch) {
       const geo = await db.getBranchGeo(branch);
       if (!geo) {
         return NextResponse.json({ error: "ยังไม่ได้ตั้งพิกัดร้านของสาขานี้ — แจ้งแอดมินก่อน" }, { status: 400 });
@@ -109,7 +113,7 @@ export async function POST(req: Request) {
             `ถ้ายืนอยู่ที่ร้านจริง แปลว่าพิกัดร้านหรือสาขาของบัญชีนี้ตั้งไว้ไม่ตรง`,
         }, { status: 403 });
       }
-    } else if (lat !== null && lng !== null) {
+    } else if (lat !== null && lng !== null && branch) {
       const geo = await db.getBranchGeo(branch);
       if (geo) dist = distanceM(lat, lng, geo.lat, geo.lng); // เก็บระยะไว้ดูเฉย ๆ ไม่บล็อก
     }
