@@ -25,3 +25,13 @@ insert into pay_adjustment_rules (key, value, unit, scope, note) values
   ('snd_pt_solo_full_day_bonus', 100, 'บาท/วัน', 'SND · Prince (PT)',
    'PT อยู่คนเดียวและทำครบ 10 ชม. → เพิ่ม 100 บาท · เพิ่มจากค่าจ้างรายชั่วโมง 50 บาท/ชม. ไม่ใช่แทนกัน · ยึดเวลาสแกนจริง')
 on conflict (key) do update set value=excluded.value, unit=excluded.unit, scope=excluded.scope, note=excluded.note;
+
+-- แพรขยายความ 2026-07-30: เงื่อนไข 100 บาท = "วันที่เข้ากะเต็มวันแทนแยมและอยู่คนเดียว"
+-- ไม่ใช่ต้องครบ 10 ชม. เป๊ะ เพราะอนุโลมเข้าสายได้ 10 นาที
+update pay_adjustment_rules
+   set note = 'เงื่อนไข = วันที่ Prince เข้ากะเต็มวัน (F 08:00–18:00) แทนแยม และอยู่คนเดียว → เพิ่ม 100 บาท · ไม่ต้องครบ 10 ชม. เป๊ะ เพราะอนุโลมสายได้ 10 นาที (สแกนเข้าไม่เกิน 08:10) · เพิ่มจากค่าจ้างรายชั่วโมง ไม่ใช่แทนกัน · ยึดเวลาสแกนจริง'
+ where key='snd_pt_solo_full_day_bonus';
+insert into pay_adjustment_rules (key, value, unit, scope, note) values
+  ('late_grace_minutes', 10, 'นาที', 'SND · PT (ระบุในบริบทนี้)',
+   'อนุโลมเข้าสายได้ 10 นาที — ยังถือว่าเข้ากะเต็มวัน · ยังไม่ยืนยันว่าใช้กับพนักงานคนอื่นด้วยไหม')
+on conflict (key) do update set value=excluded.value, unit=excluded.unit, scope=excluded.scope, note=excluded.note;
