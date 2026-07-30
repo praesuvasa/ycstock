@@ -44,10 +44,11 @@ function thaiMonthLabel(month: string): string {
   return `${names[m - 1]} ${y + 543}`;
 }
 
+// ฟอร์มขอลาให้เลือกได้แค่ AL/PL (แพรสั่ง 2026-07-30)
+// ลาป่วยไม่ใช่สิ่งที่ "ขอล่วงหน้า" — เกิดขึ้นแล้วค่อยบันทึก ซึ่ง senior/แอดมินทำผ่านช่องแก้ตารางด้านล่าง
 const LEAVE_OPTIONS = [
   { value: "AL", label: "ลาพักร้อน" },
   { value: "PL", label: "ลากิจ" },
-  { value: "SL", label: "ลาป่วย" },
 ];
 
 // ฟอร์มขอเปลี่ยนตาราง — ลา AL/PL/SL มีผลทันทีถ้าสิทธิ์เหลือ · ขอสลับต้องรออนุมัติ (แพรกำหนด)
@@ -175,7 +176,12 @@ function RequestForm({ branch, names, onDone }: {
 
 const SHIFT_OPTIONS = [
   { code: "F", label: "เต็มวัน" }, { code: "M", label: "เช้า" }, { code: "A", label: "บ่าย" },
-  { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" }, { code: "PH", label: "หยุดประจำปี" },
+  { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
+];
+// รหัสลา — แยกจากกะทำงาน ใช้ตอนบันทึกวันลาที่เกิดขึ้นจริง (โดยเฉพาะลาป่วยที่ขอล่วงหน้าไม่ได้)
+const LEAVE_SHIFT_OPTIONS = [
+  { code: "SL", label: "ลาป่วย" }, { code: "AL", label: "ลาพักร้อน" },
+  { code: "PL", label: "ลากิจ" }, { code: "PH", label: "หยุดประจำปี" },
 ];
 
 // เฉพาะแอดมิน/senior staff — แก้กะรายวัน + อนุมัติคำขอสลับ
@@ -271,6 +277,10 @@ function ManagePanel({ branch, names, onDone }: { branch: string; names: string[
           </div>
           <Segmented
             options={SHIFT_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
+            value={shift} onChange={setShift}
+          />
+          <Segmented
+            options={LEAVE_SHIFT_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
             value={shift} onChange={setShift}
           />
           <input value={reason} onChange={(e) => setReason(e.target.value)}
