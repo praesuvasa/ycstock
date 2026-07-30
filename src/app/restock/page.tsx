@@ -1086,10 +1086,22 @@ function needToProduce(
     return { none: pack <= 0, text: String(pack), pack, g: 0 };
   }
   const per = item.gramsPerUOM || 1;
-  const needG = Math.max((packSum * per + gSum) - (havePack * per + haveG), 0);
-  const pack = Math.floor(needG / per);
-  const g = needG % per;
-  return { none: needG <= 0, text: formatOrderQty(pack, g, true, gUnit), pack, g };
+  const remaining = (packSum * per + gSum) - (havePack * per + haveG);
+  if (remaining <= 0) return { none: true, text: "0", pack: 0, g: 0 };
+
+  // ไม่มีของเก่า → โชว์ตามที่กรอกเป๊ะ ๆ ไม่ยุบเศษกรัมเป็นถุง (แพรสั่ง 2026-07-30)
+  //
+  // เดิมแปลงหน่วยให้: NVP สั่ง 1 + 2200g (ถุงละ 2kg) ช่องต้องผลิตขึ้น "2 + 200g" ซึ่งเลขถูกทางเลข
+  // แต่คนอ่านใบต้องมานั่งแปลงกลับว่าตกลงสาขาสั่งอะไร — และไม่ตรงกับกฎที่ใช้กับใบส่งของเข้าสาขาอยู่แล้ว
+  if (havePack <= 0 && haveG <= 0) {
+    return { none: false, text: formatOrderQty(packSum, gSum, true, gUnit), pack: packSum, g: gSum };
+  }
+
+  // มีของเก่าให้หัก → ต้องคิดรวมเป็นกรัมก่อนถึงจะหักได้ถูก (เคส "ต้องการ 3+100 มีของเก่า 1+250")
+  // แล้วค่อยแตกกลับ โดยไม่ให้จำนวนถุงเกินที่สาขาสั่งไว้จริง
+  const pack = Math.min(packSum, Math.floor(remaining / per));
+  const g = remaining - pack * per;
+  return { none: false, text: formatOrderQty(pack, g, true, gUnit), pack, g };
 }
 
 function ProductionRow({
