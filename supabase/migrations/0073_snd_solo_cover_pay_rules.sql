@@ -11,3 +11,10 @@ insert into pay_adjustment_rules (key, value, unit, scope, note) values
   ('pt_rate_per_hour', 50, 'บาท/ชั่วโมง', 'SND · Prince (PT)',
    'จ่ายตามเวลาสแกนจริง คิดเศษเป็นนาที · ตาราง F ของ PT = วันที่นัดให้มา ไม่ใช่ฐานคำนวณเงิน')
 on conflict (key) do update set value=excluded.value, unit=excluded.unit, scope=excluded.scope, note=excluded.note;
+
+-- แพรยืนยันเพิ่ม 2026-07-30: 2 กฎนี้ไม่บวกกัน (มาสาย = รายชั่วโมง · ไม่มาเลย = เหมา 200)
+-- และไม่ใช้กับเสาร์/วันหยุดที่ SND ครึ่งวันเข้าคนเดียวตามปกติอยู่แล้ว
+update pay_adjustment_rules set note = note || ' · ไม่บวกกับกฎเหมา 200 · ไม่ใช้กับเสาร์/วันหยุดที่เข้าคนเดียวอยู่แล้ว'
+ where key='snd_solo_cover_rate';
+update pay_adjustment_rules set note = note || ' · ใช้แทนกฎรายชั่วโมง ไม่บวกกัน · ไม่ใช้กับเสาร์/วันหยุด'
+ where key='snd_solo_all_day_bonus';
