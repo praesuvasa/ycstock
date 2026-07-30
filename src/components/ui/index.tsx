@@ -86,7 +86,9 @@ export function NumberField({ label, value, onChange, readOnly, tone }: {
   return (
     <label className="flex flex-col gap-1">
       {label && <span className="text-[11px] text-brand-ink/50">{label}</span>}
-      <input inputMode="numeric" value={value} readOnly={readOnly}
+      {/* inputMode="decimal" ไม่ใช่ "numeric" — บนมือถือ numeric ไม่มีปุ่มจุดทศนิยมให้กด
+          ช่องนี้ใช้กรอกเงินด้วย (ยอด QR 4,487.50) แพรเจอว่าพิมพ์จุดไม่ได้ 2026-07-30 */}
+      <input inputMode="decimal" value={value} readOnly={readOnly}
         onChange={(e) => onChange?.(e.target.value)}
         className={`field ${cls}`} />
     </label>
