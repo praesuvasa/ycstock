@@ -588,7 +588,7 @@ export const memoryStore = {
     const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = u;
     return { ...pub, setupCode };
   },
-  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"] }): User | null {
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean }): User | null {
     const u = users.find((x) => x.id === id);
     if (!u) return null;
     if (patch.name !== undefined) u.name = patch.name;

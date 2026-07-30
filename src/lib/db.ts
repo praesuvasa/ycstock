@@ -93,7 +93,7 @@ export const db = {
     useSupabase ? supabaseStore.listUsers() : Promise.resolve(memoryStore.listUsers()),
   createUser: (input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }) =>
     useSupabase ? supabaseStore.createUser(input) : Promise.resolve(memoryStore.createUser(input)),
-  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"] }) =>
+  updateUser: (id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean }) =>
     useSupabase ? supabaseStore.updateUser(id, patch) : Promise.resolve(memoryStore.updateUser(id, patch)),
   writeAudit: (e: Omit<AuditEntry, "id" | "ts">) =>
     useSupabase ? supabaseStore.writeAudit(e) : Promise.resolve(memoryStore.writeAudit(e)),

@@ -900,7 +900,7 @@ export const supabaseStore = {
     if (error) throw error;
     return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true, setupCode };
   },
-  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"] }): Promise<User | null> {
+  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean }): Promise<User | null> {
     const upd: any = {};
     if (patch.name !== undefined) upd.name = patch.name;
     if (patch.role !== undefined) upd.role = patch.role;
@@ -909,6 +909,7 @@ export const supabaseStore = {
     if (patch.allowanceEnabled !== undefined) upd.allowance_enabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) upd.allowance_monthly = patch.allowanceMonthly;
     if (patch.workUnit !== undefined) upd.work_unit = patch.workUnit;
+    if (patch.isSenior !== undefined) upd.is_senior = patch.isSenior;
     const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit,is_senior").maybeSingle();
     if (error) throw error;
     return data ? userRow(data) : null;

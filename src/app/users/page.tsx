@@ -229,6 +229,20 @@ export default function UsersPage() {
                   <div className="mb-2.5 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="text-[15px] font-semibold">{u.name}</span>
+                      {/* แก้ชื่อ (แพรขอ 2026-07-30) — สะกดผิด/เปลี่ยนชื่อเล่น ไม่ต้องลบบัญชีแล้วสร้างใหม่
+                          ซึ่งจะทำให้ประวัติลงเวลาและตารางกะของคนนั้นขาดตอน */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = window.prompt(`แก้ชื่อของ "${u.name}"`, u.name);
+                          const trimmed = (next ?? "").trim();
+                          if (!trimmed || trimmed === u.name) return;
+                          patch(u.id, { name: trimmed });
+                        }}
+                        className="text-[11.5px] font-medium text-sky-700 underline underline-offset-2"
+                      >
+                        แก้ชื่อ
+                      </button>
                       <Badge tone={u.role === "admin" ? "orange" : u.role === "restock" ? "blue" : "neutral"}>
                         {ROLE_LABEL_TH[u.role]}
                       </Badge>
@@ -254,6 +268,19 @@ export default function UsersPage() {
                         onChange={(v) => v !== (u.workUnit ?? "store") && patch(u.id, { workUnit: v })}
                       />
                     </div>
+                    {u.role === "user" && (u.workUnit ?? "store") === "store" && (
+                      <div>
+                        <span className="mb-1 block text-[11px] text-brand-ink/50">
+                          senior staff — แก้ตารางกะของสาขาตัวเองได้ (ทุกการแก้แจ้งแอดมิน)
+                        </span>
+                        <Segmented
+                          options={[{ value: "no", label: "พนักงานทั่วไป" }, { value: "yes", label: "senior staff" }]}
+                          value={u.isSenior ? "yes" : "no"}
+                          onChange={(v) => patch(u.id, { isSenior: v === "yes" })}
+                        />
+                      </div>
+                    )}
+
                     {(u.workUnit ?? "store") === "store" && (
                       <div>
                         <span className="mb-1 block text-[11px] text-brand-ink/50">สาขา</span>

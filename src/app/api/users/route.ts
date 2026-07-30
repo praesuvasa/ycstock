@@ -55,10 +55,11 @@ export async function PATCH(req: Request) {
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
 
-    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: "store" | "production" } = {};
+    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: "store" | "production"; isSenior?: boolean } = {};
     // หน่วยงาน (v1.24) — ฝ่ายผลิตไม่เห็นเมนูหน้าร้าน และลงเวลาได้โดยไม่ต้องผูกสาขา
     if (body.workUnit === "store" || body.workUnit === "production") patch.workUnit = body.workUnit;
     if (typeof body.name === "string") patch.name = body.name.trim();
+    if (typeof body.isSenior === "boolean") patch.isSenior = body.isSenior;
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
       patch.role = body.role;
