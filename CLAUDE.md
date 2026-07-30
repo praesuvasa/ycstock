@@ -8,7 +8,7 @@ URL: https://yogurtculturestock.vercel.app
 BQMP ประกอบด้วย 3 business units:
 - **Yogi** — ผลิตและขายส่ง
 - **YC (Yogurt Culture)** — retail branches
-- **Staple** — แบรนด์ใหม่ (สาขาแรก co-locate กับ YC ที่ KCN และ NCH)
+- **Staple** — แบรนด์ใหม่ (สาขาแรก co-locate กับ YC ที่ KCN และ NCD)
 
 ## Branches ที่ใช้ระบบนี้
 | Branch | BU | หมายเหตุ |
@@ -37,7 +37,7 @@ BQMP ประกอบด้วย 3 business units:
 - **bqmp-people.vercel.app** — พนักงานดู attendance ของตัวเองผ่านที่นั่น
 
 ## KCN + Staple Shared Context
-KCN และ NCH: YC กับ Staple ใช้ staff/POS/stock ชุดเดียวกัน
+KCN และ NCD: YC กับ Staple ใช้ staff/POS/stock ชุดเดียวกัน
 - ยอดขาย track แยก brand (YC vs Staple)
 - พนักงานสังกัด YC แต่ทำงานให้ทั้ง 2 brand
 - จนกว่า Staple จะมีสาขาแยกออกไป
