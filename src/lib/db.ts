@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
+import type { ScheduleRow, ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -11,6 +11,8 @@ export const db = {
   getMeta: (): Promise<Meta> =>
     useSupabase ? supabaseStore.getMeta() : Promise.resolve(memoryStore.getMeta()),
 
+  listSchedules: (branch: Branch, date: string): Promise<ScheduleRow[]> =>
+    useSupabase ? supabaseStore.listSchedules(branch, date) : Promise.resolve(memoryStore.listSchedules(branch, date)),
   setItemBrand: (itemId: string, brand: ItemBrand) =>
     useSupabase ? supabaseStore.setItemBrand(itemId, brand) : Promise.resolve(memoryStore.setItemBrand(itemId, brand)),
   setItemConfig: (itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) =>

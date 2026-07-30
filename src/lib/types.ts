@@ -11,6 +11,18 @@ export type CupSize = "P" | "S" | "BOWL" | "14OZ";
 // ความถี่เช็คสต็อกต่อรายการ — daily = ทุกวัน · monThu = เฉพาะวันจันทร์+พฤหัส (ของหมุนช้า ลดภาระกรอกซ้ำ)
 export type CheckFrequency = "daily" | "monThu";
 
+// ตารางกะ (v1.26) — import จากไฟล์ Excel ของแพร · หน้าจัดตารางของแอดมินทำรอบถัดไป
+export interface ScheduleRow {
+  employeeName: string;
+  shiftCode: string;        // F · M · A · OFF · AL · SL · PL · LWP · PT · CLOSED
+  shiftLabel: string;       // ชื่อกะภาษาคน
+  startTime?: string | null; // "09:00" — null ถ้าไม่ใช่กะทำงาน
+  endTime?: string | null;
+  hours: number;
+  ptHours?: number | null;  // เฉพาะ PT
+  note: string;
+}
+
 // แบรนด์ของสินค้า (v1.25) — เตรียมไว้ก่อน Staple เปิด NCD ก.ย. 2569
 // shared = ของที่ใช้ร่วมกันทั้ง 2 แบรนด์ (ถ้วย ถุง ช้อน) ไม่ต้องแยกนับ
 export type ItemBrand = "yc" | "staple" | "shared";

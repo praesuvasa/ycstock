@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
@@ -257,6 +257,11 @@ export const memoryStore = {
   getMeta(): Meta {
     seed();
     return { branches: BRANCHES, items: ITEMS, par: PAR };
+  },
+
+  // โหมด dev ยังไม่มีตารางกะ (ข้อมูลจริงอยู่ที่ Supabase อย่างเดียว) — คืนว่างไว้ก่อน
+  listSchedules(_branch: Branch, _date: string): ScheduleRow[] {
+    return [];
   },
 
   setItemBrand(itemId: string, brand: ItemBrand) {

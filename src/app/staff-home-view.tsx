@@ -7,6 +7,7 @@ import React from "react";
 import Link from "next/link";
 import { GlassCard, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
+import type { ScheduleRow } from "@/lib/types";
 import { useMe } from "@/components/nav";
 
 interface HomeTask {
@@ -40,6 +41,51 @@ const MARK: Record<HomeTask["status"], { cls: string; label: string; text: strin
   due: { cls: "bg-warn/15 text-warn border-warn/30", label: "!", text: "ต้องทำวันนี้" },
   todo: { cls: "border-black/15 text-brand-ink/35", label: "", text: "ยังไม่ได้ทำ" },
 };
+
+// ── ตารางงานวันนี้ ──
+// ไม่ขึ้นอะไรเลยถ้าวันนั้นยังไม่มีตารางในระบบ (เช่นเลยรอบ 25 ส.ค. ไปแล้วแต่ยังไม่ได้ใส่รอบใหม่)
+// ดีกว่าขึ้นกล่องว่าง ๆ ให้พนักงานสงสัยว่าระบบพัง
+function TodaySchedule({ branch, date }: { branch: string; date: string }) {
+  const [rows, setRows] = React.useState<ScheduleRow[] | null>(null);
+  React.useEffect(() => {
+    let alive = true;
+    fetch(`/api/schedules?branch=${branch}&date=${date}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive && !d?.error) setRows(d.rows ?? []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [branch, date]);
+
+  if (!rows || rows.length === 0) return null;
+  const working = rows.filter((r) => r.startTime);
+  const away = rows.filter((r) => !r.startTime);
+
+  return (
+    <GlassCard className="mb-3">
+      <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">ตารางงานวันนี้</p>
+      {working.length === 0 ? (
+        <p className="text-[13px] font-medium text-warn">วันนี้ไม่มีใครเข้ากะที่สาขานี้</p>
+      ) : (
+        <div className="grid gap-1.5">
+          {working.map((r) => (
+            <div key={r.employeeName} className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-2.5 py-1.5">
+              <span className="text-[13.5px] font-medium">{r.employeeName}</span>
+              <span className="text-[12.5px] tabular-nums text-brand-ink/60">
+                {r.startTime}–{r.endTime}
+                <span className="ml-1.5 text-[11px] text-brand-ink/40">{r.shiftLabel}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {away.length > 0 && (
+        <p className="mt-1.5 text-[11.5px] leading-relaxed text-brand-ink/45">
+          {away.map((r) => `${r.employeeName} · ${r.shiftLabel}`).join(" · ")}
+        </p>
+      )}
+    </GlassCard>
+  );
+}
 
 export function StaffHome() {
   const me = useMe();
@@ -111,6 +157,9 @@ export function StaffHome() {
         </div>
         {me?.name && <p className="mt-0.5 text-[14px] font-medium text-brand-ink/60">{me.name}</p>}
       </div>
+
+      {/* ตารางงานวันนี้ (v1.26) — ใครเข้ากะอะไรที่สาขานี้ · อ่านจากตารางกะที่ import มาจากไฟล์ของแพร */}
+      <TodaySchedule branch={data.branch} date={data.date} />
 
       <GlassCard className="mb-3">
         {allDone ? (

@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -196,6 +196,39 @@ export const supabaseStore = {
 
   // แท็กแบรนด์รายสินค้า (v1.25) — แยกจาก setItemConfig เพราะเป็นคนละเรื่องกัน
   // (อันนั้นคือวิธีนับ/แกะ · อันนี้คือ "ของใคร") และหน้าตั้งค่าจะได้บันทึกทีละอย่างไม่ทับกัน
+  // ── ตารางกะ (v1.26) ──
+  // join นิยามกะให้ในตัว: หา def ของสาขานั้นก่อน ไม่เจอค่อยใช้ def กลาง ('*' = ลา/หยุด/ปิดร้าน)
+  async listSchedules(branch: Branch, date: string): Promise<ScheduleRow[]> {
+    const { data, error } = await sb().from("schedules")
+      .select("employee_name,shift_code,pt_hours,note")
+      .eq("branch_id", branch).eq("work_date", date)
+      .order("employee_name");
+    if (error) throw error;
+    const rows = data ?? [];
+    if (rows.length === 0) return [];
+
+    const { data: defs } = await sb().from("shift_definitions")
+      .select("code,branch_id,label,start_time,end_time,hours")
+      .in("code", [...new Set(rows.map((r: any) => r.shift_code))]);
+    const defOf = (code: string) =>
+      (defs ?? []).find((d: any) => d.code === code && d.branch_id === branch)
+      ?? (defs ?? []).find((d: any) => d.code === code && d.branch_id === "*");
+
+    return rows.map((r: any) => {
+      const d: any = defOf(r.shift_code);
+      return {
+        employeeName: r.employee_name,
+        shiftCode: r.shift_code,
+        shiftLabel: d?.label ?? r.shift_code,
+        startTime: d?.start_time ? String(d.start_time).slice(0, 5) : null,
+        endTime: d?.end_time ? String(d.end_time).slice(0, 5) : null,
+        hours: Number(d?.hours ?? 0),
+        ptHours: r.pt_hours == null ? null : Number(r.pt_hours),
+        note: r.note ?? "",
+      };
+    });
+  },
+
   async setItemBrand(itemId: string, brand: ItemBrand) {
     const { error } = await sb().from("items").update({ brand }).eq("id", itemId);
     if (error) throw error;
