@@ -52,13 +52,20 @@ Vercel project: `bqmp-ops` (เปลี่ยนจาก `ycstock` เมื�
 
 หลัง login ข้อมูลกรองตาม branch/unit ของพนักงานอัตโนมัติ (ทำไว้แล้วบางส่วน — users.work_unit)
 
-### [2] Activate AWS attendance → write ลง Supabase
-เมื่อพนักงาน scan ใบหน้า:
-- AWS Rekognition verify → ได้ employee_id
-- Write ลง Supabase table `attendance_logs` ทันที:
-  { employee_id, timestamp, type: 'in'/'out', branch, unit }
-- ห้าม export file — ต้อง write ลง Supabase โดยตรง
-- ข้อมูลนี้จะถูกอ่านโดย payroll script และ bqmp.vercel.app
+### [2] Activate AWS attendance → write ลง Supabase ✅ ส่วนระบบทำแล้ว
+เมื่อพนักงาน scan ใบหน้า: AWS Rekognition verify → เขียนลง Supabase ทันที (ไม่มี export file)
+
+**ที่เก็บจริงคือตาราง `time_clock` — 1 แถวต่อกะ ไม่ใช่ 1 แถวต่อการแตะ**
+(clock_in / clock_out อยู่แถวเดียวกัน เพราะพนักงานกดเข้า-ออกของกะเดียวกัน และแอดมินต้องแก้เวลาเป็นคู่
+· เก็บ %ใบหน้าที่ตรง · ระยะห่างจากร้านตอนกด · ใครแก้เวลาย้อนหลังพร้อมเหตุผล)
+
+ระบบอื่นอ่านผ่าน **view `attendance_logs`** (อ่านอย่างเดียว มีอยู่แล้วในฐานข้อมูล):
+`source_id · employee_id · branch · work_date · timestamp_in · timestamp_out ·
+in_distance_m · out_distance_m · in_face_similarity · out_face_similarity · edit_note`
+
+ที่ยังเหลือก่อนเปิดใช้จริง (ไม่ใช่งานเขียนโค้ด):
+- สร้างบัญชีพนักงาน 6 คน → ให้แต่ละคนลงทะเบียนใบหน้าครั้งแรกเอง
+- เซ็นหนังสือยินยอมเก็บข้อมูลใบหน้า (PDPA) ก่อนเริ่มใช้จริง — ไฟล์อยู่ในโฟลเดอร์ แบบฟอร์ม/
 
 ### [3] เพิ่ม "ตารางงานวันนี้" section
 แสดงว่าวันนี้ใครเข้ากะอะไร อ่านจาก Supabase table `schedules`
@@ -75,9 +82,18 @@ Vercel project: `bqmp-ops` (เปลี่ยนจาก `ycstock` เมื�
 - **bqmp-people.vercel.app** — พนักงานดู attendance log ของตัวเองที่นั่น
 
 ## Supabase Tables ที่เกี่ยวข้อง
-- `attendance_logs` — { id, employee_id, timestamp, type, branch, unit }
-- `schedules` — { employee_id, date, shift, branch }
-- `employees` — { id, name, branch, unit, pin_hash }
+**ของจริงในฐานข้อมูล (ตรวจสอบแล้ว 2026-07-30) — ห้ามแก้ view โดยไม่แจ้ง bqmp/bqmp-people ก่อน**
+
+| ชื่อ | ชนิด | รายละเอียด |
+|------|------|-----------|
+| `time_clock` | ตาราง | ที่เก็บเวลาเข้า-ออกจริง · 1 แถวต่อกะ (clock_in + clock_out อยู่ด้วยกัน) |
+| `attendance_logs` | **view** อ่านอย่างเดียว | source_id · employee_id · branch · work_date · timestamp_in · timestamp_out · in_distance_m · out_distance_m · in_face_similarity · out_face_similarity · edit_note |
+| `users` | ตาราง | พนักงานตัวจริง — passcode_hash อยู่ที่นี่ และ **ไม่ถูกส่งออกผ่าน view ใด ๆ** |
+| `employees` | **view** อ่านอย่างเดียว | id · name · branch · work_unit · active (เฉพาะคนที่ยัง active) |
+| `schedules` | **ยังไม่มี** | ต้องสร้างตอนทำงาน [3] — ต้องได้ตารางกะ + เงื่อนไข OT/สาย/ครึ่งวัน จากแพรก่อน |
+
+รหัสผ่านพนักงานอยู่ที่แอปนี้ที่เดียว — ถ้า bqmp-people ต้องให้พนักงานล็อกอิน ให้เรียก API ของแอปนี้
+อย่าอ่าน hash ไปเทียบเอง (มี 2 ที่เมื่อไหร่ วันเปลี่ยนรหัสจะเพี้ยนทันที)
 
 ## ห้ามทำโดยไม่ถามก่อน
 - เปลี่ยน attendance flow โดยไม่ sync กับ payroll script
