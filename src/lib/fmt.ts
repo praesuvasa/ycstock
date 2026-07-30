@@ -1,5 +1,15 @@
 // helper การแสดงผล
-export const baht = (n: number): string => "฿" + Math.round(n).toLocaleString("en-US");
+// แสดงสตางค์เมื่อมีเศษเท่านั้น (แพรทัก 2026-07-30)
+// เดิมปัดเป็นจำนวนเต็มเสมอ — ยอด QR 4,616.50 กลายเป็น ฿4,617 แล้วอ่านเทียบกับสลิป/แอปธนาคารไม่ตรง
+// ยอดกลม ๆ ยังขึ้นเหมือนเดิม (฿1,645) ไม่ต้องมี .00 ให้รก
+export const baht = (n: number): string => {
+  const v = Number(n) || 0;
+  const hasCents = Math.abs(v - Math.round(v)) > 0.004;
+  return "฿" + v.toLocaleString("en-US", {
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+};
 
 export const todayISO = (): string => new Date().toISOString().slice(0, 10);
 
