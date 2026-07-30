@@ -21,7 +21,7 @@ URL ใหม่ (กำลังเปลี่ยน): https://bqmp-store.verc
 
 ## Features แยกตาม BU
 
-**YC + Staple (path /yc, /staple) — retail:**
+**YC + Staple (path /store) — retail (ใช้ path เดียวกัน):**
 - Stock management ✅ | บันทึกยอดขาย ✅ | รายงาน/เปิด-ปิดร้าน ✅
 - AWS Face Recognition Attendance ⚠️ (set up แล้ว ยังไม่ live)
 
@@ -31,17 +31,25 @@ URL ใหม่ (กำลังเปลี่ยน): https://bqmp-store.verc
 
 ## สิ่งที่ต้องทำ (priority order)
 
-### [1] เพิ่ม path-based routing ต่อ unit
-พนักงานแต่ละ unit เข้าผ่าน path ของตัวเอง:
-- /yc     → โลโก้/สี YC     | Primary: #F2565C (Mouthful Red) | Palette: #84D7FF (Dairy Blue) #FF8C33 (Tasty Orange)
-- /staple → โลโก้/สี Staple | Primary: #542916 (Dark Brown) | Palette: #B79858, #A13A1E, #F1C166, #88B8CE, #FEFAF0
-- /yogi   → โลโก้/สี Yogi   | Primary: #29B5E8 (Sky Blue)
+### [1] เพิ่ม path-based routing — 2 path (แพรตัดสิน 2026-07-30)
+- /store → หน้าร้าน (YC + Staple ใช้ร่วมกัน)
+- /yogi  → ฝ่ายผลิต
 
-สำคัญ: /yogi แสดง feature ต่างจาก /yc และ /staple
-- /yogi ไม่มี: POS, ยอดขาย, เปิด-ปิดร้าน, attendance scan
-- /yogi มี: stock กลาง, stock วัตถุดิบ, production log
+**ทำไมไม่แยก /yc กับ /staple:** ที่ KCN และ NCD พนักงานคนเดียวขายทั้ง 2 แบรนด์ในกะเดียว
+ใช้ POS/สต็อก/ตู้ชุดเดียวกัน ถ้าแยก path จะต้องสลับไปมาระหว่างกะ และเช็คสต็อกซ้ำ 2 รอบสำหรับของชุดเดียว
+→ แยกแบรนด์ด้วย **แท็กแบรนด์ที่ตัวสินค้าและยอดขาย** แทน (ยอดขายยัง track แยก YC/Staple ได้ครบ)
 
-หลัง login ข้อมูลกรองตาม branch/unit ของพนักงานอัตโนมัติ
+สี/โลโก้เลือกตามสาขาและแบรนด์ของรายการ ไม่ใช่ตาม path:
+- YC     | Primary: #F2565C (Mouthful Red) | Palette: #84D7FF (Dairy Blue) #FF8C33 (Tasty Orange)
+- Staple | Primary: #542916 (Dark Brown) | Palette: #B79858, #A13A1E, #F1C166, #88B8CE, #FEFAF0
+- Yogi   | Primary: #29B5E8 (Sky Blue)
+- KCN/NCD ที่ขายทั้ง 2 แบรนด์ โชว์ได้ทั้งคู่
+
+/yogi แสดง feature ต่างจาก /store:
+- /yogi ไม่มี: POS, ยอดขาย, เปิด-ปิดร้าน
+- /yogi มี: stock กลาง, stock วัตถุดิบ, production log, ลงเวลาเข้า-ออกงาน (ไม่ผูกสาขา)
+
+หลัง login ข้อมูลกรองตาม branch/unit ของพนักงานอัตโนมัติ (ทำไว้แล้วบางส่วน — users.work_unit)
 
 ### [2] Activate AWS attendance → write ลง Supabase
 เมื่อพนักงาน scan ใบหน้า:
