@@ -2,8 +2,9 @@
 
 ## ระบบนี้คืออะไร
 Store operations app สำหรับพนักงานหน้าร้าน BQMP ใช้ทุกวันในการทำงาน
-URL ปัจจุบัน: https://yogurtculturestock.vercel.app
-URL ใหม่ (กำลังเปลี่ยน): https://bqmp-store.vercel.app
+URL หลัก: https://bqmp-ops.vercel.app
+URL เดิม (ยังใช้ได้): https://yogurtculturestock.vercel.app
+Vercel project: `bqmp-ops` (เปลี่ยนจาก `ycstock` เมื่อ 2026-07-30)
 
 ## Organization: BQMP
 ประกอบด้วย 3 business units:
@@ -62,9 +63,11 @@ URL ใหม่ (กำลังเปลี่ยน): https://bqmp-store.verc
 ### [3] เพิ่ม "ตารางงานวันนี้" section
 แสดงว่าวันนี้ใครเข้ากะอะไร อ่านจาก Supabase table `schedules`
 
-### [4] Rename Vercel project
-เปลี่ยนชื่อ project บน Vercel จาก yogurtculturestock → bqmp-store
-URL ใหม่: bqmp-store.vercel.app
+### [4] Rename Vercel project ✅ เสร็จ 2026-07-30
+- ชื่อ project: `ycstock` → `bqmp-ops`
+- โดเมนใหม่: bqmp-ops.vercel.app (Add Existing ในหน้า Project → Domains)
+- โดเมนเดิม yogurtculturestock.vercel.app ยังใช้ได้ ไม่ได้ปิด
+- ค่อยตั้ง redirect โดเมนเดิม → โดเมนใหม่ ตอนพนักงานย้ายไอคอนครบ
 
 ## Connections กับระบบอื่น
 - **Supabase** — database กลาง (write attendance_logs, read schedules)
