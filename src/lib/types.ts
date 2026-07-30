@@ -254,12 +254,14 @@ export type PaymentIncidentKind =
   // โอนมาแล้วเปลี่ยน/ยกเลิกเมนู ร้านคืนสดเฉพาะส่วนต่าง (v1.23)
   // ตัวเลขเดินเหมือน over_cash_change แต่แยกชนิดไว้เพราะสาเหตุคนละเรื่อง —
   // อันนั้นลูกค้าโอนผิดจำนวน อันนี้ร้านเปลี่ยนรายการขาย · ย้อนดูทีหลังจะได้รู้ว่าเกิดอะไรจริง
-  | "menu_change_refund";
+  | "menu_change_refund"
+  // ลูกค้าโอนแล้วไม่เอาเลย — void ทั้งบิล คืนเงินสดเต็มจำนวน (แพรแจ้งเคสจริง 2026-07-30)
+  | "void_full_refund";
 
 // รายชื่อชนิดทั้งหมด — ให้ API ใช้ตรวจค่าที่ส่งเข้ามา แทนที่จะไปเขียนลิสต์ซ้ำในแต่ละไฟล์
 // (เพิ่มชนิดใหม่แล้วลืมแก้ validator = บันทึกไม่ได้ โดยที่หน้าจอมีให้เลือก — เจอมาแล้ว 2026-07-28)
 export const PAYMENT_INCIDENT_KINDS: PaymentIncidentKind[] = [
-  "over_no_change", "over_cash_change", "under_cash_topup", "menu_change_refund",
+  "over_no_change", "over_cash_change", "under_cash_topup", "menu_change_refund", "void_full_refund",
 ];
 
 export interface PaymentIncident {

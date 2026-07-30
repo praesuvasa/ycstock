@@ -112,7 +112,10 @@ export interface IncidentAdjustment {
 export function incidentAdjustment(
   kind: PaymentIncidentKind, billAmount: number, actualAmount: number
 ): IncidentAdjustment {
-  const diff = n(actualAmount) - n(billAmount);
+  // ยกเลิกทั้งบิล = ไม่มียอดบิลเหลือ ระบบบังคับเป็น 0 ให้เอง พนักงานกรอกแค่ยอดที่ลูกค้าโอนมา
+  // (เดิมต้องใช้ menu_change_refund แล้วพิมพ์ 0 เอง ซึ่งลืมง่ายและกลายเป็นยอดเพี้ยนแบบเงียบ ๆ)
+  const bill = kind === "void_full_refund" ? 0 : n(billAmount);
+  const diff = n(actualAmount) - bill;
   if (kind === "over_no_change") return { qr: diff, cash: 0, overBill: diff };
   // อีก 3 เคสเงินสดชดเชยกลับเสมอ ยอดรวมจึงตรงบิล
   // (รวม menu_change_refund — เงินเข้า QR เต็มจำนวนที่โอนมา แล้วจ่ายสดคืนเท่าส่วนต่าง)

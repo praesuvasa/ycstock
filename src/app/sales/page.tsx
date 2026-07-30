@@ -217,6 +217,9 @@ const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }
   // เคสจริงจากแพร: ลูกค้าโอน 200 → void บิล → คีย์บิลใหม่ 190 → คืนสด 10
   // POS จะเห็น QR แค่ 190 (บิลใหม่) แต่เงินเข้าบัญชีจริง 200 และเงินสดหายไป 10
   // ครอบเคสยกเลิกทั้งบิลด้วย — ใส่ยอดบิลใหม่ = 0
+  // เคสจริง 2026-07-30: ลูกค้าโอนแล้วไม่เอาเลย void ทั้งบิล คืนสดเต็มจำนวน
+  { kind: "void_full_refund", label: "ลูกค้ายกเลิกทั้งบิล · คืนสดเต็มจำนวน",
+    hint: "โอนมาแล้วไม่เอาเลย — void บิลออกจาก POS แล้วคืนเงินสดทั้งก้อน กรอกแค่ยอดที่โอนมา" },
   { kind: "menu_change_refund", label: "void บิล/เปลี่ยนเมนู · คืนสดจากลิ้นชัก",
     hint: "โอนมาแล้ว void บิลเก่า คีย์บิลใหม่ที่ถูกลง แล้วคืนส่วนต่างเป็นเงินสด · ยกเลิกทั้งบิลใส่ยอดบิลใหม่ = 0" },
 ];
@@ -527,7 +530,8 @@ export default function SalesPage() {
                       </button>
                     </div>
                     <div className="flex gap-2">
-                      <label className="flex flex-1 flex-col gap-0.5">
+                      {/* เคสยกเลิกทั้งบิลไม่มีช่องยอดบิล — ระบบรู้อยู่แล้วว่าเหลือ 0 ไม่ต้องให้พิมพ์เอง */}
+                      <label className={`flex flex-1 flex-col gap-0.5 ${it.kind === "void_full_refund" ? "hidden" : ""}`}>
                         <span className="text-[10px] text-brand-ink/50">
                           {it.kind === "menu_change_refund" ? "ยอดบิลใหม่ใน POS (ยกเลิกหมด = 0)" : "ยอดตามบิล"}
                         </span>
@@ -539,7 +543,7 @@ export default function SalesPage() {
                       </label>
                       <label className="flex flex-1 flex-col gap-0.5">
                         <span className="text-[10px] text-brand-ink/50">
-                          {it.kind === "menu_change_refund" ? "ยอดที่ลูกค้าโอนมา" : "โอนเข้าจริง"}
+                          {it.kind === "menu_change_refund" || it.kind === "void_full_refund" ? "ยอดที่ลูกค้าโอนมา" : "โอนเข้าจริง"}
                         </span>
                         <input
                           inputMode="decimal" value={it.actualAmount || ""}
