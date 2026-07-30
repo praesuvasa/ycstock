@@ -10,6 +10,8 @@ export type Me = {
   allowanceEnabled?: boolean; mustEnrollFace?: boolean;
   // หน่วยงาน (v1.24) — ฝ่ายผลิตเห็นแค่เมนูลงเวลา ไม่เห็นงานหน้าร้าน
   workUnit?: "store" | "production";
+  // senior staff — แก้ตารางกะของสาขาตัวเองได้
+  isSenior?: boolean;
   // เมนูที่แอดมินยังไม่เปิดใช้ — ซ่อนทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
   features?: { expiryCheck?: boolean };
 };

@@ -173,6 +173,120 @@ function RequestForm({ branch, names, onDone }: {
   );
 }
 
+const SHIFT_OPTIONS = [
+  { code: "F", label: "เต็มวัน" }, { code: "M", label: "เช้า" }, { code: "A", label: "บ่าย" },
+  { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" }, { code: "PH", label: "หยุดประจำปี" },
+];
+
+// เฉพาะแอดมิน/senior staff — แก้กะรายวัน + อนุมัติคำขอสลับ
+// ด่านเช็คกติกาอยู่ฝั่งเซิร์ฟเวอร์ (รูปแบบกะ + โควตาวันหยุด) หน้าจอแค่แสดงเหตุผลที่ไม่ผ่าน
+function ManagePanel({ branch, names, onDone }: { branch: string; names: string[]; onDone: () => void }) {
+  const [reqs, setReqs] = React.useState<any[]>([]);
+  const [who, setWho] = React.useState(names[0] ?? "");
+  const [date, setDate] = React.useState(todayISO());
+  const [shift, setShift] = React.useState("F");
+  const [reason, setReason] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
+
+  const load = React.useCallback(() => {
+    fetch(`/api/schedule-requests?branch=${branch}`)
+      .then((r) => r.json())
+      .then((d) => setReqs((d.rows ?? []).filter((x: any) => x.status === "pending")))
+      .catch(() => {});
+  }, [branch]);
+  React.useEffect(() => { load(); }, [load]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/schedules", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, workDate: date, employeeName: who, shiftCode: shift, reason }),
+      });
+      const d = await res.json();
+      if (!res.ok || d?.error) throw new Error(d?.error ?? "แก้ตารางไม่สำเร็จ");
+      setMsg({ tone: "ok", title: "แก้ตารางแล้ว", body: "แอดมินได้รับแจ้งการเปลี่ยนแปลงนี้แล้ว" });
+      setReason("");
+      onDone();
+    } catch (e: any) {
+      setMsg({ tone: "warn", title: "แก้ไม่ได้", body: e?.message });
+    } finally { setBusy(false); }
+  }
+
+  async function decide(id: number, approve: boolean) {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/schedule-requests/decide", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, approve, note: approve ? "" : "ไม่อนุมัติ" }),
+      });
+      const d = await res.json();
+      if (!res.ok || d?.error) throw new Error(d?.error ?? "ทำรายการไม่สำเร็จ");
+      setMsg({ tone: "ok", title: approve ? "อนุมัติแล้ว — สลับกะให้เรียบร้อย" : "ปฏิเสธคำขอแล้ว" });
+      load(); onDone();
+    } catch (e: any) {
+      setMsg({ tone: "warn", title: "ทำรายการไม่สำเร็จ", body: e?.message });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <>
+      {msg && (
+        <Dialog open tone={msg.tone} title={msg.title} actionLabel="ปิด" onClose={() => setMsg(null)}>
+          {msg.body}
+        </Dialog>
+      )}
+
+      {reqs.length > 0 && (
+        <GlassCard className="mb-3">
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">คำขอรออนุมัติ ({reqs.length})</p>
+          <div className="grid gap-2">
+            {reqs.map((r) => (
+              <div key={r.id} className="rounded-lg bg-white/70 px-2.5 py-2">
+                <p className="text-[12.5px] font-medium">
+                  {r.employeeName} ↔ {r.swapWith} · {thaiDate(r.workDate)}
+                </p>
+                <p className="text-[11.5px] text-brand-ink/55">{r.reason} — ขอโดย {r.requestedBy}</p>
+                <div className="mt-1.5 flex gap-1.5">
+                  <button type="button" disabled={busy} onClick={() => decide(r.id, true)}
+                    className="flex-1 rounded-lg bg-ok px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50">อนุมัติ</button>
+                  <button type="button" disabled={busy} onClick={() => decide(r.id, false)}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50">ไม่อนุมัติ</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
+
+      <GlassCard className="mb-3">
+        <p className="mb-2 text-[13px] font-semibold">แก้ตาราง (senior staff / แอดมิน)</p>
+        <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            <select value={who} onChange={(e) => setWho(e.target.value)} className="field text-left">
+              {names.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
+          </div>
+          <Segmented
+            options={SHIFT_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
+            value={shift} onChange={setShift}
+          />
+          <input value={reason} onChange={(e) => setReason(e.target.value)}
+            placeholder="เหตุผล (แอดมินเห็นทุกครั้ง)" className="field text-left" />
+          <Button onClick={save} disabled={busy || reason.trim().length < 3}>
+            {busy ? "กำลังบันทึก…" : "บันทึกการแก้ตาราง"}
+          </Button>
+          <p className="text-[11px] leading-relaxed text-brand-ink/45">
+            ระบบเช็คให้ก่อนบันทึก — คนเข้ากะวันนั้นต้องครบตามเงื่อนไขของสาขา และหยุดไม่เกินโควตาของเดือน
+          </p>
+        </div>
+      </GlassCard>
+    </>
+  );
+}
+
 export default function SchedulePage() {
   const me = useMe();
   const scoped = !!me && me.branchScope !== "all";
@@ -254,6 +368,14 @@ export default function SchedulePage() {
 
       {rows !== null && rows.length > 0 && (
         <RequestForm
+          branch={branch}
+          names={[...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th"))}
+          onDone={() => setReloadKey((k) => k + 1)}
+        />
+      )}
+
+      {rows !== null && rows.length > 0 && (me?.role === "admin" || me?.isSenior) && (
+        <ManagePanel
           branch={branch}
           names={[...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th"))}
           onDone={() => setReloadKey((k) => k + 1)}

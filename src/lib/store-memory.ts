@@ -279,6 +279,13 @@ export const memoryStore = {
     throw new Error("โหมดทดสอบยังไม่รองรับการขอลา");
   },
 
+  setScheduleShift(_input: any): { ok: false; error: string } {
+    return { ok: false, error: "โหมดทดสอบยังไม่รองรับการแก้ตาราง" };
+  },
+  decideScheduleRequest(_id: number, _approve: boolean, _by: string, _note: string) {
+    return { ok: false as const, error: "โหมดทดสอบยังไม่รองรับ" };
+  },
+
   setItemBrand(itemId: string, brand: ItemBrand) {
     const it = ITEMS.find((x) => x.id === itemId);
     if (it) it.brand = brand;

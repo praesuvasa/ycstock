@@ -146,6 +146,7 @@ const gramsToPacks = (g: unknown, gpu: number): number =>
 
 const userRow = (r: any): User => ({
   id: r.id, name: r.name, role: r.role, branchScope: r.branch_scope, active: r.active,
+  isSenior: !!r.is_senior,
   mustSetPasscode: !!r.must_set_passcode,
   allowanceEnabled: r.allowance_enabled ?? false,
   allowanceMonthly: Number(r.allowance_monthly ?? ALLOWANCE_DEFAULT_MONTHLY),
@@ -356,6 +357,121 @@ export const supabaseStore = {
       appliedCode, downgraded: outOfQuota, used, quota,
       remaining: Math.max(quota - used - (outOfQuota ? 0 : 1), 0),
     };
+  },
+
+  // แก้กะรายวัน (v1.27) — senior staff / แอดมิน · ผ่านด่านเช็คกติกาก่อนเสมอ
+  //
+  // 2 ด่านตามที่แพรกำหนด:
+  //   1. คนเข้ากะวันนั้นต้องตรงรูปแบบของสาขา (NVP: F+A / M+A+A / F+A+A · SND: F / F+F / F+PT)
+  //   2. วันหยุดรวมของคนนั้นในเดือนต้องไม่เกินโควตา (วันหยุดประจำตัว + วันหยุดบริษัทในเดือนนั้น)
+  // ไม่ผ่าน = ไม่บันทึก และบอกว่าติดข้อไหน (ไม่ใช่แค่ "บันทึกไม่สำเร็จ")
+  async setScheduleShift(input: {
+    branch: Branch; workDate: string; employeeName: string; shiftCode: string;
+    reason: string; changedBy: string;
+  }): Promise<{ ok: true } | { ok: false; error: string }> {
+    const month = input.workDate.slice(0, 7);
+    const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+      .toISOString().slice(0, 10);
+
+    // ── ด่าน 1: รูปแบบคนเข้ากะของวันนั้น ──
+    const { data: sameDay } = await sb().from("schedules")
+      .select("id,employee_name,shift_code")
+      .eq("branch_id", input.branch).eq("work_date", input.workDate);
+    const WORKING = ["F", "M", "A", "SH", "PT"];
+    const after = (sameDay ?? []).map((r: any) =>
+      r.employee_name === input.employeeName ? { ...r, shift_code: input.shiftCode } : r);
+    const codes = after.filter((r: any) => WORKING.includes(r.shift_code))
+      .map((r: any) => r.shift_code).sort();
+
+    const { data: rule } = await sb().from("branch_staffing_rules")
+      .select("patterns").eq("branch_id", input.branch).maybeSingle();
+    const patterns: string[] = (rule?.patterns ?? []).map((p: string) => p.split("+").sort().join("+"));
+    const key = codes.join("+");
+    // กะสั้น (SH) นับเป็น F ตอนเทียบรูปแบบ — เป็นกะเต็มของวันนั้นอยู่ดี แค่เวลาสั้นลง
+    const keyNormalized = codes.map((c: string) => (c === "SH" ? "F" : c)).sort().join("+");
+    if (patterns.length > 0 && !patterns.includes(key) && !patterns.includes(keyNormalized)) {
+      return {
+        ok: false,
+        error: `วันนั้นจะเหลือคนเข้ากะแบบ "${key || "ไม่มีใครเลย"}" ซึ่งไม่เข้าเงื่อนไขของสาขา (${(rule?.patterns ?? []).join(" / ")})`,
+      };
+    }
+
+    // ── ด่าน 2: โควตาวันหยุดของเดือนนั้น ──
+    if (input.shiftCode === "OFF") {
+      const { data: def } = await sb().from("staff_defaults")
+        .select("weekly_off_dow").eq("employee_name", input.employeeName).maybeSingle();
+      if (def?.weekly_off_dow != null) {
+        // วันหยุดประจำตัวที่ตกในเดือนนั้น + วันหยุดบริษัทในเดือนนั้น
+        const { data: hol } = await sb().from("public_holidays")
+          .select("holiday_date").eq("holiday_type", "company")
+          .gte("holiday_date", `${month}-01`).lte("holiday_date", monthEnd);
+        let base = 0;
+        const y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
+        for (let d = 1; d <= Number(monthEnd.slice(8)); d++) {
+          if (new Date(Date.UTC(y, m - 1, d)).getUTCDay() === Number(def.weekly_off_dow)) base += 1;
+        }
+        const quota = base + (hol ?? []).length;
+
+        const { data: offs } = await sb().from("schedules")
+          .select("work_date").eq("employee_name", input.employeeName).eq("shift_code", "OFF")
+          .gte("work_date", `${month}-01`).lte("work_date", monthEnd);
+        const used = (offs ?? []).filter((r: any) => r.work_date !== input.workDate).length;
+        if (used + 1 > quota) {
+          return {
+            ok: false,
+            error: `${input.employeeName} หยุดครบ ${quota} วันของเดือนนี้แล้ว (วันหยุดประจำตัว ${base} + วันหยุดบริษัท ${(hol ?? []).length}) — ถ้าจะหยุดเพิ่มต้องใช้สิทธิ์ลา AL/PL แทน`,
+          };
+        }
+      }
+    }
+
+    const cur = (sameDay ?? []).find((r: any) => r.employee_name === input.employeeName);
+    if (cur) {
+      await sb().from("schedules").update({ shift_code: input.shiftCode, updated_at: new Date().toISOString() }).eq("id", cur.id);
+      await sb().from("schedule_changes").insert({
+        schedule_id: cur.id, from_shift: cur.shift_code, to_shift: input.shiftCode,
+        reason: input.reason, changed_by: input.changedBy,
+      });
+    } else {
+      await sb().from("schedules").insert({
+        branch_id: input.branch, work_date: input.workDate, employee_name: input.employeeName,
+        shift_code: input.shiftCode, note: input.reason, created_by: input.changedBy,
+      });
+    }
+    await this.flagScheduleChange(input.branch, input.workDate, input.employeeName,
+      `${input.changedBy} แก้กะ ${cur?.shift_code ?? "-"} → ${input.shiftCode}: ${input.reason}`);
+    return { ok: true };
+  },
+
+  // อนุมัติ/ปฏิเสธคำขอสลับ — อนุมัติแล้วสลับกะให้ทั้งคู่ในวันเดียวกัน
+  async decideScheduleRequest(id: number, approve: boolean, decidedBy: string, note: string) {
+    const { data: req } = await sb().from("schedule_requests").select("*").eq("id", id).maybeSingle();
+    if (!req) return { ok: false as const, error: "ไม่พบคำขอนี้" };
+    if (req.status !== "pending") return { ok: false as const, error: "คำขอนี้ถูกตัดสินไปแล้ว" };
+
+    if (approve && req.kind === "swap") {
+      const { data: rows } = await sb().from("schedules")
+        .select("id,employee_name,shift_code")
+        .eq("branch_id", req.branch_id).eq("work_date", req.work_date)
+        .in("employee_name", [req.employee_name, req.swap_with]);
+      const a = (rows ?? []).find((r: any) => r.employee_name === req.employee_name);
+      const b = (rows ?? []).find((r: any) => r.employee_name === req.swap_with);
+      if (!a || !b) return { ok: false as const, error: "วันนั้นไม่มีตารางของคนใดคนหนึ่ง สลับไม่ได้" };
+      await sb().from("schedules").update({ shift_code: b.shift_code, updated_at: new Date().toISOString() }).eq("id", a.id);
+      await sb().from("schedules").update({ shift_code: a.shift_code, updated_at: new Date().toISOString() }).eq("id", b.id);
+      await sb().from("schedule_changes").insert([
+        { schedule_id: a.id, from_shift: a.shift_code, to_shift: b.shift_code, reason: `สลับกับ ${b.employee_name}: ${req.reason}`, changed_by: decidedBy },
+        { schedule_id: b.id, from_shift: b.shift_code, to_shift: a.shift_code, reason: `สลับกับ ${a.employee_name}: ${req.reason}`, changed_by: decidedBy },
+      ]);
+      await this.flagScheduleChange(req.branch_id, req.work_date, req.employee_name,
+        `${decidedBy} อนุมัติสลับกะ ${a.employee_name} ↔ ${b.employee_name}`);
+    }
+
+    await sb().from("schedule_requests").update({
+      status: approve ? "approved" : "rejected",
+      decided_by: decidedBy, decided_at: new Date().toISOString(), decision_note: note,
+    }).eq("id", id);
+    return { ok: true as const };
   },
 
   async setItemBrand(itemId: string, brand: ItemBrand) {
@@ -793,7 +909,7 @@ export const supabaseStore = {
     if (patch.allowanceEnabled !== undefined) upd.allowance_enabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) upd.allowance_monthly = patch.allowanceMonthly;
     if (patch.workUnit !== undefined) upd.work_unit = patch.workUnit;
-    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit").maybeSingle();
+    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit,is_senior").maybeSingle();
     if (error) throw error;
     return data ? userRow(data) : null;
   },
@@ -900,7 +1016,7 @@ export const supabaseStore = {
   async getAllowanceOverview(month: string): Promise<{ summaries: AllowanceSummary[]; needsReview: StaffAllowanceUse[] }> {
     const { from, to } = monthRange(month);
     const { data: users, error: uErr } = await sb().from("users")
-      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit").eq("allowance_enabled", true).eq("active", true).order("created_at");
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit,is_senior").eq("allowance_enabled", true).eq("active", true).order("created_at");
     if (uErr) throw uErr;
     const { data: uses, error: rErr } = await sb().from("staff_allowance_uses")
       .select("id,user_id,branch_id,use_date,bill_total,discount_amount,paid_amount,image_path,ocr_discount,needs_review,review_note,note,created_by_name,created_at")

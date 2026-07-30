@@ -311,6 +311,8 @@ export interface User {
   allowanceMonthly?: number;   // วงเงินต่อเดือน (default 400)
   // v1.15 — true = มีแต่ "รหัสตั้งค่า" ยังไม่ได้ตั้ง PIN ของตัวเอง (หน้าผู้ใช้โชว์ป้ายเตือน)
   mustSetPasscode?: boolean;
+  // senior staff — แก้ตารางกะของสาขาตัวเองได้ (กิ๊ก ที่ NVP)
+  isSenior?: boolean;
   // ── หน่วยงาน (v1.24) — คนละเรื่องกับ branchScope ──
   // branchScope = เห็นข้อมูลสาขาไหนได้ · workUnit = ทำงานอยู่หน่วยไหน
   // ฝ่ายผลิตไม่ได้สังกัดสาขาขาย เห็นแค่เมนูลงเวลากับข้อมูลของตัวเอง

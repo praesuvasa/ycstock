@@ -26,6 +26,12 @@ export const db = {
     branch: Branch; workDate: string; employeeName: string; requestedBy: string; leaveCode: string; reason: string;
   }) =>
     useSupabase ? supabaseStore.applyLeaveRequest(input) : Promise.resolve(memoryStore.applyLeaveRequest(input)),
+  setScheduleShift: (input: {
+    branch: Branch; workDate: string; employeeName: string; shiftCode: string; reason: string; changedBy: string;
+  }) => (useSupabase ? supabaseStore.setScheduleShift(input) : Promise.resolve(memoryStore.setScheduleShift(input))),
+  decideScheduleRequest: (id: number, approve: boolean, decidedBy: string, note: string) =>
+    useSupabase ? supabaseStore.decideScheduleRequest(id, approve, decidedBy, note)
+                : Promise.resolve(memoryStore.decideScheduleRequest(id, approve, decidedBy, note)),
   setItemBrand: (itemId: string, brand: ItemBrand) =>
     useSupabase ? supabaseStore.setItemBrand(itemId, brand) : Promise.resolve(memoryStore.setItemBrand(itemId, brand)),
   setItemConfig: (itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) =>

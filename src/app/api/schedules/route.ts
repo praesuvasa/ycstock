@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
+import { writeAudit } from "@/lib/audit";
 import { todayBangkok } from "@/lib/fmt";
 import type { Branch } from "@/lib/types";
 
@@ -33,5 +34,36 @@ export async function GET(req: Request) {
     const a = authErrorResponse(e);
     if (a) return NextResponse.json(a.body, { status: a.status });
     return NextResponse.json({ error: (e as any)?.message ?? "listSchedules failed" }, { status: 500 });
+  }
+}
+
+// PATCH /api/schedules { branch, workDate, employeeName, shiftCode, reason }
+// แก้กะรายวัน — เฉพาะแอดมินและ senior staff (กิ๊ก ที่ NVP) · ผ่านด่านเช็คกติกาก่อนเสมอ
+export async function PATCH(req: Request) {
+  try {
+    const s = await requireSession();
+    const me = await db.getUserById(s.userId);
+    const allowed = s.role === "admin" || !!me?.isSenior;
+    if (!allowed) {
+      return NextResponse.json({ error: "แก้ตารางได้เฉพาะแอดมินและ senior staff — คนอื่นใช้ปุ่มขอลา/ขอสลับแทน" }, { status: 403 });
+    }
+    const body = await req.json();
+    const branch = resolveBranch(s, parseBranch(body?.branch ?? null)) as Branch;
+    const workDate = String(body?.workDate ?? "");
+    const employeeName = String(body?.employeeName ?? "").trim();
+    const shiftCode = String(body?.shiftCode ?? "").trim().toUpperCase();
+    const reason = String(body?.reason ?? "").trim();
+    if (!isDate(workDate)) return NextResponse.json({ error: "วันที่ไม่ถูกต้อง" }, { status: 400 });
+    if (!employeeName || !shiftCode) return NextResponse.json({ error: "ต้องระบุคนและกะ" }, { status: 400 });
+    if (reason.length < 3) return NextResponse.json({ error: "เขียนเหตุผลด้วย (อย่างน้อย 3 ตัวอักษร)" }, { status: 400 });
+
+    const res = await db.setScheduleShift({ branch, workDate, employeeName, shiftCode, reason, changedBy: s.name });
+    if (!res.ok) return NextResponse.json({ error: (res as any).error }, { status: 400 });
+    await writeAudit(s, "schedule_edit", { branch, date: workDate, entity: employeeName, detail: `แก้กะเป็น ${shiftCode}: ${reason}` });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const a = authErrorResponse(e);
+    if (a) return NextResponse.json(a.body, { status: a.status });
+    return NextResponse.json({ error: (e as any)?.message ?? "setScheduleShift failed" }, { status: 500 });
   }
 }
