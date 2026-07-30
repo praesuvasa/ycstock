@@ -315,6 +315,11 @@ export const supabaseStore = {
     branch: Branch; workDate: string; employeeName: string; requestedBy: string;
     leaveCode: string; reason: string;
   }): Promise<{ appliedCode: string; downgraded: boolean; used: number; quota: number; remaining: number }> {
+    // ลาแล้วกะต้องไม่ขาดคน (แพรกำหนดไว้ตั้งแต่ต้น: "ต้องไม่กระทบเงื่อนไขกติกากะ")
+    // เช็คก่อนแตะข้อมูลใด ๆ — ไม่ผ่านคือไม่บันทึก และบอกว่าต้องแก้อะไรก่อน
+    const pattern = await this.checkStaffingPattern(input.branch, input.workDate, input.employeeName, input.leaveCode);
+    if (!pattern.ok) throw new Error(pattern.error);
+
     const year = input.workDate.slice(0, 4);
     const { data: quotaRow } = await sb().from("leave_quotas")
       .select("days_per_year").eq("code", input.leaveCode).maybeSingle();
@@ -359,6 +364,36 @@ export const supabaseStore = {
     };
   },
 
+  /** ด่านเช็ครูปแบบคนเข้ากะของวันนั้น — ใช้ร่วมกันทั้ง "แก้ตาราง" และ "ขอลา"
+   *  (v1.27.1 เดิมมีเฉพาะเส้นทางแก้ตาราง ทำให้ขอลาแล้วกะขาดคนได้โดยไม่มีอะไรเตือน — แพรเจอ 2026-07-30) */
+  async checkStaffingPattern(branch: Branch, workDate: string, employeeName: string, newCode: string) {
+    const { data: sameDay } = await sb().from("schedules")
+      .select("employee_name,shift_code").eq("branch_id", branch).eq("work_date", workDate);
+    const WORKING = ["F", "M", "A", "SH", "PT"];
+    const after = (sameDay ?? []).map((r: any) =>
+      r.employee_name === employeeName ? { ...r, shift_code: newCode } : r);
+    const codes = after.filter((r: any) => WORKING.includes(r.shift_code)).map((r: any) => r.shift_code).sort();
+
+    const { data: rule } = await sb().from("branch_staffing_rules")
+      .select("patterns").eq("branch_id", branch).maybeSingle();
+    const allowed: string[] = rule?.patterns ?? [];
+    if (allowed.length === 0) return { ok: true as const };
+
+    const normalized = allowed.map((p) => p.split("+").sort().join("+"));
+    const key = codes.join("+");
+    const keyAsFull = codes.map((c: string) => (c === "SH" ? "F" : c)).sort().join("+");
+    if (normalized.includes(key) || normalized.includes(keyAsFull)) return { ok: true as const };
+
+    // บอกให้ครบว่าเหลือใครอยู่บ้าง และต้องแก้อะไรถึงจะผ่าน — ไม่ใช่แค่ "ไม่ได้"
+    const who = after.filter((r: any) => WORKING.includes(r.shift_code))
+      .map((r: any) => `${r.employee_name} (${r.shift_code})`).join(" · ");
+    return {
+      ok: false as const,
+      error: `วันนั้นจะเหลือคนเข้ากะแบบ "${key || "ไม่มีใครเลย"}" ซึ่งไม่เข้าเงื่อนไขของสาขา (${allowed.join(" / ")})`
+        + (who ? ` — ตอนนี้เหลือ ${who} · ต้องให้คนที่อยู่เปลี่ยนกะ หรือหาคนเข้าเพิ่มก่อน` : ""),
+    };
+  },
+
   // แก้กะรายวัน (v1.27) — senior staff / แอดมิน · ผ่านด่านเช็คกติกาก่อนเสมอ
   //
   // 2 ด่านตามที่แพรกำหนด:
@@ -374,27 +409,11 @@ export const supabaseStore = {
       .toISOString().slice(0, 10);
 
     // ── ด่าน 1: รูปแบบคนเข้ากะของวันนั้น ──
+    const pattern = await this.checkStaffingPattern(input.branch, input.workDate, input.employeeName, input.shiftCode);
+    if (!pattern.ok) return { ok: false, error: pattern.error };
     const { data: sameDay } = await sb().from("schedules")
       .select("id,employee_name,shift_code")
       .eq("branch_id", input.branch).eq("work_date", input.workDate);
-    const WORKING = ["F", "M", "A", "SH", "PT"];
-    const after = (sameDay ?? []).map((r: any) =>
-      r.employee_name === input.employeeName ? { ...r, shift_code: input.shiftCode } : r);
-    const codes = after.filter((r: any) => WORKING.includes(r.shift_code))
-      .map((r: any) => r.shift_code).sort();
-
-    const { data: rule } = await sb().from("branch_staffing_rules")
-      .select("patterns").eq("branch_id", input.branch).maybeSingle();
-    const patterns: string[] = (rule?.patterns ?? []).map((p: string) => p.split("+").sort().join("+"));
-    const key = codes.join("+");
-    // กะสั้น (SH) นับเป็น F ตอนเทียบรูปแบบ — เป็นกะเต็มของวันนั้นอยู่ดี แค่เวลาสั้นลง
-    const keyNormalized = codes.map((c: string) => (c === "SH" ? "F" : c)).sort().join("+");
-    if (patterns.length > 0 && !patterns.includes(key) && !patterns.includes(keyNormalized)) {
-      return {
-        ok: false,
-        error: `วันนั้นจะเหลือคนเข้ากะแบบ "${key || "ไม่มีใครเลย"}" ซึ่งไม่เข้าเงื่อนไขของสาขา (${(rule?.patterns ?? []).join(" / ")})`,
-      };
-    }
 
     // ── ด่าน 2: โควตาวันหยุดของเดือนนั้น ──
     if (input.shiftCode === "OFF") {
