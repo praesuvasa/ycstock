@@ -1469,6 +1469,32 @@ function ProductionOrder({
     return () => { alive = false; };
   }, [deliveryDate, editOrderId]);
 
+  // ── มีใบของรอบส่งนี้อยู่แล้ว → เปิดใบเดิมมาแก้ต่อ ไม่สร้างใบใหม่ซ้อน (แพรเจอ 2026-07-30) ──
+  //
+  // อาการที่แพรเจอ: กรอก "มีของเก่าในสต็อก" ไว้ พอกลับมาเปิดหน้าอีกครั้งช่องนั้นว่าง
+  // สาเหตุ: หน้านี้เริ่มเป็น "ใบใหม่" เสมอ · ตัวเลขรายสาขากลับมาเพราะดึงจากหน้าเติมของ (restock) ให้ใหม่ทุกครั้ง
+  // แต่ของเก่า/รายการพิเศษ/หมายเหตุ ผูกกับ "ใบ" จึงไม่มีอะไรมาเติมให้ → ดูเหมือนไม่ได้บันทึก
+  // ผลข้างเคียงที่หนักกว่า: กดบันทึกอีกครั้งจะได้ใบซ้ำของรอบเดียวกัน (เกิดจริงแล้ว 30 ก.ค. — 2 ใบ ส่ง 1 ส.ค.)
+  const [attachedOrder, setAttachedOrder] = React.useState<number | null>(null);
+  const attachCheckedRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (editOrderId != null || orderId != null) return;
+    if (!confirmed) return; // ยังไม่ยืนยันวันที่ = ยังไม่รู้ว่าจะเทียบกับรอบไหน
+    if (attachCheckedRef.current === deliveryDate) return;
+    attachCheckedRef.current = deliveryDate;
+    let alive = true;
+    fetch("/api/production-orders?limit=50")
+      .then((r) => r.json())
+      .then((d: { orders?: ProductionOrderSummary[] }) => {
+        if (!alive) return;
+        // ใบล่าสุดของรอบส่งนี้ (API เรียงใหม่→เก่าอยู่แล้ว)
+        const hit = (d.orders ?? []).find((o) => o.deliveryDate === deliveryDate);
+        if (hit) { setAttachedOrder(hit.id); onSaved(hit.id); }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [confirmed, deliveryDate, editOrderId, orderId, onSaved]);
+
   // ── โหลดใบเก่าเต็ม (โหมดแก้ไข) — hydrate orderId/orderDate/deliveryDate/note/prodQty/prodQtyG/extraRows/savedItemIds ──
   // ข้าม fetch ถ้า editOrderId === orderId ที่มีอยู่แล้ว (เพิ่งสร้าง/บันทึกใบนี้เองในคอมโพเนนต์นี้ผ่าน handleSave → onSaved())
   // กันหน้ากระพริบเป็น "กำลังโหลด…" ซ้ำทันทีหลังกด save สำเร็จ ทั้งที่ข้อมูลที่มีอยู่ก็ตรงกับ DB แล้ว
@@ -1849,6 +1875,14 @@ function ProductionOrder({
           </label>
         </div>
       </GlassCard>
+
+      {/* บอกให้รู้ว่ากำลังแก้ใบเดิม ไม่ใช่เปิดใบใหม่ — ไม่งั้นจะงงว่าทำไมมีตัวเลข/ของเก่าขึ้นมาเอง */}
+      {attachedOrder != null && orderId === attachedOrder && (
+        <div className="mb-3 rounded-xl border border-brand-blue/40 bg-brand-blue/15 px-3.5 py-2.5 text-[12px] leading-relaxed text-sky-800">
+          รอบส่งนี้มีใบสั่งผลิตอยู่แล้ว (ใบ #{attachedOrder}) — เปิดใบเดิมมาแก้ต่อให้ ไม่ได้สร้างใบใหม่
+          <span className="block text-sky-800/70">ของเก่าในสต็อก · รายการพิเศษ · หมายเหตุ ที่เคยกรอกไว้กลับมาครบ</span>
+        </div>
+      )}
 
       {!confirmed ? (
         // ข้อ 3: gate inline แทนกริดรายการทั้งหมด — date picker ด้านบนยังแก้ได้ก่อนยืนยัน
