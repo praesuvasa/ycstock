@@ -1,10 +1,13 @@
 "use client";
-// v1.27 · ตารางงาน — พนักงานดูตารางของสาขาตัวเองได้ทั้งเดือน
+// v1.28 · ตารางงาน — มุมมองตาราง (คน × วัน) แบบเดียวกับไฟล์ Roster ที่ทีมใช้กันอยู่
 //
-// ขั้นที่ 1 ของ 3 (ดูตาราง → ขอสลับ/ขอลา → ด่านเช็คกติกา + แจ้งแอดมิน)
-// จัดเป็น "เดือนปฏิทิน" ไม่ใช่รอบเงินเดือน 26–25 (แพรระบุ) — รอบเงินเดือนใช้ตอนคิดเงินซึ่งอยู่นอกแอปนี้
+// ทำไมเปลี่ยนจากลิสต์รายวันเป็นตาราง (แพรสั่ง 2026-07-30):
+// คำถามที่พนักงานถามจริงคือ "วันนี้อยู่กับใคร" และ "อาทิตย์นี้ใครว่าง" — ลิสต์รายวันตอบไม่ได้
+// ต้องเลื่อนดูทีละวัน · ตารางแบบนี้กวาดตาแนวนอนได้ทั้งเดือน เห็นคู่กะทันที
+//
+// แก้ตาราง/ขอลา = แตะช่องนั้นตรง ๆ ไม่ต้องกรอกฟอร์มเลือกคน+วันที่ซ้ำอีก
 import React from "react";
-import { GlassCard, PageTitle, Badge, BranchPicker, Button, Segmented, Dialog } from "@/components/ui";
+import { GlassCard, PageTitle, Badge, BranchPicker, Dialog } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import { thaiDate, todayISO } from "@/lib/fmt";
 import type { Branch, ScheduleRow } from "@/lib/types";
@@ -12,216 +15,142 @@ import type { Branch, ScheduleRow } from "@/lib/types";
 type Row = ScheduleRow & { workDate: string };
 
 const DOW = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-// สีของกะ — สื่อความหมายเดียวกับไฟล์ Roster ที่ทีมใช้กันอยู่ (ส้ม=เต็มวัน เหลือง=ครึ่งวัน เทา=หยุด)
-const TONE: Record<string, string> = {
-  F: "bg-brand-orange/25 text-orange-800",
-  M: "bg-brand-blue/30 text-sky-800",
-  A: "bg-ok/15 text-ok",
-  SH: "bg-warn/15 text-warn",
-  OFF: "bg-black/[.06] text-brand-ink/45",
-  CLOSED: "bg-black/[.06] text-brand-ink/35",
-  PH: "bg-brand-red/15 text-brand-red",
-  AL: "bg-brand-red/10 text-brand-red",
-  SL: "bg-brand-red/10 text-brand-red",
-  PL: "bg-brand-red/10 text-brand-red",
-  LWP: "bg-brand-red/10 text-brand-red",
-  PT: "bg-brand-blue/20 text-sky-800",
-};
 const WORKING = new Set(["F", "M", "A", "SH", "PT"]);
 
-function monthOf(iso: string): string {
-  return iso.slice(0, 7);
-}
+// สีเดียวกับไฟล์ Roster ที่ทีมคุ้นอยู่แล้ว — ส้ม=เต็มวัน ฟ้า=เช้า เขียว=บ่าย เหลือง=ครึ่งวัน เทา=หยุด แดง=ลา
+const CELL: Record<string, string> = {
+  F: "bg-brand-orange/30 text-orange-900",
+  M: "bg-brand-blue/35 text-sky-900",
+  A: "bg-ok/20 text-ok",
+  SH: "bg-warn/20 text-warn",
+  PT: "bg-brand-blue/20 text-sky-800",
+  OFF: "bg-black/[.05] text-brand-ink/35",
+  CLOSED: "bg-black/[.08] text-brand-ink/30",
+  PH: "bg-brand-red/20 text-brand-red",
+  AL: "bg-brand-red/15 text-brand-red",
+  SL: "bg-brand-red/15 text-brand-red",
+  PL: "bg-brand-red/15 text-brand-red",
+  LWP: "bg-brand-red/15 text-brand-red",
+};
+const SHORT: Record<string, string> = {
+  F: "F", M: "M", A: "A", SH: "ครึ่ง", PT: "PT",
+  OFF: "หยุด", CLOSED: "ปิด", PH: "หยุดปี", AL: "พักร้อน", SL: "ป่วย", PL: "กิจ", LWP: "ไม่รับเงิน",
+};
+
+const WORK_CODES = [
+  { code: "F", label: "เต็มวัน" }, { code: "M", label: "กะเช้า" },
+  { code: "A", label: "กะบ่าย" }, { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
+];
+const LEAVE_CODES = [
+  { code: "AL", label: "ลาพักร้อน" }, { code: "PL", label: "ลากิจ" },
+  { code: "SL", label: "ลาป่วย" }, { code: "PH", label: "หยุดประจำปี" },
+];
+
 function addMonth(month: string, delta: number): string {
   const y = Number(month.slice(0, 4));
   const m = Number(month.slice(5, 7)) - 1 + delta;
-  const d = new Date(Date.UTC(y, m, 1));
-  return d.toISOString().slice(0, 7);
+  return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
 }
 function thaiMonthLabel(month: string): string {
   const [y, m] = month.split("-").map(Number);
   const names = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
   return `${names[m - 1]} ${y + 543}`;
 }
+function daysInMonth(month: string): string[] {
+  const y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Array.from({ length: last }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+}
 
-// ฟอร์มขอลาให้เลือกได้แค่ AL/PL (แพรสั่ง 2026-07-30)
-// ลาป่วยไม่ใช่สิ่งที่ "ขอล่วงหน้า" — เกิดขึ้นแล้วค่อยบันทึก ซึ่ง senior/แอดมินทำผ่านช่องแก้ตารางด้านล่าง
-const LEAVE_OPTIONS = [
-  { value: "AL", label: "ลาพักร้อน" },
-  { value: "PL", label: "ลากิจ" },
-];
+export default function SchedulePage() {
+  const me = useMe();
+  const scoped = !!me && me.branchScope !== "all";
+  const canEdit = me?.role === "admin" || !!me?.isSenior;
+  const [branch, setBranch] = React.useState<Branch>("NVP");
+  const [month, setMonth] = React.useState<string>(() => todayISO().slice(0, 7));
+  const [rows, setRows] = React.useState<Row[] | null>(null);
+  const [reqs, setReqs] = React.useState<any[]>([]);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [pick, setPick] = React.useState<{ name: string; date: string; code: string } | null>(null);
+  const [msg, setMsg] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
 
-// ฟอร์มขอเปลี่ยนตาราง — ลา AL/PL/SL มีผลทันทีถ้าสิทธิ์เหลือ · ขอสลับต้องรออนุมัติ (แพรกำหนด)
-function RequestForm({ branch, names, onDone }: {
-  branch: string; names: string[]; onDone: () => void;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const [kind, setKind] = React.useState<"leave" | "swap">("leave");
-  const [who, setWho] = React.useState(names[0] ?? "");
-  const [date, setDate] = React.useState(todayISO());
-  const [leaveCode, setLeaveCode] = React.useState("AL");
-  const [swapWith, setSwapWith] = React.useState(names[1] ?? "");
-  const [reason, setReason] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [result, setResult] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
+  React.useEffect(() => { if (scoped) setBranch(me!.branchScope as Branch); }, [scoped, me]);
 
-  async function submit() {
-    setBusy(true);
+  const load = React.useCallback(() => {
+    setErr(null);
+    fetch(`/api/schedules?branch=${branch}&month=${month}`)
+      .then((r) => r.json())
+      .then((d) => (d?.error ? setErr(d.error) : setRows(d.rows ?? [])))
+      .catch((e) => setErr(String(e?.message ?? e)));
+    if (canEdit) {
+      fetch(`/api/schedule-requests?branch=${branch}`)
+        .then((r) => r.json())
+        .then((d) => setReqs((d.rows ?? []).filter((x: any) => x.status === "pending")))
+        .catch(() => {});
+    }
+  }, [branch, month, canEdit]);
+  React.useEffect(() => { setRows(null); load(); }, [load]);
+
+  const days = React.useMemo(() => daysInMonth(month), [month]);
+  const names = React.useMemo(
+    () => [...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th")),
+    [rows]
+  );
+  const cellOf = React.useMemo(() => {
+    const m = new Map<string, Row>();
+    for (const r of rows ?? []) m.set(`${r.employeeName}|${r.workDate}`, r);
+    return m;
+  }, [rows]);
+
+  const summary = React.useMemo(() => names.map((n) => {
+    let work = 0, off = 0, leave = 0;
+    for (const d of days) {
+      const c = cellOf.get(`${n}|${d}`)?.shiftCode;
+      if (!c) continue;
+      if (WORKING.has(c)) work += 1;
+      else if (c === "OFF" || c === "CLOSED" || c === "PH") off += 1;
+      else leave += 1;
+    }
+    return { name: n, work, off, leave };
+  }), [names, days, cellOf]);
+
+  const today = todayISO();
+
+  async function apply(code: string, asLeaveRequest: boolean) {
+    if (!pick) return;
+    const reason = window.prompt(
+      asLeaveRequest ? "เหตุผลการลา (แอดมินเห็นทุกครั้ง)" : "เหตุผลที่แก้ตาราง (แอดมินเห็นทุกครั้ง)"
+    );
+    if (reason === null) return;
+    if (reason.trim().length < 3) {
+      setMsg({ tone: "warn", title: "ต้องเขียนเหตุผล", body: "อย่างน้อย 3 ตัวอักษร" });
+      return;
+    }
     try {
-      const res = await fetch("/api/schedule-requests", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, workDate: date, employeeName: who, kind, leaveCode, swapWith, reason }),
-      });
+      const res = asLeaveRequest
+        ? await fetch("/api/schedule-requests", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch, workDate: pick.date, employeeName: pick.name, kind: "leave", leaveCode: code, reason }),
+          })
+        : await fetch("/api/schedules", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch, workDate: pick.date, employeeName: pick.name, shiftCode: code, reason }),
+          });
       const d = await res.json();
-      if (!res.ok || d?.error) throw new Error(d?.error ?? "ส่งคำขอไม่สำเร็จ");
-      if (kind === "swap") {
-        setResult({ tone: "ok", title: "ส่งคำขอแล้ว", body: "รอ senior staff หรือแอดมินอนุมัติ · แอดมินได้รับแจ้งแล้ว" });
-      } else if (d.downgraded) {
-        setResult({
-          tone: "warn", title: "สิทธิ์ลาหมดแล้ว — บันทึกเป็นลาไม่รับค่าจ้าง",
-          body: `${who} ใช้ ${leaveCode} ไปครบ ${d.quota} วันของปีนี้แล้ว ระบบจึงบันทึกวันนี้เป็น LWP ให้แทน`,
-        });
-      } else {
-        setResult({
-          tone: "ok", title: "บันทึกวันลาแล้ว",
-          body: `${who} · ${thaiDate(date)} · เหลือสิทธิ์ ${leaveCode} อีก ${d.remaining} วันในปีนี้`,
-        });
-      }
-      setReason("");
-      onDone();
+      if (!res.ok || d?.error) throw new Error(d?.error ?? "บันทึกไม่สำเร็จ");
+      setPick(null);
+      setMsg({
+        tone: "ok",
+        title: d.downgraded ? "สิทธิ์ลาหมด — บันทึกเป็นลาไม่รับค่าจ้าง" : "บันทึกแล้ว",
+        body: !d.downgraded && d.remaining !== undefined ? `เหลือสิทธิ์อีก ${d.remaining} วันในปีนี้` : undefined,
+      });
+      load();
     } catch (e: any) {
-      setResult({ tone: "warn", title: "ส่งคำขอไม่สำเร็จ", body: e?.message ?? "ลองใหม่อีกครั้ง" });
-    } finally {
-      setBusy(false);
+      setMsg({ tone: "warn", title: "บันทึกไม่ได้", body: e?.message });
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button" onClick={() => setOpen(true)}
-        className="mb-3 w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-ink"
-      >
-        + ขอลา / ขอสลับวันหยุด
-      </button>
-    );
-  }
-
-  return (
-    <>
-      {result && (
-        <Dialog
-          open tone={result.tone} title={result.title}
-          actionLabel={result.tone === "ok" ? "เรียบร้อย" : "ปิด"}
-          onClose={() => { setResult(null); if (result.tone === "ok") setOpen(false); }}
-        >
-          {result.body}
-        </Dialog>
-      )}
-      <GlassCard className="mb-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[13px] font-semibold">ขอเปลี่ยนตาราง</p>
-          <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-brand-ink/50 underline">ปิด</button>
-        </div>
-        <div className="grid gap-2">
-          <Segmented
-            options={[{ value: "leave", label: "ขอลา" }, { value: "swap", label: "ขอสลับวันหยุด" }]}
-            value={kind} onChange={(v) => setKind(v as "leave" | "swap")}
-          />
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">ตารางของใคร</span>
-            <select value={who} onChange={(e) => setWho(e.target.value)} className="field text-left">
-              {names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่</span>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
-          </label>
-          {kind === "leave" ? (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">ประเภทการลา (สิทธิ์หมดแล้วระบบจะบันทึกเป็นลาไม่รับค่าจ้างให้)</span>
-              <select value={leaveCode} onChange={(e) => setLeaveCode(e.target.value)} className="field text-left">
-                {LEAVE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </label>
-          ) : (
-            <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">สลับกับใคร</span>
-              <select value={swapWith} onChange={(e) => setSwapWith(e.target.value)} className="field text-left">
-                {names.filter((n) => n !== who).map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">เหตุผล (แอดมินเห็นทุกครั้ง)</span>
-            <input
-              value={reason} onChange={(e) => setReason(e.target.value)}
-              placeholder="เช่น มีธุระที่บ้าน" className="field text-left"
-            />
-          </label>
-          <Button onClick={submit} disabled={busy || reason.trim().length < 3}>
-            {busy ? "กำลังส่ง…" : kind === "leave" ? "บันทึกวันลา" : "ส่งคำขอสลับ"}
-          </Button>
-          <p className="text-[11px] leading-relaxed text-brand-ink/45">
-            {kind === "leave"
-              ? "ลาพักร้อน/ลากิจ/ลาป่วย มีผลทันทีถ้าสิทธิ์ปีนี้ยังเหลือ"
-              : "คำขอสลับต้องให้ senior staff หรือแอดมินอนุมัติก่อน"}
-          </p>
-        </div>
-      </GlassCard>
-    </>
-  );
-}
-
-const SHIFT_OPTIONS = [
-  { code: "F", label: "เต็มวัน" }, { code: "M", label: "เช้า" }, { code: "A", label: "บ่าย" },
-  { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
-];
-// รหัสลา — แยกจากกะทำงาน ใช้ตอนบันทึกวันลาที่เกิดขึ้นจริง (โดยเฉพาะลาป่วยที่ขอล่วงหน้าไม่ได้)
-const LEAVE_SHIFT_OPTIONS = [
-  { code: "SL", label: "ลาป่วย" }, { code: "AL", label: "ลาพักร้อน" },
-  { code: "PL", label: "ลากิจ" }, { code: "PH", label: "หยุดประจำปี" },
-];
-
-// เฉพาะแอดมิน/senior staff — แก้กะรายวัน + อนุมัติคำขอสลับ
-// ด่านเช็คกติกาอยู่ฝั่งเซิร์ฟเวอร์ (รูปแบบกะ + โควตาวันหยุด) หน้าจอแค่แสดงเหตุผลที่ไม่ผ่าน
-function ManagePanel({ branch, names, onDone }: { branch: string; names: string[]; onDone: () => void }) {
-  const [reqs, setReqs] = React.useState<any[]>([]);
-  const [who, setWho] = React.useState(names[0] ?? "");
-  const [date, setDate] = React.useState(todayISO());
-  const [shift, setShift] = React.useState("F");
-  const [reason, setReason] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [msg, setMsg] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
-
-  const load = React.useCallback(() => {
-    fetch(`/api/schedule-requests?branch=${branch}`)
-      .then((r) => r.json())
-      .then((d) => setReqs((d.rows ?? []).filter((x: any) => x.status === "pending")))
-      .catch(() => {});
-  }, [branch]);
-  React.useEffect(() => { load(); }, [load]);
-
-  async function save() {
-    setBusy(true);
-    try {
-      const res = await fetch("/api/schedules", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branch, workDate: date, employeeName: who, shiftCode: shift, reason }),
-      });
-      const d = await res.json();
-      if (!res.ok || d?.error) throw new Error(d?.error ?? "แก้ตารางไม่สำเร็จ");
-      setMsg({ tone: "ok", title: "แก้ตารางแล้ว", body: "แอดมินได้รับแจ้งการเปลี่ยนแปลงนี้แล้ว" });
-      setReason("");
-      onDone();
-    } catch (e: any) {
-      setMsg({ tone: "warn", title: "แก้ไม่ได้", body: e?.message });
-    } finally { setBusy(false); }
-  }
-
   async function decide(id: number, approve: boolean) {
-    setBusy(true);
     try {
       const res = await fetch("/api/schedule-requests/decide", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -230,35 +159,96 @@ function ManagePanel({ branch, names, onDone }: { branch: string; names: string[
       const d = await res.json();
       if (!res.ok || d?.error) throw new Error(d?.error ?? "ทำรายการไม่สำเร็จ");
       setMsg({ tone: "ok", title: approve ? "อนุมัติแล้ว — สลับกะให้เรียบร้อย" : "ปฏิเสธคำขอแล้ว" });
-      load(); onDone();
+      load();
     } catch (e: any) {
       setMsg({ tone: "warn", title: "ทำรายการไม่สำเร็จ", body: e?.message });
-    } finally { setBusy(false); }
+    }
   }
 
   return (
-    <>
+    <div className="mx-auto max-w-3xl px-3 py-4 pb-16">
+      <PageTitle title="ตารางงาน" right={<Badge tone="blue">{thaiMonthLabel(month)}</Badge>} />
+
+      <div className="glass mb-2.5 p-2.5">
+        <div className="grid gap-2">
+          <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setMonth((m) => addMonth(m, -1))}
+              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">← ก่อนหน้า</button>
+            <span className="flex-1 text-center text-[13px] font-semibold">{thaiMonthLabel(month)}</span>
+            <button type="button" onClick={() => setMonth((m) => addMonth(m, 1))}
+              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">ถัดไป →</button>
+          </div>
+        </div>
+      </div>
+
       {msg && (
         <Dialog open tone={msg.tone} title={msg.title} actionLabel="ปิด" onClose={() => setMsg(null)}>
           {msg.body}
         </Dialog>
       )}
 
-      {reqs.length > 0 && (
+      {/* แตะช่องไหนก็เปิดกล่องนี้ — ไม่ต้องเลือกคนกับวันที่ซ้ำอีกรอบ */}
+      {pick && (
+        <div className="fixed inset-0 z-[60] flex items-end bg-black/40 px-3 pb-3 backdrop-blur-[2px]"
+          onClick={() => setPick(null)}>
+          <div className="w-full rounded-2xl bg-white/95 px-4 pb-5 pt-4 shadow-glass" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[15px] font-semibold">{pick.name}</p>
+            <p className="mb-3 text-[12px] text-brand-ink/55">
+              {thaiDate(pick.date)} · ตอนนี้ {pick.code ? SHORT[pick.code] ?? pick.code : "ยังไม่มีตาราง"}
+            </p>
+
+            {canEdit ? (
+              <>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">เปลี่ยนเป็นกะ</p>
+                <div className="mb-3 grid grid-cols-5 gap-1.5">
+                  {WORK_CODES.map((o) => (
+                    <button key={o.code} type="button" onClick={() => apply(o.code, false)}
+                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{o.label}</button>
+                  ))}
+                </div>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">บันทึกเป็นวันลา</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {LEAVE_CODES.map((o) => (
+                    <button key={o.code} type="button" onClick={() => apply(o.code, false)}
+                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{o.label}</button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">ขอลาวันนี้</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button type="button" onClick={() => apply("AL", true)}
+                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.AL}`}>ลาพักร้อน</button>
+                  <button type="button" onClick={() => apply("PL", true)}
+                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.PL}`}>ลากิจ</button>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-brand-ink/45">
+                  ลาป่วยและการสลับวันหยุด แจ้ง senior staff หรือแอดมินให้บันทึกให้
+                </p>
+              </>
+            )}
+
+            <button type="button" onClick={() => setPick(null)}
+              className="mt-3 w-full rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55">ปิด</button>
+          </div>
+        </div>
+      )}
+
+      {canEdit && reqs.length > 0 && (
         <GlassCard className="mb-3">
           <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">คำขอรออนุมัติ ({reqs.length})</p>
           <div className="grid gap-2">
             {reqs.map((r) => (
               <div key={r.id} className="rounded-lg bg-white/70 px-2.5 py-2">
-                <p className="text-[12.5px] font-medium">
-                  {r.employeeName} ↔ {r.swapWith} · {thaiDate(r.workDate)}
-                </p>
+                <p className="text-[12.5px] font-medium">{r.employeeName} ↔ {r.swapWith} · {thaiDate(r.workDate)}</p>
                 <p className="text-[11.5px] text-brand-ink/55">{r.reason} — ขอโดย {r.requestedBy}</p>
                 <div className="mt-1.5 flex gap-1.5">
-                  <button type="button" disabled={busy} onClick={() => decide(r.id, true)}
-                    className="flex-1 rounded-lg bg-ok px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50">อนุมัติ</button>
-                  <button type="button" disabled={busy} onClick={() => decide(r.id, false)}
-                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium disabled:opacity-50">ไม่อนุมัติ</button>
+                  <button type="button" onClick={() => decide(r.id, true)}
+                    className="flex-1 rounded-lg bg-ok px-3 py-1.5 text-[12px] font-semibold text-white">อนุมัติ</button>
+                  <button type="button" onClick={() => decide(r.id, false)}
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium">ไม่อนุมัติ</button>
                 </div>
               </div>
             ))}
@@ -266,207 +256,87 @@ function ManagePanel({ branch, names, onDone }: { branch: string; names: string[
         </GlassCard>
       )}
 
-      <GlassCard className="mb-3">
-        <p className="mb-2 text-[13px] font-semibold">แก้ตาราง (senior staff / แอดมิน)</p>
-        <div className="grid gap-2">
-          <div className="grid grid-cols-2 gap-2">
-            <select value={who} onChange={(e) => setWho(e.target.value)} className="field text-left">
-              {names.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
-          </div>
-          <Segmented
-            options={SHIFT_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
-            value={shift} onChange={setShift}
-          />
-          <Segmented
-            options={LEAVE_SHIFT_OPTIONS.map((o) => ({ value: o.code, label: o.label }))}
-            value={shift} onChange={setShift}
-          />
-          <input value={reason} onChange={(e) => setReason(e.target.value)}
-            placeholder="เหตุผล (แอดมินเห็นทุกครั้ง)" className="field text-left" />
-          <Button onClick={save} disabled={busy || reason.trim().length < 3}>
-            {busy ? "กำลังบันทึก…" : "บันทึกการแก้ตาราง"}
-          </Button>
-          <p className="text-[11px] leading-relaxed text-brand-ink/45">
-            ระบบเช็คให้ก่อนบันทึก — คนเข้ากะวันนั้นต้องครบตามเงื่อนไขของสาขา และหยุดไม่เกินโควตาของเดือน
-          </p>
-        </div>
-      </GlassCard>
-    </>
-  );
-}
-
-export default function SchedulePage() {
-  const me = useMe();
-  const scoped = !!me && me.branchScope !== "all";
-  const [branch, setBranch] = React.useState<Branch>("NVP");
-  const [month, setMonth] = React.useState<string>(() => monthOf(todayISO()));
-  const [rows, setRows] = React.useState<Row[] | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
-  const [reloadKey, setReloadKey] = React.useState(0);
-
-  React.useEffect(() => {
-    if (scoped) setBranch(me!.branchScope as Branch);
-  }, [scoped, me]);
-
-  React.useEffect(() => {
-    let alive = true;
-    setRows(null);
-    setErr(null);
-    fetch(`/api/schedules?branch=${branch}&month=${month}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (!alive) return;
-        if (d?.error) { setErr(d.error); return; }
-        setRows(d.rows ?? []);
-      })
-      .catch((e) => { if (alive) setErr(String(e?.message ?? e)); });
-    return () => { alive = false; };
-  }, [branch, month, reloadKey]);
-
-  // จัดกลุ่มตามวัน — ตารางอ่านตามวันง่ายกว่าตามคน สำหรับพนักงานที่มาดูว่า "วันนี้ใครอยู่บ้าง"
-  const byDate = React.useMemo(() => {
-    const map = new Map<string, Row[]>();
-    for (const r of rows ?? []) {
-      const cur = map.get(r.workDate) ?? [];
-      cur.push(r);
-      map.set(r.workDate, cur);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  }, [rows]);
-
-  // สรุปรายคนทั้งเดือน — วันทำงานกี่วัน หยุดกี่วัน ลากี่วัน
-  const perPerson = React.useMemo(() => {
-    const map = new Map<string, { work: number; off: number; leave: number }>();
-    for (const r of rows ?? []) {
-      const cur = map.get(r.employeeName) ?? { work: 0, off: 0, leave: 0 };
-      if (WORKING.has(r.shiftCode)) cur.work += 1;
-      else if (r.shiftCode === "OFF" || r.shiftCode === "CLOSED" || r.shiftCode === "PH") cur.off += 1;
-      else cur.leave += 1;
-      map.set(r.employeeName, cur);
-    }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], "th"));
-  }, [rows]);
-
-  const today = todayISO();
-
-  return (
-    <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
-      <PageTitle title="ตารางงาน" right={<Badge tone="blue">{thaiMonthLabel(month)}</Badge>} />
-
-      <div className="glass mb-2.5 p-2.5">
-        <div className="grid gap-2">
-          <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
-          <div className="flex items-center gap-2">
-            <button
-              type="button" onClick={() => setMonth((m) => addMonth(m, -1))}
-              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium"
-            >
-              ← เดือนก่อน
-            </button>
-            <span className="flex-1 text-center text-[13px] font-semibold">{thaiMonthLabel(month)}</span>
-            <button
-              type="button" onClick={() => setMonth((m) => addMonth(m, 1))}
-              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium"
-            >
-              เดือนหน้า →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {rows !== null && rows.length > 0 && (
-        <RequestForm
-          branch={branch}
-          names={[...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th"))}
-          onDone={() => setReloadKey((k) => k + 1)}
-        />
-      )}
-
-      {rows !== null && rows.length > 0 && (me?.role === "admin" || me?.isSenior) && (
-        <ManagePanel
-          branch={branch}
-          names={[...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th"))}
-          onDone={() => setReloadKey((k) => k + 1)}
-        />
-      )}
-
       {err && <GlassCard className="mb-3"><p className="text-sm text-warn">{err}</p></GlassCard>}
 
       {rows === null ? (
         <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
-      ) : rows.length === 0 ? (
+      ) : names.length === 0 ? (
         <GlassCard>
           <p className="text-[13.5px] font-medium">ยังไม่มีตารางของเดือนนี้</p>
-          <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-            แอดมินหรือ senior staff เป็นคนจัดตาราง — เดือนที่ยังไม่ได้จัดจะว่างแบบนี้
-          </p>
+          <p className="mt-0.5 text-[11.5px] text-brand-ink/55">แอดมินหรือ senior staff เป็นคนจัดตาราง</p>
         </GlassCard>
       ) : (
         <>
-          {/* สรุปรายคนทั้งเดือน */}
-          <GlassCard className="mb-3">
+          {/* ตาราง คน × วัน — เลื่อนแนวนอนได้ ชื่อคนตรึงไว้ซ้ายมือ */}
+          <div className="glass mb-2 overflow-x-auto p-2">
+            <table className="border-separate border-spacing-[2px] text-[11px]">
+              <thead>
+                <tr>
+                  <th className="sticky left-0 z-10 bg-white/90 px-1.5 py-1 text-left text-[10px] font-medium text-brand-ink/45">
+                    วันที่ →
+                  </th>
+                  {days.map((d) => {
+                    const dt = new Date(d + "T00:00:00Z");
+                    const isToday = d === today;
+                    return (
+                      <th key={d} className={`min-w-[32px] px-0.5 py-1 text-center text-[9.5px] font-medium leading-tight ${
+                        isToday ? "text-brand-red" : "text-brand-ink/45"}`}>
+                        {DOW[dt.getUTCDay()]}<br /><span className="text-[11px]">{dt.getUTCDate()}</span>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {names.map((n) => (
+                  <tr key={n}>
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white/90 px-1.5 py-1 text-[11.5px] font-medium">
+                      {n.split(" ")[0]}
+                    </td>
+                    {days.map((d) => {
+                      const c = cellOf.get(`${n}|${d}`)?.shiftCode;
+                      const isToday = d === today;
+                      return (
+                        <td key={d} className="p-0">
+                          <button
+                            type="button"
+                            onClick={() => setPick({ name: n, date: d, code: c ?? "" })}
+                            className={`h-7 w-full rounded text-[9px] font-semibold leading-none ${
+                              c ? CELL[c] ?? "bg-black/5" : "bg-black/[.02] text-brand-ink/20"
+                            } ${isToday ? "ring-1 ring-brand-red/60" : ""}`}
+                          >
+                            {c ? SHORT[c] ?? c : "–"}
+                          </button>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="mb-3 px-1 text-[11px] leading-relaxed text-brand-ink/50">
+            {canEdit
+              ? "แตะช่องไหนก็แก้ได้เลย — ระบบเช็คให้ก่อนบันทึกว่าคนเข้ากะวันนั้นครบเงื่อนไขไหม และหยุดเกินโควตาหรือยัง"
+              : "แตะช่องของตัวเองเพื่อขอลา · ทุกคำขอแจ้ง senior staff และแอดมินอัตโนมัติ"}
+          </p>
+
+          <GlassCard>
             <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">สรุปทั้งเดือน</p>
             <div className="grid gap-1.5">
-              {perPerson.map(([name, c]) => (
-                <div key={name} className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-2.5 py-1.5">
-                  <span className="text-[13px] font-medium">{name}</span>
+              {summary.map((s) => (
+                <div key={s.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-2.5 py-1.5">
+                  <span className="text-[13px] font-medium">{s.name}</span>
                   <span className="text-[11.5px] tabular-nums text-brand-ink/55">
-                    ทำงาน <b className="text-[13px] text-brand-ink">{c.work}</b> ·
-                    หยุด <b className="text-[13px] text-brand-ink">{c.off}</b>
-                    {c.leave > 0 && <> · ลา <b className="text-[13px] text-brand-red">{c.leave}</b></>}
+                    ทำงาน <b className="text-[13px] text-brand-ink">{s.work}</b> ·
+                    หยุด <b className="text-[13px] text-brand-ink">{s.off}</b>
+                    {s.leave > 0 && <> · ลา <b className="text-[13px] text-brand-red">{s.leave}</b></>}
                   </span>
                 </div>
               ))}
             </div>
           </GlassCard>
-
-          {/* รายวัน */}
-          <div className="grid gap-1.5">
-            {byDate.map(([date, list]) => {
-              const d = new Date(date + "T00:00:00Z");
-              const isToday = date === today;
-              const working = list.filter((r) => WORKING.has(r.shiftCode));
-              return (
-                <div
-                  key={date}
-                  className={`rounded-xl border px-3 py-2 ${
-                    isToday ? "border-brand-red/40 bg-brand-red/[.06]" : "border-black/[.06] bg-white/60"
-                  }`}
-                >
-                  <div className="mb-1 flex items-baseline gap-2">
-                    <span className="text-[13px] font-semibold tabular-nums">
-                      {DOW[d.getUTCDay()]} {d.getUTCDate()}
-                    </span>
-                    {isToday && <span className="text-[10.5px] font-medium text-brand-red">วันนี้</span>}
-                    {working.length === 0 && (
-                      <span className="text-[10.5px] font-medium text-brand-ink/40">ไม่มีใครเข้ากะ</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {list.map((r) => (
-                      <span
-                        key={r.employeeName}
-                        className={`rounded-lg px-2 py-1 text-[11.5px] leading-tight ${TONE[r.shiftCode] ?? "bg-black/5"}`}
-                        title={r.startTime ? `${r.shiftLabel} ${r.startTime}–${r.endTime}` : r.shiftLabel}
-                      >
-                        {r.employeeName}
-                        <span className="ml-1 opacity-70">
-                          {r.startTime ? `${r.startTime}–${r.endTime}` : r.shiftLabel}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <p className="mt-3 px-1 text-[11px] leading-relaxed text-brand-ink/45">
-            ขอลาแล้วมีผลทันทีถ้าสิทธิ์ยังเหลือ · คำขอสลับรอ senior staff หรือแอดมินอนุมัติ
-            · ทุกการเปลี่ยนแปลงแจ้งแอดมินอัตโนมัติ
-          </p>
         </>
       )}
     </div>
