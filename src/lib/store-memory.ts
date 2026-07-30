@@ -1,6 +1,6 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
-import type { ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
@@ -266,6 +266,17 @@ export const memoryStore = {
 
   listSchedulesMonth(_branch: Branch, _month: string): (ScheduleRow & { workDate: string })[] {
     return [];
+  },
+
+  // โหมด dev ไม่มีตารางกะ — คำขอเปลี่ยนตารางจึงยังไม่รองรับ (ข้อมูลจริงอยู่ที่ Supabase)
+  listScheduleRequests(_branch: Branch): ScheduleRequest[] {
+    return [];
+  },
+  createScheduleRequest(_input: any): ScheduleRequest {
+    throw new Error("โหมดทดสอบยังไม่รองรับคำขอเปลี่ยนตาราง");
+  },
+  applyLeaveRequest(_input: any): { appliedCode: string; downgraded: boolean; used: number; quota: number; remaining: number } {
+    throw new Error("โหมดทดสอบยังไม่รองรับการขอลา");
   },
 
   setItemBrand(itemId: string, brand: ItemBrand) {

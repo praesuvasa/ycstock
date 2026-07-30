@@ -4,7 +4,7 @@
 // ขั้นที่ 1 ของ 3 (ดูตาราง → ขอสลับ/ขอลา → ด่านเช็คกติกา + แจ้งแอดมิน)
 // จัดเป็น "เดือนปฏิทิน" ไม่ใช่รอบเงินเดือน 26–25 (แพรระบุ) — รอบเงินเดือนใช้ตอนคิดเงินซึ่งอยู่นอกแอปนี้
 import React from "react";
-import { GlassCard, PageTitle, Badge, BranchPicker } from "@/components/ui";
+import { GlassCard, PageTitle, Badge, BranchPicker, Button, Segmented, Dialog } from "@/components/ui";
 import { useMe } from "@/components/nav";
 import { thaiDate, todayISO } from "@/lib/fmt";
 import type { Branch, ScheduleRow } from "@/lib/types";
@@ -44,6 +44,135 @@ function thaiMonthLabel(month: string): string {
   return `${names[m - 1]} ${y + 543}`;
 }
 
+const LEAVE_OPTIONS = [
+  { value: "AL", label: "ลาพักร้อน" },
+  { value: "PL", label: "ลากิจ" },
+  { value: "SL", label: "ลาป่วย" },
+];
+
+// ฟอร์มขอเปลี่ยนตาราง — ลา AL/PL/SL มีผลทันทีถ้าสิทธิ์เหลือ · ขอสลับต้องรออนุมัติ (แพรกำหนด)
+function RequestForm({ branch, names, onDone }: {
+  branch: string; names: string[]; onDone: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [kind, setKind] = React.useState<"leave" | "swap">("leave");
+  const [who, setWho] = React.useState(names[0] ?? "");
+  const [date, setDate] = React.useState(todayISO());
+  const [leaveCode, setLeaveCode] = React.useState("AL");
+  const [swapWith, setSwapWith] = React.useState(names[1] ?? "");
+  const [reason, setReason] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState<{ tone: "ok" | "warn"; title: string; body?: string } | null>(null);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/schedule-requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branch, workDate: date, employeeName: who, kind, leaveCode, swapWith, reason }),
+      });
+      const d = await res.json();
+      if (!res.ok || d?.error) throw new Error(d?.error ?? "ส่งคำขอไม่สำเร็จ");
+      if (kind === "swap") {
+        setResult({ tone: "ok", title: "ส่งคำขอแล้ว", body: "รอ senior staff หรือแอดมินอนุมัติ · แอดมินได้รับแจ้งแล้ว" });
+      } else if (d.downgraded) {
+        setResult({
+          tone: "warn", title: "สิทธิ์ลาหมดแล้ว — บันทึกเป็นลาไม่รับค่าจ้าง",
+          body: `${who} ใช้ ${leaveCode} ไปครบ ${d.quota} วันของปีนี้แล้ว ระบบจึงบันทึกวันนี้เป็น LWP ให้แทน`,
+        });
+      } else {
+        setResult({
+          tone: "ok", title: "บันทึกวันลาแล้ว",
+          body: `${who} · ${thaiDate(date)} · เหลือสิทธิ์ ${leaveCode} อีก ${d.remaining} วันในปีนี้`,
+        });
+      }
+      setReason("");
+      onDone();
+    } catch (e: any) {
+      setResult({ tone: "warn", title: "ส่งคำขอไม่สำเร็จ", body: e?.message ?? "ลองใหม่อีกครั้ง" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button" onClick={() => setOpen(true)}
+        className="mb-3 w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-ink"
+      >
+        + ขอลา / ขอสลับวันหยุด
+      </button>
+    );
+  }
+
+  return (
+    <>
+      {result && (
+        <Dialog
+          open tone={result.tone} title={result.title}
+          actionLabel={result.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          onClose={() => { setResult(null); if (result.tone === "ok") setOpen(false); }}
+        >
+          {result.body}
+        </Dialog>
+      )}
+      <GlassCard className="mb-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[13px] font-semibold">ขอเปลี่ยนตาราง</p>
+          <button type="button" onClick={() => setOpen(false)} className="text-[12px] text-brand-ink/50 underline">ปิด</button>
+        </div>
+        <div className="grid gap-2">
+          <Segmented
+            options={[{ value: "leave", label: "ขอลา" }, { value: "swap", label: "ขอสลับวันหยุด" }]}
+            value={kind} onChange={(v) => setKind(v as "leave" | "swap")}
+          />
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-brand-ink/50">ตารางของใคร</span>
+            <select value={who} onChange={(e) => setWho(e.target.value)} className="field text-left">
+              {names.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-brand-ink/50">วันที่</span>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
+          </label>
+          {kind === "leave" ? (
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-brand-ink/50">ประเภทการลา (สิทธิ์หมดแล้วระบบจะบันทึกเป็นลาไม่รับค่าจ้างให้)</span>
+              <select value={leaveCode} onChange={(e) => setLeaveCode(e.target.value)} className="field text-left">
+                {LEAVE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-brand-ink/50">สลับกับใคร</span>
+              <select value={swapWith} onChange={(e) => setSwapWith(e.target.value)} className="field text-left">
+                {names.filter((n) => n !== who).map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-brand-ink/50">เหตุผล (แอดมินเห็นทุกครั้ง)</span>
+            <input
+              value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder="เช่น มีธุระที่บ้าน" className="field text-left"
+            />
+          </label>
+          <Button onClick={submit} disabled={busy || reason.trim().length < 3}>
+            {busy ? "กำลังส่ง…" : kind === "leave" ? "บันทึกวันลา" : "ส่งคำขอสลับ"}
+          </Button>
+          <p className="text-[11px] leading-relaxed text-brand-ink/45">
+            {kind === "leave"
+              ? "ลาพักร้อน/ลากิจ/ลาป่วย มีผลทันทีถ้าสิทธิ์ปีนี้ยังเหลือ"
+              : "คำขอสลับต้องให้ senior staff หรือแอดมินอนุมัติก่อน"}
+          </p>
+        </div>
+      </GlassCard>
+    </>
+  );
+}
+
 export default function SchedulePage() {
   const me = useMe();
   const scoped = !!me && me.branchScope !== "all";
@@ -51,6 +180,7 @@ export default function SchedulePage() {
   const [month, setMonth] = React.useState<string>(() => monthOf(todayISO()));
   const [rows, setRows] = React.useState<Row[] | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [reloadKey, setReloadKey] = React.useState(0);
 
   React.useEffect(() => {
     if (scoped) setBranch(me!.branchScope as Branch);
@@ -69,7 +199,7 @@ export default function SchedulePage() {
       })
       .catch((e) => { if (alive) setErr(String(e?.message ?? e)); });
     return () => { alive = false; };
-  }, [branch, month]);
+  }, [branch, month, reloadKey]);
 
   // จัดกลุ่มตามวัน — ตารางอ่านตามวันง่ายกว่าตามคน สำหรับพนักงานที่มาดูว่า "วันนี้ใครอยู่บ้าง"
   const byDate = React.useMemo(() => {
@@ -121,6 +251,14 @@ export default function SchedulePage() {
           </div>
         </div>
       </div>
+
+      {rows !== null && rows.length > 0 && (
+        <RequestForm
+          branch={branch}
+          names={[...new Set((rows ?? []).map((r) => r.employeeName))].sort((a, b) => a.localeCompare(b, "th"))}
+          onDone={() => setReloadKey((k) => k + 1)}
+        />
+      )}
 
       {err && <GlassCard className="mb-3"><p className="text-sm text-warn">{err}</p></GlassCard>}
 
@@ -194,7 +332,8 @@ export default function SchedulePage() {
           </div>
 
           <p className="mt-3 px-1 text-[11px] leading-relaxed text-brand-ink/45">
-            ตอนนี้ดูได้อย่างเดียว — การขอสลับวันหยุด/ขอลา และการแก้ตารางของ senior staff กำลังทำต่อ
+            ขอลาแล้วมีผลทันทีถ้าสิทธิ์ยังเหลือ · คำขอสลับรอ senior staff หรือแอดมินอนุมัติ
+            · ทุกการเปลี่ยนแปลงแจ้งแอดมินอัตโนมัติ
           </p>
         </>
       )}

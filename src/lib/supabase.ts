@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -261,6 +261,101 @@ export const supabaseStore = {
         note: r.note ?? "",
       };
     });
+  },
+
+  // ── คำขอเปลี่ยนตาราง (v1.27) ──
+  async listScheduleRequests(branch: Branch): Promise<ScheduleRequest[]> {
+    const { data, error } = await sb().from("schedule_requests")
+      .select("*").eq("branch_id", branch)
+      .order("status").order("work_date", { ascending: false }).limit(60);
+    if (error) throw error;
+    return (data ?? []).map((r: any) => ({
+      id: r.id, branch: r.branch_id, workDate: r.work_date, employeeName: r.employee_name,
+      requestedBy: r.requested_by, kind: r.kind, leaveCode: r.leave_code, swapWith: r.swap_with,
+      fromShift: r.from_shift, reason: r.reason, status: r.status,
+      decidedBy: r.decided_by, decidedAt: r.decided_at, createdAt: r.created_at,
+    }));
+  },
+
+  async createScheduleRequest(input: {
+    branch: Branch; workDate: string; employeeName: string; requestedBy: string;
+    kind: "leave" | "swap"; swapWith?: string; leaveCode?: string; reason: string;
+    status?: string; fromShift?: string | null;
+  }): Promise<ScheduleRequest> {
+    const { data, error } = await sb().from("schedule_requests").insert({
+      branch_id: input.branch, work_date: input.workDate, employee_name: input.employeeName,
+      requested_by: input.requestedBy, kind: input.kind, swap_with: input.swapWith ?? null,
+      leave_code: input.leaveCode ?? null, reason: input.reason,
+      status: input.status ?? "pending", from_shift: input.fromShift ?? null,
+    }).select().single();
+    if (error) throw error;
+    await this.flagScheduleChange(input.branch, input.workDate, input.employeeName,
+      input.kind === "swap"
+        ? `${input.requestedBy} ขอสลับกะ ${input.employeeName} ↔ ${input.swapWith} — รออนุมัติ`
+        : `${input.requestedBy} ขอลา ${input.leaveCode} ให้ ${input.employeeName}`);
+    return {
+      id: data.id, branch: data.branch_id, workDate: data.work_date, employeeName: data.employee_name,
+      requestedBy: data.requested_by, kind: data.kind, leaveCode: data.leave_code, swapWith: data.swap_with,
+      fromShift: data.from_shift, reason: data.reason, status: data.status,
+      decidedBy: data.decided_by, decidedAt: data.decided_at, createdAt: data.created_at,
+    };
+  },
+
+  /** แจ้งแอดมินทุกครั้งที่ตารางเปลี่ยน — แพรกำหนดไว้เป็นกติกาข้อหนึ่ง */
+  async flagScheduleChange(branch: Branch, date: string, employeeName: string, detail: string) {
+    await sb().from("stock_admin_flags").insert({
+      branch_id: branch, date, item_id: null, item_name: employeeName,
+      reason: "schedule_changed", detail,
+    });
+  },
+
+  // ลา AL/PL/SL — มีผลทันทีถ้าสิทธิ์ปีนี้ยังเหลือ · สิทธิ์หมดแล้วแปลงเป็น LWP ให้เอง (ไม่ปฏิเสธ)
+  async applyLeaveRequest(input: {
+    branch: Branch; workDate: string; employeeName: string; requestedBy: string;
+    leaveCode: string; reason: string;
+  }): Promise<{ appliedCode: string; downgraded: boolean; used: number; quota: number; remaining: number }> {
+    const year = input.workDate.slice(0, 4);
+    const { data: quotaRow } = await sb().from("leave_quotas")
+      .select("days_per_year").eq("code", input.leaveCode).maybeSingle();
+    const quota = Number(quotaRow?.days_per_year ?? 0);
+
+    const { count } = await sb().from("schedules")
+      .select("id", { count: "exact", head: true })
+      .eq("employee_name", input.employeeName).eq("shift_code", input.leaveCode)
+      .gte("work_date", `${year}-01-01`).lte("work_date", `${year}-12-31`);
+    const used = count ?? 0;
+
+    // LWP ไม่มีโควตา ใช้ได้เสมอ · ประเภทอื่นถ้าเต็มแล้วให้ตกไปเป็น LWP
+    const outOfQuota = input.leaveCode !== "LWP" && used >= quota;
+    const appliedCode = outOfQuota ? "LWP" : input.leaveCode;
+
+    const { data: cur } = await sb().from("schedules")
+      .select("id,shift_code").eq("branch_id", input.branch)
+      .eq("work_date", input.workDate).eq("employee_name", input.employeeName).maybeSingle();
+
+    if (cur) {
+      await sb().from("schedules").update({ shift_code: appliedCode, updated_at: new Date().toISOString() }).eq("id", cur.id);
+      await sb().from("schedule_changes").insert({
+        schedule_id: cur.id, from_shift: cur.shift_code, to_shift: appliedCode,
+        reason: input.reason, changed_by: input.requestedBy,
+      });
+    } else {
+      await sb().from("schedules").insert({
+        branch_id: input.branch, work_date: input.workDate, employee_name: input.employeeName,
+        shift_code: appliedCode, note: input.reason, created_by: input.requestedBy,
+      });
+    }
+
+    await this.createScheduleRequest({
+      branch: input.branch, workDate: input.workDate, employeeName: input.employeeName,
+      requestedBy: input.requestedBy, kind: "leave", leaveCode: appliedCode,
+      reason: input.reason, status: "auto", fromShift: cur?.shift_code ?? null,
+    });
+
+    return {
+      appliedCode, downgraded: outOfQuota, used, quota,
+      remaining: Math.max(quota - used - (outOfQuota ? 0 : 1), 0),
+    };
   },
 
   async setItemBrand(itemId: string, brand: ItemBrand) {

@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { ScheduleRow, ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
+import type { ScheduleRequest, ScheduleRow, ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -15,6 +15,17 @@ export const db = {
     useSupabase ? supabaseStore.listSchedules(branch, date) : Promise.resolve(memoryStore.listSchedules(branch, date)),
   listSchedulesMonth: (branch: Branch, month: string): Promise<(ScheduleRow & { workDate: string })[]> =>
     useSupabase ? supabaseStore.listSchedulesMonth(branch, month) : Promise.resolve(memoryStore.listSchedulesMonth(branch, month)),
+  listScheduleRequests: (branch: Branch): Promise<ScheduleRequest[]> =>
+    useSupabase ? supabaseStore.listScheduleRequests(branch) : Promise.resolve(memoryStore.listScheduleRequests(branch)),
+  createScheduleRequest: (input: {
+    branch: Branch; workDate: string; employeeName: string; requestedBy: string;
+    kind: "leave" | "swap"; swapWith?: string; leaveCode?: string; reason: string;
+  }): Promise<ScheduleRequest> =>
+    useSupabase ? supabaseStore.createScheduleRequest(input) : Promise.resolve(memoryStore.createScheduleRequest(input)),
+  applyLeaveRequest: (input: {
+    branch: Branch; workDate: string; employeeName: string; requestedBy: string; leaveCode: string; reason: string;
+  }) =>
+    useSupabase ? supabaseStore.applyLeaveRequest(input) : Promise.resolve(memoryStore.applyLeaveRequest(input)),
   setItemBrand: (itemId: string, brand: ItemBrand) =>
     useSupabase ? supabaseStore.setItemBrand(itemId, brand) : Promise.resolve(memoryStore.setItemBrand(itemId, brand)),
   setItemConfig: (itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) =>

@@ -23,6 +23,24 @@ export interface ScheduleRow {
   note: string;
 }
 
+// คำขอเปลี่ยนตาราง (v1.27)
+export interface ScheduleRequest {
+  id: number;
+  branch: Branch;
+  workDate: string;
+  employeeName: string;
+  requestedBy: string;
+  kind: "leave" | "swap";
+  leaveCode?: string | null;
+  swapWith?: string | null;
+  fromShift?: string | null;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "auto";
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
 // แบรนด์ของสินค้า (v1.25) — เตรียมไว้ก่อน Staple เปิด NCD ก.ย. 2569
 // shared = ของที่ใช้ร่วมกันทั้ง 2 แบรนด์ (ถ้วย ถุง ช้อน) ไม่ต้องแยกนับ
 export type ItemBrand = "yc" | "staple" | "shared";
@@ -537,7 +555,9 @@ export type AdminFlagReason =
   // ยืนยันรับของ "หลัง" ที่มีคนนับ+ยืนยันคงเหลือของวันนั้นไปแล้ว (ใบเก่าค้าง · ของมาไม่พร้อมกัน ·
   // เพิ่มรายการนอกใบ · แก้/ยกเลิกติ๊ก) → ระบบเติมยอดรับเข้าให้ใหม่ ซึ่งถูกต้อง แต่คงเหลือยังเป็นเลขที่นับไว้ก่อนของมา
   // ผลต่างจึงเปลี่ยนหลังบ้านโดยที่คนนับไม่รู้ตัว — ต้องมีคนมาดูว่าตกลงของมาหลังนับจริงไหม
-  | "receipt_after_count";
+  | "receipt_after_count"
+  // ตารางกะถูกแก้/มีคนลา — แอดมินต้องรู้ทุกครั้งตามที่แพรกำหนด
+  | "schedule_changed";
 
 export interface AdminFlag {
   id: number;
