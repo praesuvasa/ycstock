@@ -3,8 +3,9 @@ import "./globals.css";
 import { NavShell } from "@/components/nav";
 
 export const metadata: Metadata = {
-  title: "YC Stock — ระบบจัดการหน้าร้าน Yogurt Culture",
-  description: "กรอกสต็อกสิ้นวัน · เติมของ · ยอดขาย · reconcile ถ้วย",
+  // ชื่อกลางของทั้งระบบ — ชื่อจริงต่อหน่วยงาน (หน้าร้าน/ฝ่ายผลิต) ตั้งทับที่ NavShell หลังรู้ว่าใครล็อกอิน
+  title: "BQMP Ops — ระบบจัดการงานประจำวัน",
+  description: "หน้าร้าน: สต็อก · เติมของ · ยอดขาย · เงินสด · ฝ่ายผลิต: สต็อกกลาง · บันทึกการผลิต",
 };
 
 export const viewport: Viewport = {

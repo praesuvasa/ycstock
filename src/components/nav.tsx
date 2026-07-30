@@ -3,6 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Role, BranchScope } from "@/lib/types";
+import { unitBrand, branchBrandLabel, isDualBrandBranch } from "@/lib/units";
 
 export type Me = {
   id: string; name: string; role: Role; branchScope: BranchScope;
@@ -63,7 +64,7 @@ type Tab = { href?: string; label: string; icon: IconKey; children?: Tab[] };
 // (รับของ → นับสต็อก → ปิดยอด → ส่งเงิน) ของที่ทำนาน ๆ ครั้งไปอยู่ท้าย
 // หน้าประวัติ 2 อันยุบเป็นกลุ่มเดียว เพราะเป็นของ "ย้อนดู" ไม่ใช่งานประจำวัน
 const USER_TABS: Tab[] = [
-  { href: "/", label: "หน้าหลัก", icon: "home" },
+  { href: "/store", label: "หน้าหลัก", icon: "home" },
   { href: "/confirm-receipt", label: "ยืนยันรับของ", icon: "inbox" },
   { href: "/stock", label: "เช็คสต็อก", icon: "clipboard" },
   { href: "/sales", label: "รายงานยอดขาย", icon: "banknote" },
@@ -79,7 +80,7 @@ const USER_TABS: Tab[] = [
   },
 ];
 const ADMIN_TABS: Tab[] = [
-  { href: "/", label: "หน้าหลัก", icon: "home" },
+  { href: "/store", label: "หน้าหลัก", icon: "home" },
   { href: "/stock", label: "สต็อก", icon: "clipboard" },
   { href: "/stock-in", label: "สินค้าเข้า", icon: "truck" },
   { href: "/confirm-receipt", label: "รับของ", icon: "inbox" },
@@ -105,10 +106,13 @@ const RESTOCK_TABS: Tab[] = [
   { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "package" },
   { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
 ];
+const PRODUCTION_TABS: Tab[] = [
+  { href: "/yogi", label: "หน้าหลัก", icon: "home" },
+];
 const tabsForMe = (me: Me | null): Tab[] => {
-  // ฝ่ายผลิต — ยังไม่มีเมนูงานผลิตในระบบ จึงเห็นแค่หน้าหลักไว้ดูว่าล็อกอินเป็นใคร
+  // ฝ่ายผลิต — เห็นแค่หน้าหลักของหน่วยตัวเอง (ยังไม่มีเมนูงานผลิตในระบบ)
   // เมนูลงเวลาอยู่ในกลุ่ม "ข้อมูลของฉัน" อยู่แล้ว ไม่ต้องซ้ำอีกที่
-  if (me?.workUnit === "production" && me.role !== "admin") return [];
+  if (me?.workUnit === "production" && me.role !== "admin") return PRODUCTION_TABS;
   const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
   // ยังไม่เปิดใช้ตรวจวันหมดอายุ = ตัดออกจากเมนูไปเลย (แพรสั่ง 2026-07-28)
   // ระหว่างนี้ของที่ต้องส่งคืนให้ไปกรอกที่หน้า "ส่งคืน" ตามเดิม
@@ -171,7 +175,10 @@ const scopeLabel = (me: Me | null): string =>
   !me ? ""
     : me.workUnit === "production" ? `${me.name} · ฝ่ายผลิต`
     : me.branchScope === "all" ? `${me.name} · ทุกสาขา`
-    : `${me.name} · สาขา ${me.branchScope}`;
+    // สาขาที่ขายควบ 2 แบรนด์ (KCN/NCD) เขียนให้ชัดว่ากะนี้ดูแลทั้ง YC และ Staple
+    : isDualBrandBranch(me.branchScope)
+      ? `${me.name} · สาขา ${me.branchScope} · ${branchBrandLabel(me.branchScope)}`
+      : `${me.name} · สาขา ${me.branchScope}`;
 
 function useLogout() {
   const router = useRouter();
@@ -197,6 +204,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
       .then((d) => setMe(d.user))
       .catch(() => setMe(null));
   }, [path]);
+
+  // ชื่อแท็บเบราว์เซอร์เปลี่ยนตามหน่วยงาน (v1.25) — คนที่ปักไอคอนไว้หน้าจอมือถือจะได้เห็นชื่อของหน่วยตัวเอง
+  // ตั้งที่ฝั่ง client เพราะ metadata ของ Next เป็นค่าคงที่ต่อ route ไม่รู้ว่าใครล็อกอิน
+  React.useEffect(() => {
+    if (me) document.title = unitBrand(me.workUnit).docTitle;
+  }, [me]);
 
   // ยังไม่ได้ลงทะเบียนใบหน้า = พาไปทำให้จบก่อน ใช้หน้าอื่นไม่ได้ (แพรสั่ง 2026-07-28)
   // บังคับที่ฝั่งหน้าจอพอ — ตัวนี้เป็นขั้นตอนตั้งค่าเริ่มต้น ไม่ใช่ด่านความปลอดภัย
@@ -295,9 +308,11 @@ function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
       />
       <div className="leading-tight">
         {/* หัวจอเปลี่ยนตามหน่วยงาน (v1.24) — ฝ่ายผลิตไม่ได้ทำงานหน้าร้าน เห็นคำว่า "ระบบหน้าร้าน" แล้วสับสน
-            โลโก้ยังเป็น YC เหมือนเดิม เพราะครัวกลางผลิตของให้ YC อยู่แล้ว */}
-        <div className={compact ? "text-[15px] font-semibold" : "text-base font-semibold"}>
-          {me?.workUnit === "production" ? "ระบบฝ่ายผลิต" : "ระบบหน้าร้าน"}
+            v1.25: เพิ่มแถบสีประจำหน่วย (หน้าร้าน = แดง YC · ฝ่ายผลิต = ฟ้า Yogi)
+            โลโก้ยังเป็น YC เหมือนเดิม เพราะยังไม่มีไฟล์โลโก้ Yogi/Staple ในระบบ */}
+        <div className={`flex items-center gap-1.5 ${compact ? "text-[15px] font-semibold" : "text-base font-semibold"}`}>
+          <span className={`h-3.5 w-1 shrink-0 rounded-full ${unitBrand(me?.workUnit).dotCls}`} />
+          {unitBrand(me?.workUnit).headline}
         </div>
         <div className="text-[11px] text-brand-ink/50">{scopeLabel(me)}</div>
       </div>

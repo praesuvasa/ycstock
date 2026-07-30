@@ -11,6 +11,9 @@ const config: Config = {
           orange: "#FF8C33",
           ink: "#2A2A2E",
           cream: "#FBF7F0",
+          // สีประจำหน่วยงาน/แบรนด์ (v1.25) — yogi = ฝ่ายผลิต · staple = แบรนด์ที่ 2 ที่ KCN/NCD
+          yogi: "#29B5E8",
+          staple: "#542916",
         },
         ok: "#2FA36B",
         warn: "#E0483F",
