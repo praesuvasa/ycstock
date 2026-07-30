@@ -11,6 +11,13 @@ export type CupSize = "P" | "S" | "BOWL" | "14OZ";
 // ความถี่เช็คสต็อกต่อรายการ — daily = ทุกวัน · monThu = เฉพาะวันจันทร์+พฤหัส (ของหมุนช้า ลดภาระกรอกซ้ำ)
 export type CheckFrequency = "daily" | "monThu";
 
+// แบรนด์ของสินค้า (v1.25) — เตรียมไว้ก่อน Staple เปิด NCD ก.ย. 2569
+// shared = ของที่ใช้ร่วมกันทั้ง 2 แบรนด์ (ถ้วย ถุง ช้อน) ไม่ต้องแยกนับ
+export type ItemBrand = "yc" | "staple" | "shared";
+export const ITEM_BRAND_LABEL: Record<ItemBrand, string> = {
+  yc: "YC", staple: "Staple", shared: "ใช้ร่วม",
+};
+
 export interface Item {
   id: string;
   name: string;
@@ -37,6 +44,8 @@ export interface Item {
   // แกะแล้วไม่ได้ขายเป็นตัวมันเอง แต่ไปรวมกับอีกรายการ (Greek Yogurt 500g → ตักจาก Greek Yogurt 1kg)
   expiryConvertToItemId?: string | null;
   expiryConvertG?: number | null;  // กรัมที่เข้าไปเพิ่มให้ปลายทาง ต่อ 1 หน่วยต้นทาง
+  // ไม่ระบุ = "yc" (ของทั้งหมดที่มีอยู่ก่อน Staple เปิด)
+  brand?: ItemBrand;
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)

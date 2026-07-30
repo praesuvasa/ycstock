@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
@@ -164,7 +164,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield,expiry_check,expiry_warn_days,expiry_allow_sell_front,expiry_allow_return,expiry_convert_to_item_id,expiry_convert_g");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield,expiry_check,expiry_warn_days,expiry_allow_sell_front,expiry_allow_return,expiry_convert_to_item_id,expiry_convert_g,brand");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -183,6 +183,7 @@ export const supabaseStore = {
       expiryAllowReturn: r.expiry_allow_return ?? true,
       expiryConvertToItemId: r.expiry_convert_to_item_id ?? null,
       expiryConvertG: r.expiry_convert_g == null ? null : Number(r.expiry_convert_g),
+      brand: (r.brand ?? "yc") as Item["brand"],
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
@@ -191,6 +192,14 @@ export const supabaseStore = {
       (par[p.item_id] as any)[p.branch_id] = p.level;
     }
     return { branches: BRANCHES, items: mapped, par };
+  },
+
+  // แท็กแบรนด์รายสินค้า (v1.25) — แยกจาก setItemConfig เพราะเป็นคนละเรื่องกัน
+  // (อันนั้นคือวิธีนับ/แกะ · อันนี้คือ "ของใคร") และหน้าตั้งค่าจะได้บันทึกทีละอย่างไม่ทับกัน
+  async setItemBrand(itemId: string, brand: ItemBrand) {
+    const { error } = await sb().from("items").update({ brand }).eq("id", itemId);
+    if (error) throw error;
+    return { ok: true };
   },
 
   async setItemConfig(itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) {

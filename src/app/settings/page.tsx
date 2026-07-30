@@ -1,7 +1,7 @@
 "use client";
 // Settings — ตั้งค่าโหมดขายต่อ item (แกะ g / เต็มกล่อง + กรัมต่อ 1 แพ็ค)
 import React from "react";
-import type { Item, Meta } from "@/lib/types";
+import type { Item, ItemBrand, Meta } from "@/lib/types";
 import {
   GlassCard, Badge, Button, Segmented, Accordion, NumberField, PageTitle,
 } from "@/components/ui";
@@ -47,6 +47,26 @@ export default function SettingsPage() {
   function dirty(it: Item): boolean {
     const d = draft[it.id];
     return !!d && (d.hasRemainder !== it.hasRemainder || d.gramsPerUOM !== it.gramsPerUOM || d.remainderGroup !== (it.remainderGroup ?? ""));
+  }
+
+  // แบรนด์เก็บ draft แยก เพราะบันทึกทันที (ไม่รอปุ่ม) — เก็บไว้ให้ปุ่มเปลี่ยนสีทันทีระหว่างรอ server
+  const [brandDraft, setBrandDraft] = React.useState<Record<string, ItemBrand>>({});
+  async function saveBrand(it: Item, brand: ItemBrand) {
+    setBrandDraft((p) => ({ ...p, [it.id]: brand }));
+    setErr(null);
+    try {
+      const res = await fetch("/api/items/brand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: it.id, brand }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกแบรนด์ไม่สำเร็จ");
+      setMeta((m) => m && ({ ...m, items: m.items.map((x) => (x.id === it.id ? { ...x, brand } : x)) }));
+    } catch (e: any) {
+      setErr(String(e?.message ?? e));
+      setBrandDraft((p) => { const { [it.id]: _drop, ...rest } = p; return rest; }); // คืนค่าเดิมถ้าบันทึกไม่ผ่าน
+    }
   }
 
   async function save(it: Item) {
@@ -125,6 +145,22 @@ export default function SettingsPage() {
                           }
                         />
                       </div>
+                    </div>
+                    {/* แบรนด์ของสินค้า (v1.25) — เตรียมไว้ก่อน Staple เปิด NCD ก.ย. 2569
+                        บันทึกทันทีที่กด แยกจากปุ่ม "บันทึกรายการนี้" ด้านล่าง เพราะคนละ endpoint คนละเรื่อง */}
+                    <div className="mt-2">
+                      <span className="mb-1 block text-[11px] text-brand-ink/50">
+                        แบรนด์ (ใช้ร่วม = ของที่ทั้ง 2 แบรนด์ใช้ เช่น ถ้วย ถุง ช้อน)
+                      </span>
+                      <Segmented
+                        options={[
+                          { value: "yc", label: "YC" },
+                          { value: "staple", label: "Staple" },
+                          { value: "shared", label: "ใช้ร่วม" },
+                        ]}
+                        value={(brandDraft[it.id] ?? it.brand ?? "yc")}
+                        onChange={(v) => saveBrand(it, v as ItemBrand)}
+                      />
                     </div>
                     <label className="mt-2 flex flex-col gap-1">
                       <span className="text-[11px] text-brand-ink/50">กลุ่มเศษรวม (เว้นว่าง = ไม่มี · เศษปนกัน เช่น Strawberry)</span>
