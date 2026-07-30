@@ -142,6 +142,9 @@ in_distance_m · out_distance_m · in_face_similarity · out_face_similarity · 
 - **PT จ่ายตามเวลาที่สแกนหน้าจริง** เป็นนาที (นาที ÷ 60 × 50 บาท) — เข้างานไม่เป็นเวลาเพราะมี FT ยืนพื้น
 
 **KCN — ดาว 1 คน** · อยู่คนเดียวได้ · หยุดพุธ
+- ไม่มีในไฟล์ Roster2026 เพราะพนักงานคนเดียวเลยไม่ได้ทำตาราง —
+  ระบบสร้างให้เองได้จาก `staff_defaults` (ทำงานทุกวัน หยุดพุธ)
+- **PRQ ที่อยู่ในไฟล์ Roster ชีต ม.ค.–มิ.ย. คือสาขาที่ปิดไปแล้ว** ไม่ต้อง import
 
 ## Connections กับระบบอื่น
 - **Supabase** — database กลาง (write attendance_logs, read schedules)
