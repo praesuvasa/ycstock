@@ -210,6 +210,18 @@ const fromRow = (row: SalesRow): Form => ({
 });
 
 // v1.11: ประเภทเคส "รับเงินไม่ตรงบิล" — เพิ่มประเภทใหม่ที่นี่ที่เดียว (สูตรคำนวณอยู่ใน calc.ts)
+// ทุกเคสคำนวณจาก "ผลต่าง" อย่างเดียว (ดู incidentAdjustment) — เลยถามช่องเดียวพอ
+// เดิมให้กรอกยอดบิล + ยอดโอน 2 ช่อง ซึ่งพนักงานงงว่าอันไหนใส่ตรงไหน (แพรทัก 2026-07-30)
+// amountLabel = คำถามที่พนักงานตอบได้ทันทีหน้างาน · negative = เงินสดเข้าลิ้นชักแทนที่จะออก
+const AMOUNT_LABEL: Record<PaymentIncidentKind, string> = {
+  over_no_change: "ลูกค้าโอนเกินกี่บาท (ไม่ได้ทอนคืน)",
+  over_cash_change: "คืนเงินสดให้ลูกค้ากี่บาท",
+  under_cash_topup: "ลูกค้าจ่ายสดเพิ่มกี่บาท",
+  menu_change_refund: "คืนเงินสดให้ลูกค้ากี่บาท",
+  void_full_refund: "คืนเงินสดให้ลูกค้ากี่บาท (เท่ากับยอดที่โอนมา)",
+};
+const NEGATIVE_KINDS: PaymentIncidentKind[] = ["under_cash_topup"];
+
 const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }[] = [
   { kind: "over_no_change", label: "โอนเกิน · ไม่ได้ทอนคืน", hint: "ส่วนเกินนับเป็นรายได้ของร้าน" },
   { kind: "over_cash_change", label: "โอนเกิน · ทอนเป็นเงินสด", hint: "หยิบเงินสดในลิ้นชักคืนลูกค้า" },
@@ -514,7 +526,11 @@ export default function SalesPage() {
                     <div className="mb-1.5 flex items-start justify-between gap-2">
                       <select
                         value={it.kind}
-                        onChange={(e) => patch({ kind: e.target.value as PaymentIncidentKind })}
+                        onChange={(e) => {
+                          const k = e.target.value as PaymentIncidentKind;
+                          const v = Math.abs(it.actualAmount);
+                          patch({ kind: k, billAmount: 0, actualAmount: NEGATIVE_KINDS.includes(k) ? -v : v });
+                        }}
                         className="field min-w-0 flex-1 py-1 text-left text-[12px]"
                       >
                         {INCIDENT_KINDS.map((k) => (
@@ -529,34 +545,25 @@ export default function SalesPage() {
                         ลบ
                       </button>
                     </div>
-                    <div className="flex gap-2">
-                      {/* เคสยกเลิกทั้งบิลไม่มีช่องยอดบิล — ระบบรู้อยู่แล้วว่าเหลือ 0 ไม่ต้องให้พิมพ์เอง */}
-                      <label className={`flex flex-1 flex-col gap-0.5 ${it.kind === "void_full_refund" ? "hidden" : ""}`}>
-                        <span className="text-[10px] text-brand-ink/50">
-                          {it.kind === "menu_change_refund" ? "ยอดบิลใหม่ใน POS (ยกเลิกหมด = 0)" : "ยอดตามบิล"}
-                        </span>
-                        <input
-                          inputMode="decimal" value={it.billAmount || ""}
-                          onChange={(e) => patch({ billAmount: toNum(e.target.value) })}
-                          className="field py-1 text-center text-[13px]"
-                        />
-                      </label>
-                      <label className="flex flex-1 flex-col gap-0.5">
-                        <span className="text-[10px] text-brand-ink/50">
-                          {it.kind === "menu_change_refund" || it.kind === "void_full_refund" ? "ยอดที่ลูกค้าโอนมา" : "โอนเข้าจริง"}
-                        </span>
-                        <input
-                          inputMode="decimal" value={it.actualAmount || ""}
-                          onChange={(e) => patch({ actualAmount: toNum(e.target.value) })}
-                          className="field py-1 text-center text-[13px]"
-                        />
-                      </label>
-                    </div>
-                    {(it.billAmount > 0 || it.actualAmount > 0) && (
-                      <p className="mt-1.5 text-[11px] text-sky-700">
-                        QR {a.qr >= 0 ? "+" : ""}{a.qr}
-                        {a.cash !== 0 && <> · เงินสด {a.cash >= 0 ? "+" : ""}{a.cash}</>}
-                        {a.overBill !== 0 && <> · เกินบิล {a.overBill} (รายได้ร้าน)</>}
+                    {/* ช่องเดียว = จำนวนเงินที่ต่างจากบิล · ระบบแปลงเป็นยอด QR/เงินสดให้เอง */}
+                    <label className="flex flex-col gap-0.5">
+                      <span className="text-[10.5px] font-medium text-brand-ink/60">{AMOUNT_LABEL[it.kind]}</span>
+                      <input
+                        inputMode="decimal"
+                        value={Math.abs(it.actualAmount) || ""}
+                        onChange={(e) => {
+                          const v = Math.abs(toNum(e.target.value));
+                          patch({ billAmount: 0, actualAmount: NEGATIVE_KINDS.includes(it.kind) ? -v : v });
+                        }}
+                        placeholder="เช่น 129"
+                        className="field py-1.5 text-center text-[15px] font-semibold"
+                      />
+                    </label>
+                    {it.actualAmount !== 0 && (
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-sky-700">
+                        ระบบจะปรับให้: ยอด QR {a.qr >= 0 ? "+" : ""}{a.qr}
+                        {a.cash !== 0 && <> · เงินสดในลิ้นชัก {a.cash >= 0 ? "+" : ""}{a.cash}</>}
+                        {a.overBill !== 0 && <> · เกินบิล {a.overBill} (นับเป็นรายได้ร้าน)</>}
                       </p>
                     )}
                   </div>
