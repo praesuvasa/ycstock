@@ -277,10 +277,14 @@ function PrintSheet({
       <div className="flex-1">
         <table className="w-full table-fixed border-collapse text-[10.5px] leading-tight">
           <thead>
+            {/* ช่องติ๊กอยู่ "หลัง" ตัวเลขจำนวน (แพรสั่ง 2026-07-30) — คนหยิบของอ่านชื่อ → เห็นจำนวน → ค่อยติ๊ก
+                เรียงตามลำดับที่มือทำงานจริง ไม่ต้องกวาดสายตากลับไปซ้ายสุด */}
             <tr className="border-b-2 border-black">
-              <th className="w-4 py-0.5"></th>
               <th className="py-0.5 text-left text-[9px] uppercase tracking-wide text-neutral-500">รายการ</th>
-              <th className="w-8 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">จำนวน</th>
+              {/* ช่องจำนวนกว้างขึ้น (w-8 → w-16) — ยอดที่มีเศษ เช่น "1 + 2300g" เคยตกบรรทัดจนแถวสูงเป็น 2-3 เท่า
+                  และหัวคอลัมน์ "จำนวน" ล้นไปทับช่องติ๊ก · ตัด uppercase/tracking ของ 2 หัวนี้ออกด้วย */}
+              <th className="w-16 py-0.5 text-center text-[9px] text-neutral-500">จำนวน</th>
+              <th className="w-5 py-0.5 text-center text-[9px] text-neutral-500">รับ</th>
               <th className="w-11 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
             </tr>
           </thead>
@@ -294,7 +298,6 @@ function PrintSheet({
                 </tr>
                 {g.items.map((r) => (
                   <tr key={r.itemId} className="break-inside-avoid border-b border-neutral-300">
-                    <td className="py-[1.5px]"><span className="inline-block h-[11px] w-[11px] border-[1.3px] border-black" /></td>
                     <td className="py-[1.5px] text-black">
                       <span className="inline-flex items-center gap-1">
                         {itemIcon(r.name)}
@@ -303,6 +306,7 @@ function PrintSheet({
                       </span>
                     </td>
                     <td className="py-[1.5px] text-center text-[13px] font-bold text-black">{r.qty}</td>
+                    <td className="py-[1.5px] text-center"><span className="inline-block h-[11px] w-[11px] border-[1.3px] border-black" /></td>
                     <td className="border-b border-neutral-400 py-[1.5px]" />
                   </tr>
                 ))}
@@ -316,14 +320,16 @@ function PrintSheet({
             {/* รายการที่กรอกไว้ในระบบ (ข้อ 16) พิมพ์ออกมาเลย — ที่เหลือเว้นบรรทัดว่างให้เขียนเพิ่มหน้างาน */}
             {(extras ?? []).map((e, i) => (
               <div key={`x${i}`} className="mb-1 flex items-baseline gap-1.5 border-b border-neutral-400 pb-[2px]">
-                <span className="inline-block h-[11px] w-[11px] shrink-0 border-[1.3px] border-black" />
                 <span className="flex-1 text-[10.5px] leading-tight text-black">
                   {e.name}
                   {e.note ? <span className="text-[9px] text-neutral-600"> · {e.note}</span> : null}
                 </span>
-                {/* จัดให้ตรงคอลัมน์ "จำนวน" ของตารางข้างบน (w-8) + เว้นที่คอลัมน์หมายเหตุ (w-11)
+                {/* จัดให้ตรงคอลัมน์ของตารางข้างบน: จำนวน (w-16) → ช่องติ๊ก (w-5) → หมายเหตุ (w-11)
                     เดิมปล่อยชิดขวาสุด เลขเลยไปเบียดขอบกระดาษจนดูเหมือนตกขอบ */}
-                <span className="w-8 shrink-0 text-center text-[13px] font-bold text-black">{e.qty || ""}</span>
+                <span className="w-16 shrink-0 text-center text-[13px] font-bold text-black">{e.qty || ""}</span>
+                <span className="w-5 shrink-0 text-center">
+                  <span className="inline-block h-[11px] w-[11px] border-[1.3px] border-black" />
+                </span>
                 <span className="w-11 shrink-0" />
               </div>
             ))}

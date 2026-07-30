@@ -1,0 +1,115 @@
+<meta charset="utf-8">
+<title>Preview · ใบส่งของเข้าสาขา (ช่องติ๊กหลังจำนวน)</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 8mm; }
+  *{box-sizing:border-box}
+  body{font-family:Kanit,sans-serif;font-weight:300;color:#111;margin:0;background:#e9e6e0;padding:18px}
+  .sheet{width:194mm;min-height:281mm;background:#fff;margin:0 auto;padding:8mm;box-shadow:0 6px 24px rgba(0,0,0,.14)}
+  .head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:5px;margin-bottom:6px}
+  .t1{font-size:22px;font-weight:700;line-height:1.15}
+  .br{display:flex;align-items:baseline;gap:9px;margin-top:2px}
+  .br .code{font-size:28px;font-weight:700;line-height:1}
+  .br .th{font-size:21px;font-weight:700;line-height:1}
+  .date{font-size:19px;font-weight:700;line-height:1;text-align:right}
+  .wd{font-size:11px;color:#666;text-align:right;margin-top:2px}
+  .cols{display:flex;gap:12px}
+  .col{flex:1}
+  table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:10.5px;line-height:1.2}
+  th{padding:2px 0;font-size:9px;font-weight:400;text-transform:uppercase;letter-spacing:.04em;color:#777}
+  thead tr{border-bottom:2px solid #000}
+  th.name{text-align:left}
+  th.qty{width:64px;text-align:center;text-transform:none;letter-spacing:0}
+  th.tick{width:20px;text-align:center;text-transform:none;letter-spacing:0}
+  th.note{width:44px;text-align:center}
+  td{padding:1.5px 0}
+  tr.item{border-bottom:1px solid #d4d4d4}
+  .cat{padding-top:4px;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#555}
+  .qty{text-align:center;font-size:13px;font-weight:700}
+  .tickcell{text-align:center}
+  .box{display:inline-block;width:11px;height:11px;border:1.3px solid #000}
+  td.note{border-bottom:1px solid #999}
+  .extra-h{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#777;margin:12px 0 4px}
+  .xrow{display:flex;align-items:baseline;gap:6px;border-bottom:1px solid #999;padding-bottom:2px;margin-bottom:4px}
+  .xname{flex:1;font-size:10.5px}
+  .xqty{width:64px;flex:none;text-align:center;font-size:13px;font-weight:700}
+  .xtick{width:20px;flex:none;text-align:center}
+  .xnote{width:44px;flex:none}
+  .blank{height:13px;border-bottom:1px dotted #999;margin-bottom:4px}
+  .sign{display:flex;gap:26px;margin-top:16px;padding-top:8px;border-top:2px solid #000}
+  .sign div{flex:1}
+  .sign .line{border-bottom:1px solid #000;height:26px}
+  .sign .lb{font-size:11px;color:#444;margin-top:3px}
+  .banner{max-width:194mm;margin:0 auto 12px;font-size:12.5px;color:#444;line-height:1.7}
+  .banner b{font-weight:500;color:#111}
+  @media print{ body{background:#fff;padding:0} .sheet{box-shadow:none;width:auto;min-height:auto;padding:0} .banner{display:none} }
+</style>
+
+<p class="banner">
+  <b>ใบส่งของเข้าสาขา — ลำดับคอลัมน์ใหม่</b><br>
+  รายการ → จำนวน → <b>ช่องติ๊ก</b> → หมายเหตุ · ตาแกะตามลำดับที่มือทำงานจริง ไม่ต้องกวาดกลับไปซ้ายสุด<br>
+  (ข้อมูลในตัวอย่างเป็นของสมมติ ไว้ดูการจัดวางอย่างเดียว)
+</p>
+
+<div class="sheet">
+  <div class="head">
+    <div>
+      <div class="t1">ใบส่งของเข้าสาขา</div>
+      <div class="br"><span class="code">NVP</span><span class="th">นวมินทร์</span></div>
+    </div>
+    <div>
+      <div class="date">30/07/2569</div>
+      <div class="wd">วันพฤหัสบดี</div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="col">
+      <table>
+        <thead><tr><th class="name">รายการ</th><th class="qty">จำนวน</th><th class="tick">รับ</th><th class="note">หมายเหตุ</th></tr></thead>
+        <tbody>
+          <tr><td class="cat" colspan="4">Yogurt</td></tr>
+          <tr class="item"><td>Greek Yogurt 1kg</td><td class="qty">6</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Plain Yogurt (ธรรมชาติ)</td><td class="qty">4</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Greek Yogurt 500g</td><td class="qty">1 + 700g</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr><td class="cat" colspan="4">Toppings</td></tr>
+          <tr class="item"><td>Biscoff</td><td class="qty">1 + 2,300g</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Granola</td><td class="qty">3</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Strawberry</td><td class="qty">300g + 500g</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr><td class="cat" colspan="4">Softserve Toppings</td></tr>
+          <tr class="item"><td>ACAI 500g</td><td class="qty">2</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Mango Sauce</td><td class="qty">1</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <table>
+        <thead><tr><th class="name">รายการ</th><th class="qty">จำนวน</th><th class="tick">รับ</th><th class="note">หมายเหตุ</th></tr></thead>
+        <tbody>
+          <tr><td class="cat" colspan="4">Cups</td></tr>
+          <tr class="item"><td>ถ้วย P (5oz)</td><td class="qty">2</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>ถ้วย S (9oz)</td><td class="qty">2</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>Bowl</td><td class="qty">1</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr><td class="cat" colspan="4">Packaging</td></tr>
+          <tr class="item"><td>ถุงหูหิ้ว</td><td class="qty">1</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+          <tr class="item"><td>ช้อนพลาสติก</td><td class="qty">2</td><td class="tickcell"><span class="box"></span></td><td class="note"></td></tr>
+        </tbody>
+      </table>
+
+      <div class="extra-h">รายการอื่นๆ</div>
+      <div class="xrow">
+        <span class="xname">น้ำแข็ง · ฝากซื้อหน้าปากซอย</span>
+        <span class="xqty">2</span>
+        <span class="xtick"><span class="box"></span></span>
+        <span class="xnote"></span>
+      </div>
+      <div class="blank"></div><div class="blank"></div><div class="blank"></div>
+    </div>
+  </div>
+
+  <div class="sign">
+    <div><div class="line"></div><div class="lb">ผู้ส่งของ / วันที่</div></div>
+    <div><div class="line"></div><div class="lb">ผู้รับของ (สาขา) / วันที่</div></div>
+  </div>
+</div>
