@@ -13,6 +13,8 @@ export const db = {
 
   listSchedules: (branch: Branch, date: string): Promise<ScheduleRow[]> =>
     useSupabase ? supabaseStore.listSchedules(branch, date) : Promise.resolve(memoryStore.listSchedules(branch, date)),
+  listSchedulesMonth: (branch: Branch, month: string): Promise<(ScheduleRow & { workDate: string })[]> =>
+    useSupabase ? supabaseStore.listSchedulesMonth(branch, month) : Promise.resolve(memoryStore.listSchedulesMonth(branch, month)),
   setItemBrand: (itemId: string, brand: ItemBrand) =>
     useSupabase ? supabaseStore.setItemBrand(itemId, brand) : Promise.resolve(memoryStore.setItemBrand(itemId, brand)),
   setItemConfig: (itemId: string, cfg: { hasRemainder: boolean; gramsPerUOM: number; remainderGroup?: string }) =>

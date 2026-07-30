@@ -124,6 +124,7 @@ const tabsForMe = (me: Me | null): Tab[] => {
 // "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว — ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้
 const accountMenuFor = (me: Me | null): Tab[] => [
   { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", icon: "clock" },
+  { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },

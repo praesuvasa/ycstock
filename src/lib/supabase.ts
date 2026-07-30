@@ -229,6 +229,40 @@ export const supabaseStore = {
     });
   },
 
+  // ตารางทั้งเดือนของสาขา (v1.27) — หน้าตารางงานใช้ · join นิยามกะให้เหมือน listSchedules
+  async listSchedulesMonth(branch: Branch, month: string): Promise<(ScheduleRow & { workDate: string })[]> {
+    const from = `${month}-01`;
+    const to = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
+      .toISOString().slice(0, 10); // วันสุดท้ายของเดือน
+    const { data, error } = await sb().from("schedules")
+      .select("work_date,employee_name,shift_code,pt_hours,note")
+      .eq("branch_id", branch).gte("work_date", from).lte("work_date", to)
+      .order("work_date").order("employee_name");
+    if (error) throw error;
+    const rows = data ?? [];
+    if (rows.length === 0) return [];
+    const { data: defs } = await sb().from("shift_definitions")
+      .select("code,branch_id,label,start_time,end_time,hours")
+      .in("code", [...new Set(rows.map((r: any) => r.shift_code))]);
+    const defOf = (code: string) =>
+      (defs ?? []).find((d: any) => d.code === code && d.branch_id === branch)
+      ?? (defs ?? []).find((d: any) => d.code === code && d.branch_id === "*");
+    return rows.map((r: any) => {
+      const d: any = defOf(r.shift_code);
+      return {
+        workDate: r.work_date,
+        employeeName: r.employee_name,
+        shiftCode: r.shift_code,
+        shiftLabel: d?.label ?? r.shift_code,
+        startTime: d?.start_time ? String(d.start_time).slice(0, 5) : null,
+        endTime: d?.end_time ? String(d.end_time).slice(0, 5) : null,
+        hours: Number(d?.hours ?? 0),
+        ptHours: r.pt_hours == null ? null : Number(r.pt_hours),
+        note: r.note ?? "",
+      };
+    });
+  },
+
   async setItemBrand(itemId: string, brand: ItemBrand) {
     const { error } = await sb().from("items").update({ brand }).eq("id", itemId);
     if (error) throw error;

@@ -17,6 +17,13 @@ export async function GET(req: Request) {
     const s = await requireSession();
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch"))) as Branch;
+    // ?month=YYYY-MM → ทั้งเดือน (หน้าตารางงาน) · ไม่ใส่ → เฉพาะวันนั้น (การ์ดตารางวันนี้)
+    const month = searchParams.get("month");
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const rows = await db.listSchedulesMonth(branch, month);
+      return NextResponse.json({ branch, month, rows });
+    }
+
     const dateParam = searchParams.get("date");
     const date = isDate(dateParam) ? dateParam : todayBangkok();
 

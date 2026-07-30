@@ -264,6 +264,10 @@ export const memoryStore = {
     return [];
   },
 
+  listSchedulesMonth(_branch: Branch, _month: string): (ScheduleRow & { workDate: string })[] {
+    return [];
+  },
+
   setItemBrand(itemId: string, brand: ItemBrand) {
     const it = ITEMS.find((x) => x.id === itemId);
     if (it) it.brand = brand;
