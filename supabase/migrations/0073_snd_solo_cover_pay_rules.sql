@@ -18,3 +18,10 @@ update pay_adjustment_rules set note = note || ' · ไม่บวกกับ�
  where key='snd_solo_cover_rate';
 update pay_adjustment_rules set note = note || ' · ใช้แทนกฎรายชั่วโมง ไม่บวกกัน · ไม่ใช้กับเสาร์/วันหยุด'
  where key='snd_solo_all_day_bonus';
+
+-- แพรเพิ่ม 2026-07-30: PT อยู่คนเดียวและทำครบ 10 ชม. (เต็มกะ 08:00–18:00) → เพิ่ม 100 บาท
+-- เป็นเงินเพิ่มจากค่าจ้างรายชั่วโมง ไม่ใช่แทนกัน · ยึดเวลาสแกนจริง
+insert into pay_adjustment_rules (key, value, unit, scope, note) values
+  ('snd_pt_solo_full_day_bonus', 100, 'บาท/วัน', 'SND · Prince (PT)',
+   'PT อยู่คนเดียวและทำครบ 10 ชม. → เพิ่ม 100 บาท · เพิ่มจากค่าจ้างรายชั่วโมง 50 บาท/ชม. ไม่ใช่แทนกัน · ยึดเวลาสแกนจริง')
+on conflict (key) do update set value=excluded.value, unit=excluded.unit, scope=excluded.scope, note=excluded.note;
