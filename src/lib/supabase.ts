@@ -369,7 +369,7 @@ export const supabaseStore = {
   async checkStaffingPattern(branch: Branch, workDate: string, employeeName: string, newCode: string) {
     const { data: sameDay } = await sb().from("schedules")
       .select("employee_name,shift_code").eq("branch_id", branch).eq("work_date", workDate);
-    const WORKING = ["F", "M", "A", "SH", "PT"];
+    const WORKING = ["F", "M", "A", "FH", "PT"];
     const after = (sameDay ?? []).map((r: any) =>
       r.employee_name === employeeName ? { ...r, shift_code: newCode } : r);
     const codes = after.filter((r: any) => WORKING.includes(r.shift_code)).map((r: any) => r.shift_code).sort();
@@ -381,7 +381,8 @@ export const supabaseStore = {
 
     const normalized = allowed.map((p) => p.split("+").sort().join("+"));
     const key = codes.join("+");
-    const keyAsFull = codes.map((c: string) => (c === "SH" ? "F" : c)).sort().join("+");
+    // FH (ครึ่งวันของ SND) นับเป็น F ตอนเทียบรูปแบบ — เป็นกะของวันนั้นอยู่ดี แค่เวลาสั้นลง
+    const keyAsFull = codes.map((c: string) => (c === "FH" ? "F" : c)).sort().join("+");
     if (normalized.includes(key) || normalized.includes(keyAsFull)) return { ok: true as const };
 
     // บอกให้ครบว่าเหลือใครอยู่บ้าง และต้องแก้อะไรถึงจะผ่าน — ไม่ใช่แค่ "ไม่ได้"

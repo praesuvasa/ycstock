@@ -15,14 +15,14 @@ import type { Branch, ScheduleRow } from "@/lib/types";
 type Row = ScheduleRow & { workDate: string };
 
 const DOW = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-const WORKING = new Set(["F", "M", "A", "SH", "PT"]);
+const WORKING = new Set(["F", "M", "A", "FH", "PT"]);
 
 // สีเดียวกับไฟล์ Roster ที่ทีมคุ้นอยู่แล้ว — ส้ม=เต็มวัน ฟ้า=เช้า เขียว=บ่าย เหลือง=ครึ่งวัน เทา=หยุด แดง=ลา
 const CELL: Record<string, string> = {
   F: "bg-brand-orange/30 text-orange-900",
   M: "bg-brand-blue/35 text-sky-900",
   A: "bg-ok/20 text-ok",
-  SH: "bg-warn/20 text-warn",
+  FH: "bg-warn/20 text-warn",
   PT: "bg-brand-blue/20 text-sky-800",
   OFF: "bg-black/[.05] text-brand-ink/35",
   CLOSED: "bg-black/[.08] text-brand-ink/30",
@@ -33,13 +33,13 @@ const CELL: Record<string, string> = {
   LWP: "bg-brand-red/15 text-brand-red",
 };
 const SHORT: Record<string, string> = {
-  F: "F", M: "M", A: "A", SH: "ครึ่ง", PT: "PT",
+  F: "F", M: "M", A: "A", FH: "ครึ่ง", PT: "PT",
   OFF: "หยุด", CLOSED: "ปิด", PH: "หยุดปี", AL: "พักร้อน", SL: "ป่วย", PL: "กิจ", LWP: "ไม่รับเงิน",
 };
 
 const WORK_CODES = [
   { code: "F", label: "เต็มวัน" }, { code: "M", label: "กะเช้า" },
-  { code: "A", label: "กะบ่าย" }, { code: "SH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
+  { code: "A", label: "กะบ่าย" }, { code: "FH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
 ];
 const LEAVE_CODES = [
   { code: "AL", label: "ลาพักร้อน" }, { code: "PL", label: "ลากิจ" },
