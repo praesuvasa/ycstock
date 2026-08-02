@@ -16,13 +16,14 @@ function fail(e: unknown, msg: string) {
 export async function GET() {
   try {
     await requireAdmin();
-    const [settings, expiryFlag, ...geos] = await Promise.all([
+    const [settings, expiryFlag, staffTimeFlag, ...geos] = await Promise.all([
       db.getTimeClockSettings(),
       db.getAppSetting("expiry_check_enabled"),
+      db.getAppSetting("staff_time_menu_enabled"),
       ...BRANCHES.map((b) => db.getBranchGeo(b)),
     ]);
     const branches = BRANCHES.map((b, i) => ({ branch: b, geo: (geos[i] as any) ?? null }));
-    return NextResponse.json({ settings, branches, expiryCheckEnabled: expiryFlag === "1" });
+    return NextResponse.json({ settings, branches, expiryCheckEnabled: expiryFlag === "1", staffTimeMenuEnabled: staffTimeFlag === "1" });
   } catch (e) {
     return fail(e, "settings failed");
   }
@@ -43,6 +44,15 @@ export async function POST(req: Request) {
       await db.setAppSetting("expiry_check_enabled", body.expiryCheckEnabled ? "1" : "0", s.name);
       await writeAudit(s, "feature_toggle", {
         detail: `เมนูตรวจวันหมดอายุ: ${body.expiryCheckEnabled ? "เปิด" : "ปิด"}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    // เมนูลงเวลา + ตารางงานของพนักงาน — เปิดวันที่เริ่มใช้จริง
+    if (typeof body?.staffTimeMenuEnabled === "boolean") {
+      await db.setAppSetting("staff_time_menu_enabled", body.staffTimeMenuEnabled ? "1" : "0", s.name);
+      await writeAudit(s, "feature_toggle", {
+        detail: `เมนูลงเวลา+ตารางงานของพนักงาน: ${body.staffTimeMenuEnabled ? "เปิด" : "ปิด"}`,
       });
       return NextResponse.json({ ok: true });
     }

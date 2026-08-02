@@ -21,12 +21,15 @@ export async function GET() {
   // เมนูที่ยังไม่เปิดใช้ — ปิดไว้ทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
   // ถ้าปิดแค่เมนู งานจะยังค้างอยู่ในเช็คลิสต์ แล้วขึ้นว่า "งานวันนี้ยังไม่ครบ" ทุกวันโดยไม่มีใครทำได้
   let expiryCheckEnabled = false;
+  // เมนูลงเวลา + ตารางงาน — ปิดไว้จนกว่าจะเปิดใช้จริงกับพนักงาน (แพรสั่ง 2026-07-31)
+  let staffTimeMenuEnabled = false;
   try {
     const u = await db.getUserById(s.userId);
     allowanceEnabled = !!u?.allowanceEnabled;
     workUnit = u?.workUnit ?? "store";
     isSenior = !!u?.isSenior;
     expiryCheckEnabled = (await db.getAppSetting("expiry_check_enabled")) === "1";
+    staffTimeMenuEnabled = (await db.getAppSetting("staff_time_menu_enabled")) === "1";
     if (s.role !== "admin" && faceConfigured()) {
       const enrollment = await db.getFaceEnrollment(s.userId);
       mustEnrollFace = !enrollment.faceId;
@@ -35,6 +38,6 @@ export async function GET() {
     // อ่านไม่ได้ = ถือว่ายังไม่ได้รับสิทธิ์ (ซ่อนเมนู) ดีกว่าโชว์เมนูที่กดแล้วพัง
   }
   return NextResponse.json({
-    user: { id: s.userId, name: s.name, role: s.role, branchScope: s.branchScope, allowanceEnabled, mustEnrollFace, workUnit, isSenior, features: { expiryCheck: expiryCheckEnabled } },
+    user: { id: s.userId, name: s.name, role: s.role, branchScope: s.branchScope, allowanceEnabled, mustEnrollFace, workUnit, isSenior, features: { expiryCheck: expiryCheckEnabled, staffTimeMenu: staffTimeMenuEnabled } },
   });
 }

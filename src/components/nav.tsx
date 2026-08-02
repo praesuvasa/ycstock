@@ -13,7 +13,7 @@ export type Me = {
   // senior staff — แก้ตารางกะของสาขาตัวเองได้
   isSenior?: boolean;
   // เมนูที่แอดมินยังไม่เปิดใช้ — ซ่อนทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
-  features?: { expiryCheck?: boolean };
+  features?: { expiryCheck?: boolean; staffTimeMenu?: boolean };
 };
 
 type IconKey =
@@ -125,8 +125,14 @@ const tabsForMe = (me: Me | null): Tab[] => {
 // กลุ่ม "ข้อมูลของฉัน" — ของส่วนตัวรายคน แยกจากเมนูงานประจำวัน (แพรจัด 2026-07-27)
 // "สิทธิ์ซื้อของ" โชว์เฉพาะคนที่แอดมินเปิดสิทธิ์ให้แล้ว — ซ่อนไปเลยดีกว่าโชว์แล้วกดไม่ได้
 const accountMenuFor = (me: Me | null): Tab[] => [
-  { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", icon: "clock" },
-  { href: "/schedule", label: "ตารางงาน", icon: "calendar" },
+  // ลงเวลา + ตารางงาน ยังไม่เปิดให้พนักงานใช้ (แพรสั่ง 2026-07-31 — รอสร้างบัญชี/ลงทะเบียนใบหน้าก่อน)
+  // แอดมินเห็นตลอดเพื่อทดสอบ · เปิดให้พนักงานได้ที่หน้า "ตั้งค่าระบบ" ไม่ต้อง deploy ใหม่
+  ...(me?.role === "admin" || me?.features?.staffTimeMenu
+    ? [
+        { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", icon: "clock" as IconKey },
+        { href: "/schedule", label: "ตารางงาน", icon: "calendar" as IconKey },
+      ]
+    : []),
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },

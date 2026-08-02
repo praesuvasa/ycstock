@@ -13,6 +13,7 @@ interface Resp {
   settings: { enabled: boolean; requireFace: boolean; requireLocation: boolean };
   branches: { branch: Branch; geo: Geo | null }[];
   expiryCheckEnabled: boolean;
+  staffTimeMenuEnabled: boolean;
   error?: string;
 }
 
@@ -137,6 +138,21 @@ export default function TimeClockAdminPage() {
                 body: JSON.stringify({ expiryCheckEnabled: v }),
               });
               setData((d) => (d ? { ...d, expiryCheckEnabled: v } : d));
+              setMsg("บันทึกแล้ว");
+            } finally { setSaving(false); }
+          }}
+        />
+        <Toggle
+          on={data.staffTimeMenuEnabled} label="เมนูลงเวลา + ตารางงาน (ของพนักงาน)"
+          hint="ปิดอยู่ = พนักงานไม่เห็น 2 เมนูนี้เลย · แอดมินยังเห็นและทดสอบได้ตลอด · เปิดวันที่สร้างบัญชีและให้ทุกคนลงทะเบียนใบหน้าแล้ว"
+          onChange={async (v) => {
+            setSaving(true);
+            try {
+              await fetch("/api/time-clock/settings", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ staffTimeMenuEnabled: v }),
+              });
+              setData((d) => (d ? { ...d, staffTimeMenuEnabled: v } : d));
               setMsg("บันทึกแล้ว");
             } finally { setSaving(false); }
           }}
