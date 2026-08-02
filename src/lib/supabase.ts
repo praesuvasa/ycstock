@@ -1166,15 +1166,33 @@ export const supabaseStore = {
   },
 
   // ── การโอนเงินสด (v1.7) ──
+  // ยอดเงินสดที่ยังไม่ได้โอน — ต้องเป็น "เงินในลิ้นชักจริง" ไม่ใช่ยอดเงินสดที่ POS สรุป
+  //
+  // แพรเจอ 2026-07-31: NVP 28 ก.ค. หน้าเงินสดขึ้น 1,130 แต่สลิปโอนจริง 1,120
+  // เพราะวันนั้นมีเคสคืนเงินสดให้ลูกค้า 10 บาท (void บิล เปลี่ยนเมนู) — เงินออกจากลิ้นชักไปแล้ว
+  // POS ยังนับเป็นยอดขายเงินสดเต็ม 1,130 อยู่ · ถ้าไม่หักเคสออก ยอดที่ให้โอนจะไม่มีวันตรงกับสลิป
   async listUnremittedCashDays(branch: Branch): Promise<{ date: string; cash: number }[]> {
     const { data: sales, error: e2 } = await sb().from("sales_daily").select("date,cash").eq("branch_id", branch).gt("cash", 0);
     if (e2) throw e2;
     const { data: covered, error: e3 } = await sb().from("cash_remittance_days").select("date").eq("branch_id", branch);
     if (e3) throw e3;
+    const { data: incidents } = await sb().from("sales_payment_incidents")
+      .select("date,kind,bill_amount,actual_amount").eq("branch_id", branch);
+
+    // ผลกับเงินสดของแต่ละวัน (สูตรเดียวกับ incidentAdjustment ใน calc.ts)
+    const cashAdj = new Map<string, number>();
+    for (const it of incidents ?? []) {
+      if (it.kind === "over_no_change") continue;  // เงินเข้า QR อย่างเดียว ไม่แตะลิ้นชัก
+      const bill = it.kind === "void_full_refund" ? 0 : Number(it.bill_amount ?? 0);
+      const diff = Number(it.actual_amount ?? 0) - bill;
+      cashAdj.set(it.date, (cashAdj.get(it.date) ?? 0) - diff);
+    }
+
     const coveredSet = new Set((covered ?? []).map((r: any) => r.date));
     return (sales ?? [])
       .filter((r: any) => !coveredSet.has(r.date))
-      .map((r: any) => ({ date: r.date, cash: Number(r.cash) }))
+      .map((r: any) => ({ date: r.date, cash: Number(r.cash) + (cashAdj.get(r.date) ?? 0) }))
+      .filter((r) => r.cash > 0)
       .sort((a, b) => a.date.localeCompare(b.date));
   },
   async createCashRemittance(input: {
