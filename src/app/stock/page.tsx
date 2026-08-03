@@ -698,9 +698,6 @@ export default function StockPage() {
           const cupSum = cupSummaryByCategory.get(g.category);
           const isHiddenGroup = hiddenCategorySet.has(g.category);
           const categoryIncomplete = !isHiddenGroup && g.items.some((it) => rows[it.id] && !confirmed[it.id]);
-          // หมวดที่ยังไม่มีใครแตะเลยวันนี้ (ไม่มีรายการไหนยืนยันแล้วสักอัน) → พับเก็บไว้ก่อน (แพรขอ)
-          // หมวดที่เริ่มกรอกแล้วบางส่วน/ครบแล้ว ยังคงกางไว้เหมือนเดิม จะได้ทำต่อไม่ต้องกดเปิดซ้ำ
-          const categoryStarted = g.items.some((it) => confirmed[it.id]);
           // แยกรายการที่อยู่ในกลุ่มย่อยพับเก็บ (เช่น ถุงมือ) ออกไปต่อท้ายหมวด — เปิดดู/กรอกได้เมื่อกด
           const subBuckets = new Map<string, Item[]>();
           const mainItems: Item[] = [];
@@ -748,7 +745,7 @@ export default function StockPage() {
                 </span>
               }
               count={`${g.items.length} รายการ`}
-              defaultOpen={gi === 0 || isHiddenGroup || categoryStarted}
+              defaultOpen={gi === 0 || isHiddenGroup}
             >
               <div className="grid gap-1 py-0.5">
                 {rowEntries.map((e) => {
