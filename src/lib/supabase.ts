@@ -896,13 +896,13 @@ export const supabaseStore = {
   // อ่านผู้ใช้รายคน — ใช้ตอนเช็ค session ทุก request จึงต้องเบา (แถวเดียว ไม่ใช่ทั้งตาราง)
   async getUserById(id: string): Promise<User | null> {
     const { data } = await sb().from("users")
-      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit")
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior")
       .eq("id", id).maybeSingle();
     return data ? userRow(data) : null;
   },
 
   async listUsers(): Promise<User[]> {
-    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit").order("created_at");
+    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior").order("created_at");
     return (data ?? []).map(userRow);
   },
   // ไม่รับ PIN จากแอดมินอีกต่อไป (v1.15) — สร้างบัญชีพร้อม "รหัสตั้งค่า" แล้วให้เจ้าตัวไปตั้ง PIN เอง
