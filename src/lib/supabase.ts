@@ -86,8 +86,17 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
     }
     // "รับเข้า" = ของจากรถส่งอย่างเดียวแล้ว (v1.17) — ของที่แกะจากรายการอื่นย้ายไปอยู่ transfer_in_g
     // จึงเขียนทับด้วย sumPack ได้ตรง ๆ ไม่ต้องกลัวไปล้างส่วนที่มาจากการแกะเหมือนเดิม
-    // ห้ามแตะ remain_pack/remain_g เพราะอาจเป็นยอดที่พนักงานนับ+ยืนยันเองไปแล้ว
     const changed = Number(existing.in_pack ?? 0) !== sumPack || Number(existing.in_g ?? 0) !== sumG;
+
+    // ยังไม่มีใครนับยืนยันคงเหลือของวันนี้ → ปลอดภัยที่จะบวกส่วนต่างที่รับเข้าเพิ่มเข้าคงเหลือให้เลย
+    // (ไม่มีของจริงจะไปทับ) กันไม่ให้ของที่มาเพิ่มดูเหมือนหายไปเป็น "ใช้ไป" จนกว่าจะมีคนแก้คงเหลือเอง (v1.27 — แพรถามเคสนี้)
+    // ถ้ามีคนนับยืนยันไปแล้วจริง (remain_confirmed) ยังคงห้ามแตะ remain_pack/remain_g เหมือนเดิม แค่แจ้งเตือนแอดมิน
+    let newRemainPack = Number(existing.remain_pack ?? 0);
+    let newRemainG = Number(existing.remain_g ?? 0);
+    if (changed && !existing.remain_confirmed) {
+      newRemainPack += sumPack - Number(existing.in_pack ?? 0);
+      newRemainG += sumG - Number(existing.in_g ?? 0);
+    }
 
     // ยืนยันรับของ "หลัง" มีคนนับ+ยืนยันคงเหลือของวันนั้นไปแล้ว (แพรถามเคสนี้ 2026-07-29)
     // เกิดได้จาก: เคลียร์ใบเก่าค้าง · ของมาไม่พร้อมกันแล้วนับก่อน · เพิ่มรายการนอกใบ · แก้/ยกเลิกติ๊ก
@@ -112,13 +121,14 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
     const { data: gpuRow } = await sb().from("items").select("grams_per_uom").eq("id", itemId).maybeSingle();
     const gpu = Number(gpuRow?.grams_per_uom) || 0;
     const newVariance = variance(
-      existing.carry_pack, sumPack, existing.used, existing.returned, existing.remain_pack,
+      existing.carry_pack, sumPack, existing.used, existing.returned, newRemainPack,
       gramsToPacks(existing.transfer_in_g, gpu), existing.transfer_out ?? 0,
       gramsToPacks(existing.pack_adjust ?? 0, gpu)
     );
 
     const { error: updErr } = await sb().from("stock_daily").update({
-      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG, variance: newVariance,
+      in_pack: sumPack, in_g: sumG, in_auto_pack: sumPack, in_auto_g: sumG,
+      remain_pack: newRemainPack, remain_g: newRemainG, variance: newVariance,
     }).eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId);
     if (updErr) throw updErr;
   } else {
