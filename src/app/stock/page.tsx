@@ -901,7 +901,8 @@ export default function StockPage() {
                         <div className="mt-1 text-[10px] font-medium text-warn">⚠️ จำนวนผิด</div>
                       )}
 
-                      {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) · กลุ่มเศษรวม (Strawberry/Blueberry) กรอกที่ leader เป็นกรัมอย่างเดียว ไม่มีช่องกล่อง */}
+                      {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) · กลุ่มเศษรวม (Strawberry/Blueberry) กรอกที่ leader เป็นกรัมอย่างเดียว ไม่มีช่องกล่อง
+                          Yogurt 1kg/Box (แพรขอ) — กล่องที่เปิดแล้วเสียไม่เต็มกล่อง มีช่องกรอกเป็นกรัมเพิ่มด้วย */}
                       {(!grp || isLeader) && (
                         <div className="mt-2">
                           {returnedExpanded ? (
@@ -913,8 +914,8 @@ export default function StockPage() {
                                     onChange={(x) => setField(it.id, "returned", x, N)}
                                   />
                                 )}
-                                {grp && isLeader && (
-                                  <CompactField label="ส่งคืนเศษ (g)" value={blankZero(row.returnedG ?? 0)}
+                                {(grp ? isLeader : it.category === "Yogurt 1kg/Box") && (
+                                  <CompactField label={`ส่งคืนเศษ (${su})`} value={blankZero(row.returnedG ?? 0)}
                                     onChange={(x) => setField(it.id, "returnedG", x, N)} />
                                 )}
                               </div>
