@@ -59,7 +59,7 @@ async function recomputeAutoFillForToday(branch: Branch, itemId: string, todaySt
   }
 
   const { data: existing } = await sb().from("stock_daily")
-    .select("carry_pack,carry_g,in_pack,in_g,in_auto_pack,remain_confirmed,used,returned,remain_pack,transfer_in_g,transfer_out,pack_adjust")
+    .select("carry_pack,carry_g,in_pack,in_g,in_auto_pack,remain_confirmed,used,returned,remain_pack,remain_g,transfer_in_g,transfer_out,pack_adjust")
     .eq("branch_id", branch).eq("date", todayStr).eq("item_id", itemId).maybeSingle();
 
   if (existing) {
