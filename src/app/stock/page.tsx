@@ -169,6 +169,10 @@ export default function StockPage() {
   const [confirmed, setConfirmed] = React.useState<Record<string, boolean>>({});
   // เปิด/ปิด panel "ส่งคืน/เสีย" ต่อไอเทม (default ปิด เว้นแต่มีค่า returned ติดมา)
   const [returnOpen, setReturnOpen] = React.useState<Record<string, boolean>>({});
+  // ยุบ/ขยายการ์ดแต่ละไอเทม (v1.28 — แพรขอ กินพื้นที่จอเยอะทำให้เห็นของต่อจอน้อย)
+  // ยุบเป็นดีฟอลต์ทุกไอเทมเสมอ (ทั้งที่กรอกแล้ว/ยังไม่กรอก) — ต้องแตะเปิดเพื่อดูตัวเลขจริงก่อนเสมอ
+  // ห้ามมีทางยืนยัน "เท่ายกมา" จากบรรทัดที่ยุบ กันพนักงานกดยืนยันมั่วโดยไม่เห็นเลขจริง (แพรทัก)
+  const [openItem, setOpenItem] = React.useState<Record<string, boolean>>({});
 
   // v1.9: เตือนถ้ายังมีรายการยืนยันรับของค้างอยู่ — พนักงานเข้าหน้านี้ทุกวันอยู่แล้ว ต้องเห็นแน่นอน
   const [receiptPending, setReceiptPending] = React.useState(false);
@@ -194,6 +198,7 @@ export default function StockPage() {
     setErr(null);
     setConfirmed({}); // ล้างสถานะเก่าไว้ก่อนระหว่างโหลด (กันโชว์ค้างจากสาขา/วันที่ก่อนหน้า)
     setReturnOpen({});
+    setOpenItem({});
     fetch(`/api/stock?branch=${branch}&date=${date}`)
       .then((r) => r.json())
       .then((data: {
@@ -815,16 +820,50 @@ export default function StockPage() {
                     ? `${Math.floor(xferInG / it.gramsPerUOM)} ${it.unit}${xferInG % it.gramsPerUOM ? ` +${xferInG % it.gramsPerUOM}g` : ""}`
                     : `${xferInG}g`;
 
+                  // สรุปบรรทัดเดียวตอนยุบ — ไม่มีปุ่มยืนยันใด ๆ ตรงนี้ ต้องแตะเปิดก่อนเสมอถึงจะเห็นเลขจริง/กดยืนยันได้
+                  const hasErrorCollapsed = grp
+                    ? (isLeader && gt ? gt.overG > 0 : false)
+                    : it.hasRemainder ? d.overG > 0 : v !== 0;
+                  const summaryText = !isConfirmed
+                    ? "ยังไม่กรอก"
+                    : grp
+                    ? (isLeader && gt
+                        ? (gt.overG > 0 ? `เกิน ${gt.overG} g` : `ใช้ ${gt.usedG} g · เหลือ ${gt.remainG} g`)
+                        : `รวมที่ ${leaderName || "รายการหลัก"}`)
+                    : it.hasRemainder
+                    ? (d.overG > 0 ? `เกิน ${d.overG} ${su}` : `ใช้ ${d.usedTotalG} ${su} · เหลือ ${d.remainTotalG} ${su}`)
+                    : (v !== 0 ? `ยอดไม่ตรง (${v > 0 ? "+" : ""}${v})` : `คงเหลือ ${row.remainPack} ${it.unit}`);
+                  const isOpen = !!openItem[it.id];
+
                   return (
                     <div key={it.id} className="glass-soft px-2.5 py-2">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <span className="text-[13.5px] font-medium leading-tight">{it.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setOpenItem((p) => ({ ...p, [it.id]: !isOpen }))}
+                        className="flex w-full items-center gap-1.5 text-left"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[13.5px] font-medium leading-tight">{it.name}</span>
                         <div className="flex flex-shrink-0 items-center gap-1.5">
                           {par != null && <Badge tone="blue">Par {par}</Badge>}
-                          <Badge>{it.unit}</Badge>
+                          {isOpen ? (
+                            <Badge>{it.unit}</Badge>
+                          ) : (
+                            <span
+                              className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                hasErrorCollapsed ? "bg-warn/15 text-warn"
+                                  : isConfirmed ? "bg-ok/15 text-ok"
+                                  : "bg-black/[.05] text-brand-ink/40"
+                              }`}
+                            >
+                              {summaryText}
+                            </span>
+                          )}
+                          <span className={`text-[10px] text-brand-ink/35 transition-transform ${isOpen ? "rotate-180" : ""}`}>▾</span>
                         </div>
-                      </div>
+                      </button>
 
+                      {isOpen && (
+                      <div className="mt-1.5">
                       {(xferOut > 0 || xferInG > 0) && (
                         <div className="mb-2 grid gap-1">
                           {xferOut > 0 && (
@@ -1018,6 +1057,8 @@ export default function StockPage() {
                           ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
                         </div>
                       ) : null}
+                      </div>
+                      )}
                     </div>
                   );
                 })}
