@@ -698,6 +698,9 @@ export default function StockPage() {
           const cupSum = cupSummaryByCategory.get(g.category);
           const isHiddenGroup = hiddenCategorySet.has(g.category);
           const categoryIncomplete = !isHiddenGroup && g.items.some((it) => rows[it.id] && !confirmed[it.id]);
+          // หมวดที่ยังไม่มีใครแตะเลยวันนี้ (ไม่มีรายการไหนยืนยันแล้วสักอัน) → พับเก็บไว้ก่อน (แพรขอ)
+          // หมวดที่เริ่มกรอกแล้วบางส่วน/ครบแล้ว ยังคงกางไว้เหมือนเดิม จะได้ทำต่อไม่ต้องกดเปิดซ้ำ
+          const categoryStarted = g.items.some((it) => confirmed[it.id]);
           // แยกรายการที่อยู่ในกลุ่มย่อยพับเก็บ (เช่น ถุงมือ) ออกไปต่อท้ายหมวด — เปิดดู/กรอกได้เมื่อกด
           const subBuckets = new Map<string, Item[]>();
           const mainItems: Item[] = [];
@@ -745,9 +748,9 @@ export default function StockPage() {
                 </span>
               }
               count={`${g.items.length} รายการ`}
-              defaultOpen={gi === 0 || isHiddenGroup}
+              defaultOpen={gi === 0 || isHiddenGroup || categoryStarted}
             >
-              <div className="grid gap-1.5 py-0.5">
+              <div className="grid gap-1 py-0.5">
                 {rowEntries.map((e) => {
                   if (e.kind === "toggle") {
                     const key = `${g.category}|${e.label}`;
@@ -816,8 +819,8 @@ export default function StockPage() {
                     : `${xferInG}g`;
 
                   return (
-                    <div key={it.id} className="glass-soft px-2.5 py-2">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <div key={it.id} className="glass-soft px-2 py-1.5">
+                      <div className="mb-1 flex items-center justify-between gap-2">
                         <span className="text-[13.5px] font-medium leading-tight">{it.name}</span>
                         <div className="flex flex-shrink-0 items-center gap-1.5">
                           {par != null && <Badge tone="blue">Par {par}</Badge>}
@@ -904,7 +907,7 @@ export default function StockPage() {
                       {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) · กลุ่มเศษรวม (Strawberry/Blueberry) กรอกที่ leader เป็นกรัมอย่างเดียว ไม่มีช่องกล่อง
                           Yogurt 1kg/Box (แพรขอ) — กล่องที่เปิดแล้วเสียไม่เต็มกล่อง มีช่องกรอกเป็นกรัมเพิ่มด้วย */}
                       {(!grp || isLeader) && (
-                        <div className="mt-2">
+                        <div className="mt-1.5">
                           {returnedExpanded ? (
                             <div className="flex flex-col gap-2">
                               <div className={grp ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
@@ -941,7 +944,7 @@ export default function StockPage() {
                       {/* เศษ: กลุ่ม (เฉพาะ leader) / แกะปกติ */}
                       {grp ? (
                         isLeader ? (
-                          <div className="mt-2 flex gap-1.5">
+                          <div className="mt-1.5 flex gap-1.5">
                             <BlockTag text="กรัม" title={`เศษรวมกลุ่ม ${grp} — กรอกที่รายการนี้ที่เดียว`} />
                             <div className="grid flex-1 grid-cols-3 gap-1.5">
                               <CompactField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
@@ -960,12 +963,12 @@ export default function StockPage() {
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-2 rounded-lg bg-black/[.03] px-2.5 py-1.5 text-[11px] text-brand-ink/50">
+                          <div className="mt-1.5 rounded-lg bg-black/[.03] px-2 py-1 text-[11px] text-brand-ink/50">
                             🔗 เศษรวมกลุ่ม {grp} — กรอกที่ “{leaderName}”
                           </div>
                         )
                       ) : it.hasRemainder ? (
-                        <div className="mt-2 flex gap-1.5">
+                        <div className="mt-1.5 flex gap-1.5">
                           <BlockTag text={it.isCup ? "ชิ้น" : "กรัม"} title={it.isCup ? "ถ้วยเปิดแพ็ค" : "Sale Unit"} />
                           <div className="grid flex-1 grid-cols-4 gap-1.5">
                             <CompactField label={`ยกมา ${su}`} value={row.carryG} readOnly tone="ro" />
@@ -992,29 +995,29 @@ export default function StockPage() {
                       {grp ? (
                         isLeader && gt ? (
                           gt.overG > 0 ? (
-                            <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
+                            <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
                               ⚠️ เศษรวมกลุ่ม {grp} เกินของที่มี (เกิน {gt.overG} g)
                             </div>
                           ) : (
-                            <div className="mt-2 rounded-lg bg-ok/15 px-2.5 py-1.5 text-xs font-medium text-ok">
+                            <div className="mt-1.5 rounded-lg bg-ok/15 px-2 py-1 text-xs font-medium text-ok">
                               ✓ กลุ่ม {grp}: ใช้ไปรวม {gt.usedG} g · คงเหลือรวม {gt.remainG} g (มี {gt.availG} g)
                             </div>
                           )
                         ) : null
                       ) : it.hasRemainder ? (
                         d.overG > 0 ? (
-                          <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
+                          <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
                             ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG} {su}){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
                           </div>
                         ) : (filled || it.isCup) ? (
-                          <div className={`mt-2 rounded-lg px-2.5 py-1.5 text-xs font-medium ${it.isCup ? "bg-brand-blue/20 text-sky-700" : "bg-ok/15 text-ok"}`}>
+                          <div className={`mt-1.5 rounded-lg px-2 py-1 text-xs font-medium ${it.isCup ? "bg-brand-blue/20 text-sky-700" : "bg-ok/15 text-ok"}`}>
                             {it.isCup
                               ? `📊 รวมทั้งหมด ${d.remainTotalG} ชิ้น (บันทึกวันนี้) · ใช้/ขาย ${d.usedTotalG} ชิ้น — กระทบยอดที่หน้า "ถ้วย"`
                               : `✓ รวมใช้ไป ${d.usedTotalG} ${su} · คงเหลือรวม ${d.remainTotalG} ${su} (มี ${d.availTotalG} ${su})`}
                           </div>
                         ) : null
                       ) : v !== 0 ? (
-                        <div className="mt-2 rounded-lg bg-warn/15 px-2.5 py-1.5 text-xs font-medium text-warn">
+                        <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
                           ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
                         </div>
                       ) : null}
