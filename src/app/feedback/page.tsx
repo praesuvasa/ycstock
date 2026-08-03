@@ -100,7 +100,6 @@ function StaffForm() {
           <textarea
             rows={3} value={wantedAction} onChange={(e) => setWantedAction(e.target.value)}
             className="field text-left leading-relaxed"
-            placeholder="เช่น อยากให้ซื้อของมาเพิ่ม · อยากให้คุยกับหัวหน้า · แค่อยากให้รับรู้ไว้ก็พอ"
           />
         </label>
 
