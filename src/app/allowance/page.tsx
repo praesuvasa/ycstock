@@ -65,7 +65,6 @@ export default function AllowancePage() {
   const [useDate, setUseDate] = React.useState(todayISO());
   const [billTotal, setBillTotal] = React.useState("");
   const [discount, setDiscount] = React.useState("");
-  const [note, setNote] = React.useState("");
   const [image, setImage] = React.useState<{ base64: string; mediaType: string; preview: string } | null>(null);
   // OCR อ่านบิลให้ (เฟส 2) — ผลที่ได้แค่ "เติมให้" พนักงานยังต้องตรวจก่อนกดบันทึกเสมอ
   const [ocrState, setOcrState] = React.useState<"idle" | "reading" | "done" | "failed">("idle");
@@ -134,14 +133,14 @@ export default function AllowancePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          useDate, billTotal: toNum(billTotal), discountAmount: toNum(discount), paidAmount: paid, note,
+          useDate, billTotal: toNum(billTotal), discountAmount: toNum(discount), paidAmount: paid,
           ocrDiscount, imageBase64: image?.base64, mediaType: image?.mediaType,
         }),
       });
       const d = await res.json();
       if (!res.ok || !d?.ok) throw new Error(d?.error ?? "บันทึกไม่สำเร็จ");
       window.alert(d.needsReview ? `บันทึกแล้ว — แต่ส่งให้แอดมินตรวจ\n${d.reviewNote}` : "บันทึกการใช้สิทธิ์แล้ว ✓");
-      setBillTotal(""); setDiscount(""); setNote(""); setImage(null);
+      setBillTotal(""); setDiscount(""); setImage(null);
       setOcrState("idle"); setOcrMsg(""); setOcrDiscount(null);
       loadMine();
     } catch (e: any) {
@@ -246,11 +245,6 @@ export default function AllowancePage() {
                   </p>
                 )}
                 {image && <img src={image.preview} alt="บิล" className="max-h-52 w-full rounded-lg object-contain" />}
-
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-brand-ink/50">หมายเหตุ</span>
-                  <input value={note} onChange={(e) => setNote(e.target.value)} className="field" placeholder="เช่น Yogurt Bowl 1 ถ้วย" />
-                </label>
 
                 <Button onClick={save} disabled={!canSave}>
                   {saving ? "กำลังบันทึก…" : "บันทึกการใช้สิทธิ์"}
