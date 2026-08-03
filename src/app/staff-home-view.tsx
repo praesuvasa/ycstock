@@ -158,8 +158,11 @@ export function StaffHome() {
         {me?.name && <p className="mt-0.5 text-[14px] font-medium text-brand-ink/60">{me.name}</p>}
       </div>
 
-      {/* ตารางงานวันนี้ (v1.26) — ใครเข้ากะอะไรที่สาขานี้ · อ่านจากตารางกะที่ import มาจากไฟล์ของแพร */}
-      <TodaySchedule branch={data.branch} date={data.date} />
+      {/* ตารางงานวันนี้ (v1.26) — ใครเข้ากะอะไรที่สาขานี้ · อ่านจากตารางกะที่ import มาจากไฟล์ของแพร
+          ซ่อนพร้อมเมนูตารางงานจนกว่าจะเปิดใช้จริง (แพรสั่ง) — เข้าคู่กับ staffTimeMenu ใน nav.tsx */}
+      {(me?.role === "admin" || me?.features?.staffTimeMenu) && (
+        <TodaySchedule branch={data.branch} date={data.date} />
+      )}
 
       <GlassCard className="mb-3">
         {allDone ? (
