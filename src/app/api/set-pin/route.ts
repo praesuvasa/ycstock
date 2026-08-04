@@ -42,6 +42,8 @@ export async function POST(req: Request) {
     return res;
   } catch (e) {
     const a = authErrorResponse(e);
-    return NextResponse.json(a ? a.body : { error: (e as any)?.message ?? "set-pin failed" }, { status: a ? a.status : 500 });
+    // เหมือน /api/login — error ที่ไม่ใช่ AuthError (เช่น DB ล่ม) ไม่ส่ง e.message ดิบออกไปหน้าจอ
+    if (!a) console.error("[set-pin] unexpected error:", e);
+    return NextResponse.json(a ? a.body : { error: "ตั้งรหัสไม่สำเร็จ ลองใหม่อีกครั้ง" }, { status: a ? a.status : 500 });
   }
 }

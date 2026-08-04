@@ -344,10 +344,12 @@ export default function SalesPage() {
 
   // เทียบเฉพาะเคสที่ "กรอกยอดแล้วจริง" — แถวเปล่าที่เพิ่งกดเพิ่ม (ยังไม่ใส่ตัวเลข) ไม่นับว่าเป็นการแก้
   // เพราะ server ก็กรองแถวเปล่าทิ้งอยู่แล้ว · ผลคือ เพิ่มแล้วลบออก = กลับมาเหมือนเดิม = ไม่ค้างสถานะ
+  // ⚠️ ต้องเช็ค !== 0 ไม่ใช่ > 0 — เคส under_cash_topup เก็บ actualAmount ติดลบ (ดู incidentAdjustment
+  // ใน calc.ts) ถ้าใช้ > 0 เคสนี้จะโดนกรองว่า "แถวเปล่า" ทั้งที่กรอกจริง แล้วไม่มีวันขึ้นสถานะ "แก้ไม่บันทึก"
   const normalizeIncidents = (list: PaymentIncident[]) =>
     JSON.stringify(
       list
-        .filter((i) => i.billAmount > 0 || i.actualAmount > 0)
+        .filter((i) => i.billAmount !== 0 || i.actualAmount !== 0)
         .map((i) => ({ kind: i.kind, billAmount: i.billAmount, actualAmount: i.actualAmount, note: i.note ?? "" }))
     );
   const incidentsDirty = normalizeIncidents(incidents) !== normalizeIncidents(savedIncidents);

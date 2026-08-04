@@ -59,6 +59,9 @@ export async function POST(req: Request) {
     );
     return res;
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "login failed" }, { status: 500 });
+    // ไม่ส่ง e.message ดิบออกไปหน้าจอพนักงาน — อาจมีรายละเอียดภายใน (DB/schema) หลุดออกไปได้
+    // log ไว้ฝั่งเซิร์ฟเวอร์พอสำหรับตามรอย ส่วนที่พนักงานเห็นให้เป็นข้อความไทยที่เข้าใจง่ายเสมอ
+    console.error("[login] unexpected error:", e);
+    return NextResponse.json({ error: "เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง" }, { status: 500 });
   }
 }

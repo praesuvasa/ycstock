@@ -3,7 +3,7 @@
 import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { ITEMS, PAR } from "./seed-data";
-import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
+import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY, incidentAdjustment } from "./calc";
 import { todayBangkok } from "./fmt";
 import { verifyPasscode, hashPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
 
@@ -772,11 +772,21 @@ export const memoryStore = {
   },
 
   // ── การโอนเงินสด (v1.7) ──
+  // สูตรเดียวกับ supabaseStore.listUnremittedCashDays — หักผลกระทบเงินสดของเคส "รับเงินไม่ตรงบิล" ออกก่อน
+  // (ไม่ทำแบบนี้จะเจอบั๊กเดียวกับที่แพรเจอ 2026-07-31 ตอนรันแบบไม่ต่อ Supabase)
   listUnremittedCashDays(branch: Branch): { date: string; cash: number }[] {
     const coveredDates = new Set(cashRemittanceRows.filter((r) => r.branch === branch).flatMap((r) => r.coveredDates));
     return [...sales.values()]
-      .filter((r) => r.branch === branch && r.cash > 0 && !coveredDates.has(r.date))
-      .map((r) => ({ date: r.date, cash: r.cash }))
+      .filter((r) => r.branch === branch && !coveredDates.has(r.date))
+      .map((r) => {
+        const incidents = paymentIncidents.get(`${branch}|${r.date}`) ?? [];
+        const cashAdj = incidents.reduce((sum, it) => {
+          if (it.kind === "over_no_change") return sum; // เงินเข้า QR อย่างเดียว ไม่แตะลิ้นชัก
+          return sum + incidentAdjustment(it.kind, it.billAmount, it.actualAmount).cash;
+        }, 0);
+        return { date: r.date, cash: r.cash + cashAdj };
+      })
+      .filter((r) => r.cash > 0)
       .sort((a, b) => a.date.localeCompare(b.date));
   },
   createCashRemittance(input: {

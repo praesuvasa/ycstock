@@ -32,7 +32,9 @@ export async function POST(req: Request) {
         kind: i.kind, billAmount: num(i.billAmount), actualAmount: num(i.actualAmount),
         note: String(i.note ?? "").trim(),
       }))
-      .filter((i: PaymentIncident) => i.billAmount > 0 || i.actualAmount > 0);
+      // ⚠️ ต้อง !== 0 ไม่ใช่ > 0 — "under_cash_topup" (โอนขาด·จ่ายสดเพิ่ม) เก็บ actualAmount ติดลบเสมอ
+      // (ดู incidentAdjustment ใน calc.ts) ถ้าใช้ > 0 เคสนี้จะถูกกรองทิ้งทุกครั้งแล้วไม่เคยถูกบันทึกลง DB เลย
+      .filter((i: PaymentIncident) => i.billAmount !== 0 || i.actualAmount !== 0);
 
     await db.savePaymentIncidents(branch, date, incidents, s.userId, s.name);
     await writeAudit(s, "save_payment_incidents", {

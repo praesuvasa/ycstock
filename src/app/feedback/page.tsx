@@ -177,11 +177,17 @@ function AdminList() {
 
 export default function FeedbackPage() {
   const me = useMe();
-  const isAdmin = me?.role === "admin";
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
       <PageTitle title="ความคิดเห็นและข้อเสนอแนะ" />
-      {isAdmin ? <AdminList /> : <StaffForm />}
+      {/* รอ /api/me โหลดก่อนเลือกฟอร์ม — ไม่งั้นแอดมินจะเห็นฟอร์มพนักงานแวบหนึ่งก่อนสลับเป็นรายการจริง */}
+      {!me ? (
+        <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+      ) : me.role === "admin" ? (
+        <AdminList />
+      ) : (
+        <StaffForm />
+      )}
     </div>
   );
 }

@@ -740,8 +740,13 @@ export const supabaseStore = {
 
   // N วันล่าสุด (รวมวันนี้) + จำนวนรายการที่มีของเข้าวันนั้น — ใช้เป็น quick-list ในหน้าประวัติสินค้าเข้า
   async getRecentStockInDays(branch: Branch, days: number) {
-    const since = new Date();
-    since.setDate(since.getDate() - (days - 1));
+    // ใช้ todayBangkok() เป็นจุดตั้งต้นเสมอ — ห้ามใช้ new Date() ดิบ ๆ ฝั่งเซิร์ฟเวอร์ (Vercel รันเป็น UTC)
+    // ช่วง 00:00–07:00 เวลาไทย new Date() จะได้ "เมื่อวาน" ทำให้ quick-list เพี้ยนไป 1 วันทั้งแถบ
+    // และวันนี้จริง (ที่ stock_daily.date เป็น Bangkok date) จะหายไปจากลิสต์ — เทียบ todayBangkok() ที่ getPendingReceiptCount ใช้อยู่แล้ว
+    const [ty, tm, td] = todayBangkok().split("-").map(Number);
+    const todayUtcMs = Date.UTC(ty, tm - 1, td); // ยึดเป็นวันปฏิทิน ไม่สนโซนเวลาเครื่อง แล้วขยับวันด้วย setUTCDate เท่านั้น
+    const since = new Date(todayUtcMs);
+    since.setUTCDate(since.getUTCDate() - (days - 1));
     const sinceIso = since.toISOString().slice(0, 10);
     const { data, error } = await sb().from("stock_daily")
       .select("date,in_pack,in_g")
@@ -751,10 +756,9 @@ export const supabaseStore = {
     const counts = new Map<string, number>();
     for (const r of data ?? []) counts.set(r.date, (counts.get(r.date) ?? 0) + 1);
     const out: { date: string; count: number }[] = [];
-    const today = new Date();
     for (let i = 0; i < days; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() - i);
+      const d = new Date(todayUtcMs);
+      d.setUTCDate(d.getUTCDate() - i);
       const iso = d.toISOString().slice(0, 10);
       out.push({ date: iso, count: counts.get(iso) ?? 0 });
     }
@@ -1182,7 +1186,11 @@ export const supabaseStore = {
   // เพราะวันนั้นมีเคสคืนเงินสดให้ลูกค้า 10 บาท (void บิล เปลี่ยนเมนู) — เงินออกจากลิ้นชักไปแล้ว
   // POS ยังนับเป็นยอดขายเงินสดเต็ม 1,130 อยู่ · ถ้าไม่หักเคสออก ยอดที่ให้โอนจะไม่มีวันตรงกับสลิป
   async listUnremittedCashDays(branch: Branch): Promise<{ date: string; cash: number }[]> {
-    const { data: sales, error: e2 } = await sb().from("sales_daily").select("date,cash").eq("branch_id", branch).gt("cash", 0);
+    // ⚠️ ห้ามกรอง .gt("cash", 0) ตรงนี้ — POS cash ดิบวันนั้นอาจเป็น 0 ได้ทั้งที่ยังมีเงินสดค้างโอนจริง
+    // เช่นเคส under_cash_topup (ลูกค้าจ่ายสดเพิ่มเพราะโอนขาด) ซึ่งเงินสดมาจากเคส ไม่ใช่ยอด POS
+    // ถ้ากรองดิบก่อน วันนั้นจะไม่โผล่ในรายการค้างโอนเลย ทั้งที่มีเงินสดจริงในลิ้นชัก
+    // กรอง cash > 0 หลังบวกผลเคสแล้วแทน (บรรทัดล่าง)
+    const { data: sales, error: e2 } = await sb().from("sales_daily").select("date,cash").eq("branch_id", branch);
     if (e2) throw e2;
     const { data: covered, error: e3 } = await sb().from("cash_remittance_days").select("date").eq("branch_id", branch);
     if (e3) throw e3;

@@ -433,9 +433,11 @@ export default function StockPage() {
           next.inG = val;
           break;
         case "usedG": { // ขาย/ใช้ g รวม → คำนวณคงเหลือ g (รวมกล่องที่แกะ)
+          // ต้องหัก returnedG (ส่งคืน/เสียเป็นกรัม) ออกด้วย ไม่งั้นแก้ "ขาย/ใช้" ทีหลังจะไปเขียนทับ
+          // ค่าที่ถูกหักไปแล้วจากการกรอก "ส่งคืนเศษ" ก่อนหน้า ทำให้ยอดส่งคืนหายไปจาก remainG เงียบๆ
           const openedG = Math.max(next.carryPack + next.inPack - next.remainPack, 0) * N;
           const availForSale = next.carryG + next.inG + openedG;
-          next.remainG = Math.max(availForSale - val, 0);
+          next.remainG = Math.max(availForSale - val - (next.returnedG ?? 0), 0);
           break;
         }
         case "remainG": // คงเหลือ g (เศษ) → กรอกอิสระ (เกิน carryG ได้ = แกะกล่องใหม่)

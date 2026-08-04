@@ -18,7 +18,22 @@ export default function SetPinPage() {
   const [saving, setSaving] = React.useState(false);
 
   const digitsOnly = (v: string) => v.replace(/\D/g, "").slice(0, 6);
-  const ready = pin.length === 6 && confirm.length === 6 && !saving;
+
+  // มิเรอร์กติกาเดียวกับ validatePin ใน src/lib/auth.ts (ห้าม import ตรง ๆ เพราะไฟล์นั้นดึง
+  // node:crypto เข้ามาด้วย ซึ่ง bundle ฝั่ง client ไม่ได้) — ให้พนักงานเห็น error ทันทีไม่ต้องรอ round-trip
+  // เซิร์ฟเวอร์ยังตรวจซ้ำอีกชั้นเสมอ (defense-in-depth) จุดนี้แค่ช่วยเรื่อง UX
+  function localPinIssue(v: string): string | null {
+    if (v.length < 6) return null; // ยังพิมพ์ไม่ครบ ไม่ต้องขึ้น error
+    if (/^(\d)\1{5}$/.test(v)) return "รหัสซ้ำตัวเดียวทั้งหมดใช้ไม่ได้ (เช่น 111111)";
+    const asc = "0123456789", desc = "9876543210";
+    if (asc.includes(v) || desc.includes(v)) return "รหัสเรียงกันใช้ไม่ได้ (เช่น 123456)";
+    return null;
+  }
+
+  const pinIssue = localPinIssue(pin);
+  const mismatch = pin.length === 6 && confirm.length === 6 && pin !== confirm ? "รหัสสองช่องไม่ตรงกัน" : null;
+  const clientIssue = pinIssue ?? mismatch;
+  const ready = pin.length === 6 && confirm.length === 6 && !saving && !clientIssue;
 
   async function save() {
     setSaving(true);
@@ -32,8 +47,9 @@ export default function SetPinPage() {
       const d = await res.json();
       if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ตั้งรหัสไม่สำเร็จ");
       window.alert("ตั้งรหัสเรียบร้อย — ครั้งหน้าใช้รหัสนี้เข้าระบบ");
-      // ไปลงทะเบียนใบหน้าต่อทันที — nav จะพากลับหน้าหลักเองถ้าลงทะเบียนไว้แล้ว/ไม่ต้องทำ
-      router.replace("/time-clock");
+      // เข้าครั้งแรก (ยังไม่ลงทะเบียนใบหน้า) → ไปลงทะเบียนใบหน้าต่อทันที
+      // เข้าเองจากเมนู "เปลี่ยนรหัสของฉัน" (ลงทะเบียนแล้ว) → กลับหน้าหลัก ไม่ใช่พาไปหน้าลงเวลา
+      router.replace(me?.mustEnrollFace ? "/time-clock" : "/");
       router.refresh();
     } catch (e: any) {
       setErr(e?.message ?? "ตั้งรหัสไม่สำเร็จ");
@@ -72,6 +88,11 @@ export default function SetPinPage() {
               placeholder="••••••"
             />
           </label>
+
+          {/* แจ้งทันทีตอนพิมพ์ครบ ก่อนกดบันทึกด้วยซ้ำ — ไม่ต้องรอ round-trip ไปเจอ error จากเซิร์ฟเวอร์ */}
+          {!err && clientIssue && (
+            <p className="rounded-lg bg-brand-red/10 px-2.5 py-2 text-[12px] text-brand-red">{clientIssue}</p>
+          )}
 
           {err && (
             <p className="rounded-lg bg-brand-red/10 px-2.5 py-2 text-[12px] text-brand-red">{err}</p>

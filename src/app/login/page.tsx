@@ -33,8 +33,9 @@ function LoginForm() {
       // ก่อนเริ่มงานทุกครั้ง — เจอหน้ากลางทางแล้วงงว่ามาอยู่ตรงนี้ได้ยังไง
       router.replace("/");
       router.refresh();
-    } catch (e: any) {
-      setErr(String(e?.message ?? e));
+    } catch {
+      // fetch เองล้มเหลว (เน็ตหลุด/parse พัง) — ไม่โชว์ raw exception ให้พนักงานเห็น
+      setErr("เชื่อมต่อไม่สำเร็จ ลองใหม่อีกครั้ง");
     } finally {
       setLoading(false);
     }
