@@ -3,7 +3,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
-import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS } from "./auth";
+import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS, passcodeLookupHash } from "./auth";
 import { todayBangkok } from "./fmt";
 
 // สร้าง client สดทุกครั้ง (แบบเดียวกับ /api/debug ที่พิสูจน์แล้วว่าอ่านได้ครบ) — เลี่ยง singleton ที่อาจถูก init ตอน env ยังไม่พร้อม
@@ -844,18 +844,20 @@ export const supabaseStore = {
   // ── auth / users ──
   // คืน mustSetPasscode = true เมื่อเข้าด้วย "รหัสตั้งค่าครั้งแรก" (ยังไม่มี PIN ของตัวเอง)
   // ตรวจ PIN จริงก่อนเสมอ — คนที่ตั้ง PIN แล้วจะไม่มีทางหลุดไปเข้าทางรหัสตั้งค่าเก่า
-  async getUserByPasscode(pin: string): Promise<{ user: User; mustSetPasscode: boolean } | null> {
+  async getUserByPasscode(pin: string): Promise<{ user: User; mustSetPasscode: boolean } | { expiredSetupCode: true } | null> {
     const { data } = await sb().from("users").select("*").eq("active", true);
     for (const r of data ?? []) {
       if (verifyPasscode(pin, r.passcode_hash)) return { user: userRow(r), mustSetPasscode: false };
     }
     const now = Date.now();
+    let expiredMatch = false;
     for (const r of data ?? []) {
+      if (!r.setup_code_hash || !verifyPasscode(pin, r.setup_code_hash)) continue;
       const notExpired = r.setup_code_expires_at && Date.parse(r.setup_code_expires_at) > now;
-      if (notExpired && verifyPasscode(pin, r.setup_code_hash)) {
-        return { user: userRow(r), mustSetPasscode: true };
-      }
+      if (notExpired) return { user: userRow(r), mustSetPasscode: true };
+      expiredMatch = true; // ตรงกับรหัสตั้งค่าของใครสักคน แต่หมดอายุไปแล้ว — บอกให้รู้ตัว ไม่ใช่ "รหัสไม่ถูกต้อง" เฉยๆ
     }
+    if (expiredMatch) return { expiredSetupCode: true };
     return null;
   },
 
@@ -877,22 +879,29 @@ export const supabaseStore = {
   // PIN ซ้ำกันไม่ได้ เพราะระบบใช้ PIN อย่างเดียวเป็นตัวระบุตัวตน (ไม่มีชื่อผู้ใช้)
   // ถ้าปล่อยให้ซ้ำ คนสองคนจะกลายเป็นคนเดียวกันในสายตาระบบ
   async setOwnPasscode(userId: string, newPin: string): Promise<{ ok: boolean; reason?: "duplicate" }> {
-    const { data } = await sb().from("users").select("id,passcode_hash,setup_code_hash,setup_code_expires_at");
+    // เช็คซ้ำกับ "รหัสตั้งค่า" ของคนอื่นที่ยังไม่หมดอายุ — ยังเป็น select-then-verify แบบเดิม
+    // (มีช่องว่างแข่งกันทางทฤษฎี แต่ผลกระทบแคบกว่ามาก — รหัสตั้งค่าใช้ครั้งเดียวแล้วหาย ไม่ใช่ของที่ 2 คนแย่งกันเข้าซ้ำได้ต่อเนื่อง)
+    const { data } = await sb().from("users").select("id,setup_code_hash,setup_code_expires_at").neq("id", userId);
     const now = Date.now();
     for (const r of data ?? []) {
-      if (r.id === userId) continue;
-      if (verifyPasscode(newPin, r.passcode_hash)) return { ok: false, reason: "duplicate" };
       const live = r.setup_code_expires_at && Date.parse(r.setup_code_expires_at) > now;
       if (live && verifyPasscode(newPin, r.setup_code_hash)) return { ok: false, reason: "duplicate" };
     }
+    // เช็คซ้ำกับ PIN จริงของคนอื่น — ให้ DB บังคับแบบ atomic ผ่าน unique index บน passcode_lookup_hash แทน
+    // (แพรขอ 2026-08-04) กัน 2 คนตั้งเลขเดียวกันพร้อมกันเป๊ะแล้วหลุดผ่านทั้งคู่ — select-then-verify แบบเดิมมีช่องว่างตรงนี้จริง
+    // ⚠️ บัญชีที่ตั้ง PIN ไปแล้วก่อน migration นี้จะยังไม่มีค่าในคอลัมน์นี้ (backfill ย้อนหลังไม่ได้ เพราะไม่เก็บ PIN ตัวจริง)
     const { error } = await sb().from("users").update({
       passcode_hash: hashPasscode(newPin),
+      passcode_lookup_hash: passcodeLookupHash(newPin),
       passcode_set_at: new Date().toISOString(),
       must_set_passcode: false,
       setup_code_hash: null,
       setup_code_expires_at: null,
     }).eq("id", userId);
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23505") return { ok: false, reason: "duplicate" };
+      throw error;
+    }
     return { ok: true };
   },
 

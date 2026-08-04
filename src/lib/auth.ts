@@ -1,11 +1,20 @@
 // Passcode hashing (Node runtime — login / create-user routes เท่านั้น)
-import { scryptSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
 
 /** เก็บเป็น "salt:hash" (hex) */
 export function hashPasscode(pin: string): string {
   const salt = randomBytes(16).toString("hex");
   const hash = scryptSync(pin, salt, 32).toString("hex");
   return `${salt}:${hash}`;
+}
+
+// ── กัน PIN ซ้ำกันแบบ atomic (v1.30) ──
+// scrypt สุ่ม salt ใหม่ทุกครั้งแม้ PIN เดียวกัน จึงใช้ unique constraint กับ passcode_hash ตรงๆ ไม่ได้
+// คอลัมน์นี้แยกไว้ "เช็คซ้ำอย่างเดียว" — ไม่ใช่ตัวยืนยันตัวตน (passcode_hash คือตัวจริงเหมือนเดิม)
+// deterministic ตั้งใจ (ไม่มี salt) เพราะต้องเทียบผ่าน DB unique index ได้ตรงๆ
+const PASSCODE_LOOKUP_PEPPER = process.env.PASSCODE_LOOKUP_PEPPER || "bqmp-ops-passcode-lookup-v1";
+export function passcodeLookupHash(pin: string): string {
+  return createHash("sha256").update(`${PASSCODE_LOOKUP_PEPPER}:${pin}`).digest("hex");
 }
 
 export function verifyPasscode(pin: string, stored: string | null | undefined): boolean {

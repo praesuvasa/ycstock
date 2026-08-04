@@ -32,11 +32,20 @@ export async function POST(req: Request) {
     }
 
     const found = await db.getUserByPasscode(passcode);
-    if (!found) {
+    if (!found || "expiredSetupCode" in found) {
       await db.recordLoginAttempt(ip, false);
       const left = MAX_FAILS - fails - 1;
+      // เลขนี้เคยเป็นรหัสตั้งค่าของใครสักคนแต่หมดอายุไปแล้ว — บอกตรงๆ แทน "รหัสไม่ถูกต้อง" เฉยๆ
+      // ยังไม่นับว่าเข้าไม่ถูกล็อกชั่วคราวเพิ่ม เพราะสาเหตุชัดเจนอยู่แล้ว ไม่ใช่พิมพ์มั่ว
+      if (found) {
+        return NextResponse.json({
+          error: "รหัสตั้งค่านี้หมดอายุแล้ว — แจ้งแอดมินให้ออกรหัสตั้งค่าใหม่ให้",
+        }, { status: 401 });
+      }
       return NextResponse.json({
-        error: left > 0 && left <= 3 ? `รหัสไม่ถูกต้อง (เหลืออีก ${left} ครั้งก่อนถูกล็อกชั่วคราว)` : "รหัสไม่ถูกต้อง",
+        error: left > 0 && left <= 3
+          ? `รหัสไม่ถูกต้อง (เหลืออีก ${left} ครั้งก่อนถูกล็อกชั่วคราว) — ถ้าเพิ่งตั้ง PIN ไปแล้ว ให้ใช้ PIN ใหม่ที่ตั้งเอง ไม่ใช่รหัสตั้งค่าเดิม (ใช้ได้ครั้งเดียว)`
+          : "รหัสไม่ถูกต้อง",
       }, { status: 401 });
     }
 

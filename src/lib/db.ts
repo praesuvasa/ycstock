@@ -75,7 +75,9 @@ export const db = {
     useSupabase ? supabaseStore.getDashboard(date) : Promise.resolve(memoryStore.getDashboard(date)),
 
   // ── auth / users / audit ──
-  getUserByPasscode: (pin: string): Promise<{ user: User; mustSetPasscode: boolean } | null> =>
+  // expiredSetupCode: true = เลขนี้ตรงกับ "รหัสตั้งค่า" ของบางคนแต่หมดอายุไปแล้ว
+  // (แยกออกจากรหัสผิดเฉยๆ ให้ login route ขึ้นข้อความที่ตรงกว่า "รหัสไม่ถูกต้อง" เดิม)
+  getUserByPasscode: (pin: string): Promise<{ user: User; mustSetPasscode: boolean } | { expiredSetupCode: true } | null> =>
     useSupabase ? supabaseStore.getUserByPasscode(pin) : Promise.resolve(memoryStore.getUserByPasscode(pin)),
 
   // ── ตั้ง/ออกรหัสเอง (v1.15) ──

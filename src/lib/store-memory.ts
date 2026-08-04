@@ -521,7 +521,7 @@ export const memoryStore = {
   },
 
   // ── auth / users ──
-  getUserByPasscode(pin: string): { user: User; mustSetPasscode: boolean } | null {
+  getUserByPasscode(pin: string): { user: User; mustSetPasscode: boolean } | { expiredSetupCode: true } | null {
     const byPin = users.find((x) => x.active && verifyPasscode(pin, x.passcodeHash));
     if (byPin) {
       const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = byPin;
@@ -531,9 +531,15 @@ export const memoryStore = {
     const bySetup = users.find(
       (x) => x.active && x.setupCodeExpiresAt && x.setupCodeExpiresAt > now && verifyPasscode(pin, x.setupCodeHash)
     );
-    if (!bySetup) return null;
-    const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = bySetup;
-    return { user: pub, mustSetPasscode: true };
+    if (bySetup) {
+      const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = bySetup;
+      return { user: pub, mustSetPasscode: true };
+    }
+    // ตรงกับรหัสตั้งค่าของใครสักคนแต่หมดอายุไปแล้ว — แยกจาก "รหัสไม่ถูกต้อง" เฉยๆ
+    const expired = users.some(
+      (x) => x.active && !!x.setupCodeHash && verifyPasscode(pin, x.setupCodeHash)
+    );
+    return expired ? { expiredSetupCode: true } : null;
   },
 
   // ── ตั้ง/ออกรหัสเอง (v1.15) ──
