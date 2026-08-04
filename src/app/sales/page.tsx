@@ -382,6 +382,14 @@ export default function SalesPage() {
   const actualCash = toNum(form.cash) + adj.cash;
   const hasAdjustment = adj.qr !== 0 || adj.cash !== 0;
 
+  // บังคับแนบหลักฐานก่อนบันทึกได้ (แพรสั่ง 2026-08-04) — เฉพาะช่องที่ยอดไม่เป็น 0 เท่านั้น
+  // ช่องที่ไม่มีเงินเข้าเลยไม่ต้องมีรูปให้แนบ ไม่งั้นจะตันบันทึกไม่ได้ทั้งที่ไม่มีอะไรต้องพิสูจน์
+  const missingEvidence: string[] = [];
+  if (toNum(form.qr) > 0 && !evidence.qr) missingEvidence.push("สรุปยอด QR");
+  if (toNum(form.grab) > 0 && !evidence.grab) missingEvidence.push("สรุปยอด Grab");
+  if (toNum(form.lineman) > 0 && !evidence.lineman) missingEvidence.push("สรุปยอด Lineman");
+  if (total > 0 && !evidence.pos) missingEvidence.push("รายงานยอดขาย POS");
+
   const save = async () => {
     if (loading) return; // ยังโหลดข้อมูลของสาขา/วันที่นี้ไม่เสร็จ — กันบันทึกทับด้วยค่าที่ยังไม่ใช่ของจริง
     setSaving(true);
@@ -726,7 +734,12 @@ export default function SalesPage() {
       )}
 
       <SaveBar>
-        <Button onClick={save} disabled={saving || loading}>
+        {missingEvidence.length > 0 && (
+          <p className="mb-2 text-center text-[12px] font-medium text-warn">
+            ยังไม่ได้แนบหลักฐาน: {missingEvidence.join(" · ")}
+          </p>
+        )}
+        <Button onClick={save} disabled={saving || loading || missingEvidence.length > 0}>
           {saving ? "กำลังบันทึก…" : "บันทึกยอดขาย"}
         </Button>
       </SaveBar>
