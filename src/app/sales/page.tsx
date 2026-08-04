@@ -384,11 +384,15 @@ export default function SalesPage() {
 
   // บังคับแนบหลักฐานก่อนบันทึกได้ (แพรสั่ง 2026-08-04) — เฉพาะช่องที่ยอดไม่เป็น 0 เท่านั้น
   // ช่องที่ไม่มีเงินเข้าเลยไม่ต้องมีรูปให้แนบ ไม่งั้นจะตันบันทึกไม่ได้ทั้งที่ไม่มีอะไรต้องพิสูจน์
+  // เริ่มบังคับตั้งแต่วันที่พนักงานเริ่มใช้ระบบจริง (2026-08-05) — ของวันก่อนหน้ายังแก้ไขได้ตามปกติ
+  const EVIDENCE_REQUIRED_FROM = "2026-08-05";
   const missingEvidence: string[] = [];
-  if (toNum(form.qr) > 0 && !evidence.qr) missingEvidence.push("สรุปยอด QR");
-  if (toNum(form.grab) > 0 && !evidence.grab) missingEvidence.push("สรุปยอด Grab");
-  if (toNum(form.lineman) > 0 && !evidence.lineman) missingEvidence.push("สรุปยอด Lineman");
-  if (total > 0 && !evidence.pos) missingEvidence.push("รายงานยอดขาย POS");
+  if (date >= EVIDENCE_REQUIRED_FROM) {
+    if (toNum(form.qr) > 0 && !evidence.qr) missingEvidence.push("สรุปยอด QR");
+    if (toNum(form.grab) > 0 && !evidence.grab) missingEvidence.push("สรุปยอด Grab");
+    if (toNum(form.lineman) > 0 && !evidence.lineman) missingEvidence.push("สรุปยอด Lineman");
+    if (total > 0 && !evidence.pos) missingEvidence.push("รายงานยอดขาย POS");
+  }
 
   const save = async () => {
     if (loading) return; // ยังโหลดข้อมูลของสาขา/วันที่นี้ไม่เสร็จ — กันบันทึกทับด้วยค่าที่ยังไม่ใช่ของจริง
