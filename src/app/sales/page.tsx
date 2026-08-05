@@ -398,6 +398,12 @@ export default function SalesPage() {
 
   const save = async () => {
     if (loading) return; // ยังโหลดข้อมูลของสาขา/วันที่นี้ไม่เสร็จ — กันบันทึกทับด้วยค่าที่ยังไม่ใช่ของจริง
+    // เช็คซ้ำในนี้ด้วย ไม่ใช่แค่ disabled ของปุ่มด้านล่าง — ป๊อปอัพ "ตรวจ POS แล้วถูกต้อง ✓ บันทึกยอดขายเลย"
+    // เรียก save() ตรงๆ อีกทาง ถ้าไม่เช็คในนี้ด้วยจะหลุดผ่านได้ทั้งที่ยังไม่ได้แนบหลักฐานช่องอื่น (เจอเคสจริง SND 05/08 — แนบ QR+POS แล้วกดจากป๊อปอัพ หลุด Grab ไปได้)
+    if (missingEvidence.length > 0) {
+      window.alert(`ยังไม่ได้แนบหลักฐาน: ${missingEvidence.join(" · ")}`);
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
