@@ -360,17 +360,21 @@ export const memoryStore = {
           `คงเหลือ ${r.remainPack} เกินของที่มี ${carryPack + r.inPack} (ยกมา ${carryPack} + รับเข้า ${r.inPack})`);
       }
 
-      // 2) ย้อนไปแก้ยอดของวันก่อนหน้า — เฉพาะตอนค่าเปลี่ยนจริง (กดบันทึกซ้ำเฉย ๆ ไม่ต้องเตือน)
+      // 2) แก้ยอดหลังจากที่นับ+ยืนยันคงเหลือไปแล้วรอบหนึ่ง — ไม่ว่าช่องไหนก็ตาม และไม่ว่าจะเป็นวันนี้
+      //    หรือย้อนหลัง (แพรขอ 2026-08-05 ขยายจากเดิมที่เช็คแค่กรณีย้อนหลัง)
       const isBackdated = date !== new Date().toISOString().slice(0, 10);
-      if (isBackdated && existing && existing.remainConfirmed) {
+      if (existing && existing.remainConfirmed) {
         const changes: string[] = [];
         if (existing.remainPack !== r.remainPack) changes.push(`คงเหลือ ${existing.remainPack}→${r.remainPack}`);
         if ((existing.remainG ?? 0) !== r.remainG) changes.push(`คงเหลือเศษ ${existing.remainG ?? 0}→${r.remainG}g`);
         if (existing.inPack !== r.inPack) changes.push(`รับเข้า ${existing.inPack}→${r.inPack}`);
         if ((existing.inG ?? 0) !== r.inG) changes.push(`รับเข้าเศษ ${existing.inG ?? 0}→${r.inG}g`);
+        if ((existing.used ?? 0) !== r.used) changes.push(`ขาย/ใช้ ${existing.used ?? 0}→${r.used}`);
+        if ((existing.returned ?? 0) !== r.returned) changes.push(`ส่งคืน ${existing.returned ?? 0}→${r.returned}`);
+        if ((existing.returnedG ?? 0) !== (r.returnedG ?? 0)) changes.push(`ส่งคืนเศษ ${existing.returnedG ?? 0}→${r.returnedG ?? 0}g`);
         if (changes.length) {
-          pushAdminFlag(branch, date, r.itemId, itemName, "stock_backdated_edit",
-            `แก้ย้อนหลัง · ${changes.join(" · ")}`);
+          pushAdminFlag(branch, date, r.itemId, itemName, isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",
+            `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`);
         }
       }
 

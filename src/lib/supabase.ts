@@ -555,7 +555,7 @@ export const supabaseStore = {
   async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
-      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g,pack_adjust")
+      .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,used,returned,returned_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g,pack_adjust")
       .eq("branch_id", branch).eq("date", date);
     const autoMap = new Map((existingRows ?? []).map((r: any) => [r.item_id, { pack: r.in_auto_pack, g: r.in_auto_g }]));
     // แถวเดิมของวันนี้ ไว้เทียบว่า "แก้ย้อนหลัง" เปลี่ยนค่าอะไรไปบ้าง
@@ -621,18 +621,24 @@ export const supabaseStore = {
         });
       }
 
-      // 2) ย้อนไปแก้ยอดของวันก่อนหน้า — เฉพาะตอนค่าเปลี่ยนจริง (กดบันทึกซ้ำเฉย ๆ ไม่ต้องเตือน)
+      // 2) แก้ยอดหลังจากที่นับ+ยืนยันคงเหลือไปแล้วรอบหนึ่ง — ไม่ว่าช่องไหนก็ตาม และไม่ว่าจะเป็นวันนี้
+      //    หรือย้อนหลัง (แพรขอ 2026-08-05 ขยายจากเดิมที่เช็คแค่กรณีย้อนหลัง) — เฉพาะตอนค่าเปลี่ยนจริง
+      //    (กดบันทึกซ้ำด้วยตัวเลขเดิมเฉย ๆ ไม่ต้องเตือน)
       const before: any = prevRowMap.get(r.itemId);
-      if (isBackdated && before && before.remain_confirmed) {
+      if (before && before.remain_confirmed) {
         const changes: string[] = [];
         if (Number(before.remain_pack) !== r.remainPack) changes.push(`คงเหลือ ${before.remain_pack}→${r.remainPack}`);
         if (Number(before.remain_g) !== r.remainG) changes.push(`คงเหลือเศษ ${before.remain_g}→${r.remainG}g`);
         if (Number(before.in_pack) !== r.inPack) changes.push(`รับเข้า ${before.in_pack}→${r.inPack}`);
         if (Number(before.in_g) !== r.inG) changes.push(`รับเข้าเศษ ${before.in_g}→${r.inG}g`);
+        if (Number(before.used ?? 0) !== r.used) changes.push(`ขาย/ใช้ ${before.used ?? 0}→${r.used}`);
+        if (Number(before.returned ?? 0) !== r.returned) changes.push(`ส่งคืน ${before.returned ?? 0}→${r.returned}`);
+        if (Number(before.returned_g ?? 0) !== (r.returnedG ?? 0)) changes.push(`ส่งคืนเศษ ${before.returned_g ?? 0}→${r.returnedG ?? 0}g`);
         if (changes.length) {
           flags.push({
             branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
-            reason: "stock_backdated_edit", detail: `แก้ย้อนหลัง · ${changes.join(" · ")}`,
+            reason: isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",
+            detail: `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`,
           });
         }
       }
