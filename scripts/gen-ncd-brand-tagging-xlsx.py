@@ -173,8 +173,12 @@ lines = [
     ("(opens Sep 2569). This is captured here now so it's ready to build when NCD launches.", False, 11),
     ("", False, 10),
     ("Sheet 'New Staple Items' — add any product that does not exist in the system yet.", True, 11),
-    ("  Row 4 is a filled-in example — please delete it before sending back, or just add", False, 11),
-    ("  your rows below it.", False, 11),
+    ("  Despite the sheet name, this also covers brand-new items that will be SHARED between", False, 11),
+    ("  YC and Staple at NCD but don't exist anywhere else yet (e.g. a new bag design used by", False, 11),
+    ("  both brands at NCD only, different from the bag design NVP/SND/KCN currently use).", False, 11),
+    ("  Set the Brand column to yc / staple / shared accordingly.", False, 11),
+    ("  A few rows are already pre-filled based on what's been confirmed so far — check them,", False, 11),
+    ("  then add your own rows below.", False, 11),
     ("  Category can be an existing one (see 'Existing Items' sheet) or a brand-new category name.", False, 11),
     ("  Par level = normal full-stock quantity to keep on the shelf at NCD.", False, 11),
     ("", False, 10),
@@ -193,16 +197,14 @@ ws0.row_dimensions[1].height = 22
 # ต้องการให้พนักงาน NCD เห็นชื่อระบุแบรนด์ชัดๆ กันสับสน (สาขาอื่นเห็นชื่อเดิม)
 # Display Name at NCD แปลเป็นอังกฤษเลย เพราะคอลัมน์นี้คือชื่อที่ NCD เห็นจริง (พนักงาน NCD เป็นต่างชาติ)
 #
-# ⚠️ ถุงกระดาษแก้วเดี่ยว/คู่/ใหญ่ (it-071/072/073) แพรแก้กลับ 2026-08-05 — เป็นถุง shared
-# ใช้ร่วมกันทั้ง 2 แบรนด์จริง ไม่ได้แยกแบบเหมือนถ้วย (ตอนแรกเข้าใจผิดว่าแยกเหมือนถ้วย)
+# ⚠️ ถุงกระดาษแก้วเดี่ยว/คู่/ใหญ่ (it-071/072/073) แพรแก้อีกรอบ 2026-08-05 — ลายที่ NCD ใช้
+# เป็นคนละลายกับที่ NVP/SND/KCN ใช้อยู่ปัจจุบัน (แม้จะ shared ระหว่าง YC/Staple ที่ NCD เอง)
+# แปลว่า it-071/072/073 เดิม "ไม่ใช่" ของที่ NCD ใช้เลย — NCD ต้องมีของใหม่ 3 อัน (ดูชีต
+# New Staple Items แทน) item เดิมพวกนี้ NCD ไม่ carry (Par NCD ว่าง) เหมือนตอนที่ยังไม่ได้แตะเลย
 NCD_DISPLAY_NAME = {
     "it-056": "YC Cup (14oz)",
 }
-NCD_BRAND_SUGGESTION = {
-    "it-071": "shared",
-    "it-072": "shared",
-    "it-073": "shared",
-}
+NCD_BRAND_SUGGESTION: dict = {}
 
 ws1 = wb.create_sheet("Existing Items")
 headers = ["No.", "Item ID", "Category", "Item Name", "Display Name at NCD (blank = same)", "Unit",
@@ -250,9 +252,11 @@ ws1["G1"].comment = Comment("Fill in a number if NCD carries this item (normal f
 ws1["H1"].comment = Comment("Only matters if Par NCD (column G) is filled in. Pick yc / staple / shared from the dropdown.", "System")
 
 # ── Sheet 3: New Staple Items ───────────────────────────────────────
+# ชื่อชีตยังคงเดิม แต่ใช้ใส่ item ใหม่ทุกชนิดที่ NCD ต้องมี ไม่ใช่แค่ของ staple ล้วน — บาง
+# item (เช่นถุงกระดาษลายใหม่) เป็น shared ระหว่าง YC/Staple ที่ NCD เอง จึงมีคอลัมน์ Brand ให้เลือก
 ws2 = wb.create_sheet("New Staple Items")
-headers2 = ["No.", "Item Name (English)", "Category", "Unit", "Par NCD", "Notes"]
-widths2 = [5, 34, 22, 16, 12, 34]
+headers2 = ["No.", "Item Name (English)", "Category", "Unit", "Brand (yc / staple / shared)", "Par NCD", "Notes"]
+widths2 = [5, 34, 22, 16, 22, 12, 40]
 for col, (h, w) in enumerate(zip(headers2, widths2), start=1):
     cell = ws2.cell(row=1, column=col, value=h)
     cell.font = HEADER_FONT
@@ -263,32 +267,43 @@ for col, (h, w) in enumerate(zip(headers2, widths2), start=1):
 ws2.row_dimensions[1].height = 26
 ws2.freeze_panes = "A2"
 
-example = [1, "Belgian Waffle Mix", "Staple Bakery", "1kg/Bag", 4, "Example row — delete before sending back, or add rows below"]
+dv2 = DataValidation(type="list", formula1='"yc,staple,shared"', allow_blank=False, showDropDown=False)
+dv2.error = "Choose yc, staple, or shared from the list."
+dv2.errorTitle = "Invalid brand"
+ws2.add_data_validation(dv2)
+
+example = [1, "Belgian Waffle Mix", "Staple Bakery", "1kg/Bag", "staple", 4, "Example row — delete before sending back, or add rows below"]
 for col, val in enumerate(example, start=1):
     cell = ws2.cell(row=2, column=col, value=val)
     cell.font = Font(name=FONT_NAME, size=10, italic=True, color="808080")
     cell.border = BORDER
-    cell.alignment = CENTER if col in (1, 5) else WRAP_LEFT
+    cell.alignment = CENTER if col in (1, 6) else WRAP_LEFT
 
-# แพรทัก 2026-08-05 — ถ้วย 14oz + ถุงกระดาษ 3 แบบ ของ YC/Staple ทำคนละแบบ นับสต็อกแยกกัน
-# ของ Staple ยังไม่มีในระบบเลย ต้องเพิ่มเป็นรายการใหม่ (คนละอันกับของ YC เดิม)
+# แพรทัก 2026-08-05 — ถ้วย 14oz: YC/Staple พิมพ์คนละลาย แยกเป็นคนละ item กันเลย (brand yc/staple)
+# ถุงกระดาษแก้วเดี่ยว/คู่/ใหญ่: ลายใหม่ที่ NCD ใช้เป็นคนละลายกับที่ NVP/SND/KCN ใช้อยู่ (it-071/072/073)
+# แต่ YC กับ Staple ที่ NCD ใช้ลายใหม่นี้ร่วมกัน (brand shared) — คนละเรื่องกับถ้วยที่แยกกันจริงๆ
 KNOWN_NEW_ROWS = [
-    ("Staple Cup (14oz)", "CUP/ถ้วย", "50/pack", None,
+    ("Staple Cup (14oz)", "CUP/ถ้วย", "50/pack", "staple", None,
      "Same size/spec as YC Cup (14oz, it-056) but printed with Staple logo — separate stock item, not shared. Fill in Par NCD."),
-    # ถุงกระดาษแก้วเดี่ยว/คู่/ใหญ่ ไม่ต้องมีแถว Staple แยก — แพรยืนยัน 2026-08-05 ว่า shared
-    # ใช้ร่วมกันจริง (ดู NCD_BRAND_SUGGESTION ที่ชีต Existing Items แทน)
+    ("NCD Single Cup Paper Bag (new design)", "Bags", "ใบ", "shared", None,
+     "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษแก้วเดี่ยว (it-071) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
+    ("NCD Double Cup Paper Bag (new design)", "Bags", "ใบ", "shared", None,
+     "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษแก้วคู่ (it-072) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
+    ("NCD Large Paper Bag (new design)", "Bags", "ใบ", "shared", None,
+     "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษใหญ่ (it-073) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
 ]
 
 for row in range(3, 43):
     known_idx = row - 3
     known = KNOWN_NEW_ROWS[known_idx] if known_idx < len(KNOWN_NEW_ROWS) else None
-    row_values = [row - 1] + (list(known) if known else [None, None, None, None, None])
+    row_values = [row - 1] + (list(known) if known else [None, None, None, None, None, None])
     for col, val in enumerate(row_values, start=1):
         cell = ws2.cell(row=row, column=col, value=val)
         cell.font = BASE_FONT
         cell.border = BORDER
         cell.fill = INPUT_FILL
-        cell.alignment = CENTER if col in (1, 5) else WRAP_LEFT
+        cell.alignment = CENTER if col in (1, 6) else WRAP_LEFT
+    dv2.add(ws2.cell(row=row, column=5))
 
 import os
 out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "NCD_Brand_Tagging.xlsx")
