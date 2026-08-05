@@ -150,17 +150,27 @@ lines = [
     ("separately per brand even though staff work from one shared list.", False, 11),
     ("", False, 10),
     ("Sheet 'Existing Items' — 118 items currently in the system (all branches).", True, 11),
-    ("  Column F 'Par NCD' — how many NCD should stock as normal full stock.", False, 11),
+    ("  Column E 'Display Name at NCD' — ONLY fill this in if NCD staff need to see a", False, 11),
+    ("    different name than what NVP/SND/KCN already show, to avoid confusion between", False, 11),
+    ("    a YC version and a Staple version of the same kind of item (e.g. cups/lids/bags", False, 11),
+    ("    printed with a brand logo — same product type, different physical item per brand).", False, 11),
+    ("    Leave BLANK for everything else — the item keeps its normal name everywhere,", False, 11),
+    ("    including at NCD. This never changes what NVP/SND/KCN staff see.", False, 11),
+    ("  Column G 'Par NCD' — how many NCD should stock as normal full stock.", False, 11),
     ("    Leave BLANK if NCD will NOT carry this item at all (same rule as the other", False, 11),
-    ("    branch columns — blank = not stocked there). This matches columns H/I/J which", False, 11),
+    ("    branch columns — blank = not stocked there). This matches columns I/J/K which", False, 11),
     ("    show how NVP/SND/KCN already handle each item, for reference only — not editable.", False, 11),
-    ("  Column G 'Brand for NCD' is pre-filled with 'yc' as a starting guess.", False, 11),
+    ("  Column H 'Brand for NCD' is pre-filled with 'yc' as a starting guess.", False, 11),
     ("    Only matters for items NCD actually carries (Par NCD is not blank).", False, 11),
     ("  Please review every row and change it where needed:", False, 11),
     ("    yc      = YC-only product, not sold under Staple", False, 11),
     ("    staple  = Staple-only product", False, 11),
-    ("    shared  = same product sold under both brands (e.g. cups, spoons, cleaning supplies)", False, 11),
-    ("  Click any cell in column G to pick from the dropdown.", False, 11),
+    ("    shared  = same physical product sold under both brands with no branding difference", False, 11),
+    ("  Click any cell in column H to pick from the dropdown.", False, 11),
+    ("", False, 10),
+    ("Note: showing a different name only at NCD (column E) needs a small feature that does", False, 11),
+    ("not exist in the app yet — NCD is not even set up as a branch in the system yet", False, 11),
+    ("(opens Sep 2569). This is captured here now so it's ready to build when NCD launches.", False, 11),
     ("", False, 10),
     ("Sheet 'New Staple Items' — add any product that does not exist in the system yet.", True, 11),
     ("  Row 4 is a filled-in example — please delete it before sending back, or just add", False, 11),
@@ -179,10 +189,17 @@ for text, bold, size in lines:
 ws0.row_dimensions[1].height = 22
 
 # ── Sheet 2: Existing Items ─────────────────────────────────────────
+# แพรทัก 2026-08-05 — ถ้วย 14oz ของ YC กับ Staple โลโก้พิมพ์คนละแบบ ไม่ใช่ของชิ้นเดียวกัน
+# ต้องแยกนับสต็อก + ต้องการให้พนักงาน NCD เห็นชื่อระบุแบรนด์ชัดๆ กันสับสน (สาขาอื่นเห็นชื่อเดิม)
+NCD_DISPLAY_NAME = {
+    "it-056": "YC Cup (14oz)",
+}
+
 ws1 = wb.create_sheet("Existing Items")
-headers = ["No.", "Item ID", "Category", "Item Name", "Unit", "Par NCD (blank = not carried at NCD)",
-           "Brand for NCD (yc / staple / shared)", "Par NVP (ref)", "Par SND (ref)", "Par KCN (ref)"]
-widths = [5, 10, 22, 34, 14, 22, 30, 12, 12, 12]
+headers = ["No.", "Item ID", "Category", "Item Name", "Display Name at NCD (blank = same)", "Unit",
+           "Par NCD (blank = not carried at NCD)", "Brand for NCD (yc / staple / shared)",
+           "Par NVP (ref)", "Par SND (ref)", "Par KCN (ref)"]
+widths = [5, 10, 22, 34, 26, 14, 22, 30, 12, 12, 12]
 for col, (h, w) in enumerate(zip(headers, widths), start=1):
     cell = ws1.cell(row=1, column=col, value=h)
     cell.font = HEADER_FONT
@@ -201,24 +218,26 @@ ws1.add_data_validation(dv)
 # คอลัมน์อ้างอิง (ยกมาจาก NVP/SND/KCN) ใช้บอกว่าสาขาอื่นๆ ขายไหม — บอกใบ้เฉยๆ ไม่ได้ให้แก้
 for i, (item_id, category, name, unit, par_nvp, par_snd, par_kcn) in enumerate(ITEMS, start=1):
     row = i + 1
-    values = [i, item_id, category, name, unit, None, "yc", par_nvp, par_snd, par_kcn]
+    display_name = NCD_DISPLAY_NAME.get(item_id)
+    values = [i, item_id, category, name, display_name, unit, None, "yc", par_nvp, par_snd, par_kcn]
     for col, val in enumerate(values, start=1):
         cell = ws1.cell(row=row, column=col, value=val)
         cell.font = BASE_FONT
         cell.border = BORDER
-        if col in (1, 6, 8, 9, 10):
+        if col in (1, 7, 9, 10, 11):
             cell.alignment = CENTER
-        elif col == 7:
+        elif col == 8:
             cell.alignment = CENTER
             cell.fill = INPUT_FILL
         else:
             cell.alignment = WRAP_LEFT
-        if col == 6:
+        if col in (5, 7):
             cell.fill = INPUT_FILL
-    dv.add(ws1.cell(row=row, column=7))
+    dv.add(ws1.cell(row=row, column=8))
 
-ws1["F1"].comment = Comment("Fill in a number if NCD carries this item (normal full-stock qty). Leave blank if NCD does NOT carry it at all.", "System")
-ws1["G1"].comment = Comment("Only matters if Par NCD (column F) is filled in. Pick yc / staple / shared from the dropdown.", "System")
+ws1["E1"].comment = Comment("Only fill in if NCD needs a different, clearer name than the one shown at other branches (e.g. to tell a YC-branded item apart from a Staple-branded version of the same kind of thing). Leave blank otherwise — this never changes what other branches see.", "System")
+ws1["G1"].comment = Comment("Fill in a number if NCD carries this item (normal full-stock qty). Leave blank if NCD does NOT carry it at all.", "System")
+ws1["H1"].comment = Comment("Only matters if Par NCD (column G) is filled in. Pick yc / staple / shared from the dropdown.", "System")
 
 # ── Sheet 3: New Staple Items ───────────────────────────────────────
 ws2 = wb.create_sheet("New Staple Items")
@@ -241,16 +260,26 @@ for col, val in enumerate(example, start=1):
     cell.border = BORDER
     cell.alignment = CENTER if col in (1, 5) else WRAP_LEFT
 
+# แพรทัก 2026-08-05 — ถ้วย 14oz โลโก้ YC/Staple พิมพ์คนละแบบ นับสต็อกแยกกัน
+# ถ้วย Staple ยังไม่มีในระบบเลย ต้องเพิ่มเป็นรายการใหม่ (คนละอันกับ it-056 ที่เป็นของ YC)
+KNOWN_NEW_ROWS = [
+    ("Staple Cup (14oz)", "CUP/ถ้วย", "50/pack", None,
+     "Same size/spec as YC Cup (14oz, it-056) but printed with Staple logo — separate stock item, not shared. Fill in Par NCD."),
+]
+
 for row in range(3, 43):
-    for col in range(1, 7):
-        cell = ws2.cell(row=row, column=col)
+    known_idx = row - 3
+    known = KNOWN_NEW_ROWS[known_idx] if known_idx < len(KNOWN_NEW_ROWS) else None
+    row_values = [row - 1] + (list(known) if known else [None, None, None, None, None])
+    for col, val in enumerate(row_values, start=1):
+        cell = ws2.cell(row=row, column=col, value=val)
         cell.font = BASE_FONT
         cell.border = BORDER
         cell.fill = INPUT_FILL
         cell.alignment = CENTER if col in (1, 5) else WRAP_LEFT
-    ws2.cell(row=row, column=1, value=row - 1)
 
-out_path = "/private/tmp/claude-501/-Users-praee-Desktop-CLAUDE-BQMP-OPS/97c51b1b-b71b-479e-a9eb-57ce36cfe754/scratchpad/NCD_Brand_Tagging.xlsx"
+import os
+out_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "NCD_Brand_Tagging.xlsx")
 wb.save(out_path)
 print("Saved:", out_path)
 print("Existing items rows:", len(ITEMS))
