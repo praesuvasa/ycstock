@@ -189,10 +189,14 @@ for text, bold, size in lines:
 ws0.row_dimensions[1].height = 22
 
 # ── Sheet 2: Existing Items ─────────────────────────────────────────
-# แพรทัก 2026-08-05 — ถ้วย 14oz ของ YC กับ Staple โลโก้พิมพ์คนละแบบ ไม่ใช่ของชิ้นเดียวกัน
+# แพรทัก 2026-08-05 — ถ้วย 14oz + ถุงกระดาษ 3 แบบ ของ YC กับ Staple พิมพ์/ทำคนละแบบ ไม่ใช่ของชิ้นเดียวกัน
 # ต้องแยกนับสต็อก + ต้องการให้พนักงาน NCD เห็นชื่อระบุแบรนด์ชัดๆ กันสับสน (สาขาอื่นเห็นชื่อเดิม)
+# Display Name at NCD แปลเป็นอังกฤษเลย เพราะคอลัมน์นี้คือชื่อที่ NCD เห็นจริง (พนักงาน NCD เป็นต่างชาติ)
 NCD_DISPLAY_NAME = {
     "it-056": "YC Cup (14oz)",
+    "it-071": "YC Single Cup Paper Bag",   # ถุงกระดาษแก้วเดี่ยว
+    "it-072": "YC Double Cup Paper Bag",   # ถุงกระดาษแก้วคู่
+    "it-073": "YC Large Paper Bag",        # ถุงกระดาษใหญ่
 }
 
 ws1 = wb.create_sheet("Existing Items")
@@ -260,11 +264,17 @@ for col, val in enumerate(example, start=1):
     cell.border = BORDER
     cell.alignment = CENTER if col in (1, 5) else WRAP_LEFT
 
-# แพรทัก 2026-08-05 — ถ้วย 14oz โลโก้ YC/Staple พิมพ์คนละแบบ นับสต็อกแยกกัน
-# ถ้วย Staple ยังไม่มีในระบบเลย ต้องเพิ่มเป็นรายการใหม่ (คนละอันกับ it-056 ที่เป็นของ YC)
+# แพรทัก 2026-08-05 — ถ้วย 14oz + ถุงกระดาษ 3 แบบ ของ YC/Staple ทำคนละแบบ นับสต็อกแยกกัน
+# ของ Staple ยังไม่มีในระบบเลย ต้องเพิ่มเป็นรายการใหม่ (คนละอันกับของ YC เดิม)
 KNOWN_NEW_ROWS = [
     ("Staple Cup (14oz)", "CUP/ถ้วย", "50/pack", None,
      "Same size/spec as YC Cup (14oz, it-056) but printed with Staple logo — separate stock item, not shared. Fill in Par NCD."),
+    ("Staple Single Cup Paper Bag", "Bags", "ใบ", None,
+     "Staple version of YC's ถุงกระดาษแก้วเดี่ยว (it-071) — different design, separate stock item. Fill in Par NCD."),
+    ("Staple Double Cup Paper Bag", "Bags", "ใบ", None,
+     "Staple version of YC's ถุงกระดาษแก้วคู่ (it-072) — different design, separate stock item. Fill in Par NCD."),
+    ("Staple Large Paper Bag", "Bags", "ใบ", None,
+     "Staple version of YC's ถุงกระดาษใหญ่ (it-073) — different design, separate stock item. Fill in Par NCD."),
 ]
 
 for row in range(3, 43):
