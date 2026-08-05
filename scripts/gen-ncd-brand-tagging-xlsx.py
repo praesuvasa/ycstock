@@ -285,12 +285,15 @@ for col, val in enumerate(example, start=1):
 KNOWN_NEW_ROWS = [
     ("Staple Cup (14oz)", "CUP/ถ้วย", "50/pack", "staple", None,
      "Same size/spec as YC Cup (14oz, it-056) but printed with Staple logo — separate stock item, not shared. Fill in Par NCD."),
-    ("NCD Single Cup Paper Bag (new design)", "Bags", "ใบ", "shared", None,
+    ("Single Cup Paper Bag", "Bags", "ใบ", "shared", None,
      "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษแก้วเดี่ยว (it-071) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
-    ("NCD Double Cup Paper Bag (new design)", "Bags", "ใบ", "shared", None,
+    ("Double Cup Paper Bag", "Bags", "ใบ", "shared", None,
      "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษแก้วคู่ (it-072) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
-    ("NCD Large Paper Bag (new design)", "Bags", "ใบ", "shared", None,
-     "New bag design used ONLY at NCD, shared by both YC and Staple. NOT the same item as YC's existing ถุงกระดาษใหญ่ (it-073) used at NVP/SND/KCN — that one stays a separate, unrelated item. Fill in Par NCD."),
+    # "NCD Large Paper Bag" ลบออก — แพรแทนที่ด้วย S/M Brown Paper Bag แยก 2 ขนาดแทน 2026-08-05
+    ("S Brown Paper Bag", "Bags", "ใบ", "shared", None,
+     "New NCD-only bag, shared by both YC and Staple. Fill in Par NCD."),
+    ("M Brown Paper Bag", "Bags", "ใบ", "shared", None,
+     "New NCD-only bag, shared by both YC and Staple. Fill in Par NCD."),
 ]
 
 for row in range(3, 43):
