@@ -18,6 +18,7 @@ interface ReportLine {
   carry: number | null; // null = "—" (ไม่มีความหมายสำหรับแถวรวม)
   inQty: number | null;
   sold: number;
+  returned: number; // ส่งคืน/เสีย — แยกออกจาก "ขาย" ให้เห็นชัด (แพรขอ 2026-08-04) ไม่ใช่รวมกันก้อนเดียว
   remain: number | null;
   status: "ok" | "warn" | "none";
   diff?: number;
@@ -32,18 +33,19 @@ function ReportTable({ title, lines }: { title: string; lines: ReportLine[] }) {
         <GlassCard><p className="text-center text-[12px] text-brand-ink/45">ไม่มีรายการในหมวดนี้</p></GlassCard>
       ) : (
         <div className="overflow-hidden rounded-xl border border-black/5">
-          <div className="grid grid-cols-[1fr_40px_40px_40px_44px_58px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[10px] font-medium text-brand-ink/50">
+          <div className="grid grid-cols-[1fr_34px_34px_34px_34px_40px_54px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[10px] font-medium text-brand-ink/50">
             <span>รายการ</span>
             <span className="text-right">ยกมา</span>
             <span className="text-right">รับเข้า</span>
             <span className="text-right">ขาย</span>
+            <span className="text-right">ส่งคืน</span>
             <span className="text-right">คงเหลือ</span>
             <span className="text-right">สถานะ</span>
           </div>
           {lines.map((l, i) => (
             <div
               key={l.key}
-              className={`grid grid-cols-[1fr_40px_40px_40px_44px_58px] items-center gap-1 px-2 py-1.5 text-[11px] ${
+              className={`grid grid-cols-[1fr_34px_34px_34px_34px_40px_54px] items-center gap-1 px-2 py-1.5 text-[11px] ${
                 l.isTotal ? "bg-brand-orange/20 font-bold" : i % 2 ? "bg-white/30" : "bg-white/50"
               }`}
             >
@@ -51,6 +53,9 @@ function ReportTable({ title, lines }: { title: string; lines: ReportLine[] }) {
               <span className="text-right tabular-nums">{l.carry ?? "—"}</span>
               <span className="text-right tabular-nums">{l.inQty ?? "—"}</span>
               <span className="text-right tabular-nums">{l.sold}</span>
+              <span className={`text-right tabular-nums ${l.returned > 0 ? "font-semibold text-warn" : ""}`}>
+                {l.returned > 0 ? l.returned : "—"}
+              </span>
               <span className="text-right tabular-nums">{l.remain ?? "—"}</span>
               <span
                 className={`text-right tabular-nums ${
@@ -168,14 +173,16 @@ export default function CupsPage() {
     const carry = row?.carryPack ?? 0;
     const inQty = row?.inPack ?? 0;
     const sold = row?.used ?? 0;
+    const returned = row?.returned ?? 0;
     const remain = row?.remainPack ?? 0;
     const v = row ? variance(row.carryPack, row.inPack, row.used, row.returned, row.remainPack) : 0;
-    return { key: it.id, name: it.name, carry, inQty, sold, remain, status: v === 0 ? "ok" : "warn", diff: v };
+    return { key: it.id, name: it.name, carry, inQty, sold, returned, remain, status: v === 0 ? "ok" : "warn", diff: v };
   }, [stockByItem]);
 
   const totalLine = React.useCallback((label: string, items: Item[]): ReportLine => {
     const sum = items.reduce((s, it) => s + (stockByItem.get(it.id)?.used ?? 0), 0);
-    return { key: `total-${label}`, name: label, carry: null, inQty: null, sold: sum, remain: null, status: "none", isTotal: true };
+    const sumReturned = items.reduce((s, it) => s + (stockByItem.get(it.id)?.returned ?? 0), 0);
+    return { key: `total-${label}`, name: label, carry: null, inQty: null, sold: sum, returned: sumReturned, remain: null, status: "none", isTotal: true };
   }, [stockByItem]);
 
   const catalog = React.useMemo(() => {
