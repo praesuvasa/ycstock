@@ -1019,6 +1019,11 @@ export default function StockPage() {
                         <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
                           ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
                         </div>
+                      ) : row.returned > 0 ? (
+                        // แยก "ขาย" ออกจาก "ส่งคืน" ให้เห็นชัด ไม่รวมเป็นก้อนเดียว (แพรขอ 2026-08-04)
+                        <div className="mt-1.5 rounded-lg bg-ok/15 px-2 py-1 text-xs font-medium text-ok">
+                          ✓ ขาย {row.used} · ส่งคืน {row.returned} {it.unit}
+                        </div>
                       ) : null}
                     </div>
                   );
