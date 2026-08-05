@@ -1079,8 +1079,10 @@ export default function StockPage() {
 
                     {/* แพคมีของไม่ตรงจำนวน (แพรขอ 2026-07-29) — เจอตอนเปิดแพคใช้ ซึ่งเลยขั้นตอนยืนยันรับของไปแล้ว
                         กรอกเป็นส่วนต่างชิ้น (+2 = เกิน · -1 = ขาด) ระบบบวกเข้าฝั่ง "ของที่มี" ให้เอง
-                        คนนับจะได้ไม่โดนสงสัยทุกครั้งที่แพคไม่ครบ ทั้งที่นับถูก */}
-                    {packAdjOpen || cupItems.some((ci) => (rows[ci.id]?.packAdjust ?? 0) !== 0) ? (
+                        คนนับจะได้ไม่โดนสงสัยทุกครั้งที่แพคไม่ครบ ทั้งที่นับถูก
+                        เอาออกจากพนักงานแล้ว (แพรสั่ง 2026-08-04) — เป็นช่องโหว่ให้แก้ตัวเลขได้เอง
+                        พนักงานเจอแพคไม่ครบให้แจ้งแอดมินแทน แอดมินเข้ามาแก้ตรงนี้ให้เอง */}
+                    {me?.role !== "admin" ? null : packAdjOpen || cupItems.some((ci) => (rows[ci.id]?.packAdjust ?? 0) !== 0) ? (
                       <div className="rounded-lg border border-brand-blue/40 bg-white/60 px-2.5 py-2">
                         <div className="mb-1.5 flex items-start justify-between gap-2">
                           <p className="text-[11px] font-medium text-sky-700">
