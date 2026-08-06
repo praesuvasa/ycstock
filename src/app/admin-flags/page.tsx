@@ -29,7 +29,9 @@ const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
   stock_override: "warn",
   receipt_edited: "orange",
   stock_impossible: "warn",
-  stock_backdated_edit: "orange",
+  // แก้ย้อนหลังเสี่ยงกว่าแก้ซ้ำวันนี้ (แพรชี้ 2026-08-06) — อาจเป็นการปรับยอดปิดงานเก่า
+  // ให้ "พอดี" กับที่นับวันนี้ แทนที่จะเป็นแค่แก้เลขนับผิด ให้เด่นกว่าด้วยสีแดงแทนส้ม
+  stock_backdated_edit: "warn",
   stock_same_day_edit: "orange",
   receipt_vs_manual: "warn",
   cup_pack_mismatch: "orange",
