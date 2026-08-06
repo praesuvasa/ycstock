@@ -1,9 +1,12 @@
 "use client";
-// v1.9 · รายการรอตรวจสอบ — รับไม่ตรงยอดสั่ง / เพิ่มนอกใบ / พนักงานแก้ทับค่า auto-fill ในหน้าสต็อก (admin only)
+// v1.9 · รายการรอตรวจสอบ — รับไม่ตรงยอดสั่ง / เพิ่มนอกใบ / พนักงานแก้ทับค่า auto-fill ในหน้าสต็อก
+// admin เห็นทุกเหตุผล/ทุกสาขา แก้ไว้ได้ · senior เห็นได้ด้วย (แพรสั่ง 2026-08-06) แต่ล็อกสาขาตัวเอง
+// เห็นแค่ "แก้ยอดซ้ำ/ย้อนหลัง" และดูอย่างเดียว กดตรวจแล้วไม่ได้ (server กรอง/บล็อกให้อยู่แล้ว ฝั่งนี้แค่ซ่อนปุ่มให้ดูสะอาด)
 import React from "react";
 import type { AdminFlag, AdminFlagReason } from "@/lib/types";
 import { GlassCard, PageTitle, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
+import { useMe } from "@/components/nav";
 
 const REASON_LABEL: Record<AdminFlagReason, string> = {
   receipt_mismatch: "รับไม่ตรงยอดสั่ง",
@@ -40,6 +43,10 @@ function fmtWhen(iso: string): string {
 }
 
 export default function AdminFlagsPage() {
+  const me = useMe();
+  const isAdmin = me?.role === "admin";
+  const isSenior = !isAdmin && !!me?.isSenior;
+
   const [flags, setFlags] = React.useState<AdminFlag[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [resolvingId, setResolvingId] = React.useState<number | null>(null);
@@ -70,7 +77,13 @@ export default function AdminFlagsPage() {
 
   return (
     <div>
-      <PageTitle title="รายการรอตรวจสอบ" right={<span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>} />
+      <PageTitle
+        title={isSenior ? "แก้ยอดซ้ำ/ย้อนหลัง" : "รายการรอตรวจสอบ"}
+        right={<span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>}
+      />
+      {isSenior && (
+        <p className="mb-3 text-[12px] text-brand-ink/50">เห็นเฉพาะสาขา {me?.branchScope} · ตรวจสอบให้แอดมินดูอย่างเดียว</p>
+      )}
       <GlassCard>
         {loading ? (
           <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
@@ -90,13 +103,15 @@ export default function AdminFlagsPage() {
                     {f.detail} · {thaiDate(f.date)} · {fmtWhen(f.createdAt)}
                   </div>
                 </div>
-                <button
-                  onClick={() => resolve(f.id)}
-                  disabled={resolvingId === f.id}
-                  className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
-                >
-                  ตรวจแล้ว
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => resolve(f.id)}
+                    disabled={resolvingId === f.id}
+                    className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
+                  >
+                    ตรวจแล้ว
+                  </button>
+                )}
               </div>
             ))}
           </div>

@@ -1,6 +1,6 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
+import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
 import { BRANCHES } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS, passcodeLookupHash } from "./auth";
@@ -1837,9 +1837,11 @@ export const supabaseStore = {
     return sheets.filter((s) => s.date <= today).reduce((sum, s) => sum + s.pendingCount, 0);
   },
 
-  async listAdminFlags(includeResolved = false): Promise<AdminFlag[]> {
+  async listAdminFlags(filter: { includeResolved?: boolean; branch?: Branch; reasons?: AdminFlagReason[] } = {}): Promise<AdminFlag[]> {
     let q = sb().from("stock_admin_flags").select("*").order("created_at", { ascending: false });
-    if (!includeResolved) q = q.is("resolved_at", null);
+    if (!filter.includeResolved) q = q.is("resolved_at", null);
+    if (filter.branch) q = q.eq("branch_id", filter.branch);
+    if (filter.reasons && filter.reasons.length > 0) q = q.in("reason", filter.reasons);
     const { data, error } = await q;
     if (error) throw error;
     return (data ?? []).map((f: any) => ({

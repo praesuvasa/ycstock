@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const s = await requireSession();
     if (s.role !== "admin") return NextResponse.json({ count: 0 });
-    const flags = await db.listAdminFlags(false);
+    const flags = await db.listAdminFlags({ includeResolved: false });
     return NextResponse.json({ count: flags.length });
   } catch (e) {
     const a = authErrorResponse(e);

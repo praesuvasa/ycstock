@@ -135,8 +135,14 @@ const accountMenuFor = (me: Me | null): Tab[] => [
       ]
     : []),
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
-  // senior เห็นประวัติการทำงานของสาขาตัวเอง (แพรสั่ง 2026-08-06) — admin เห็นผ่าน "จัดการระบบ" อยู่แล้ว ไม่ต้องซ้ำ
-  ...(me?.isSenior && me.role !== "admin" ? [{ href: "/audit", label: "ประวัติการทำงาน", icon: "list" as IconKey }] : []),
+  // senior เห็นประวัติการทำงาน + แก้ยอดซ้ำ/ย้อนหลังของสาขาตัวเอง (แพรสั่ง 2026-08-06)
+  // admin เห็นทั้งคู่ผ่าน "จัดการระบบ" อยู่แล้ว ไม่ต้องซ้ำเมนู
+  ...(me?.isSenior && me.role !== "admin"
+    ? [
+        { href: "/audit", label: "ประวัติการทำงาน", icon: "list" as IconKey },
+        { href: "/admin-flags", label: "แก้ยอดซ้ำ/ย้อนหลัง", icon: "flag" as IconKey },
+      ]
+    : []),
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },
 ];

@@ -1203,9 +1203,11 @@ export const memoryStore = {
       .reduce((sum, s) => sum + s.pendingCount, 0);
   },
 
-  listAdminFlags(includeResolved = false): AdminFlag[] {
+  listAdminFlags(filter: { includeResolved?: boolean; branch?: Branch; reasons?: AdminFlagReason[] } = {}): AdminFlag[] {
     return adminFlags
-      .filter((f) => includeResolved || !f.resolvedAt)
+      .filter((f) => filter.includeResolved || !f.resolvedAt)
+      .filter((f) => !filter.branch || f.branch === filter.branch)
+      .filter((f) => !filter.reasons || filter.reasons.includes(f.reason))
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .map((f) => ({ ...f }));
   },

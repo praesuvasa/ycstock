@@ -1,6 +1,6 @@
 // Data-store facade — BFF เรียกที่นี่เท่านั้น
 // default = memory (seeded). ตั้ง USE_SUPABASE=1 + env → ใช้ Supabase
-import type { ScheduleRequest, ScheduleRow, ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
+import type { ScheduleRequest, ScheduleRow, ItemBrand, User, Branch, StockRow, SalesRow, CupRow, Meta, RestockRow, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, RestockReceiptBatchEntry, AdminFlag, AdminFlagReason, StaffAllowanceUse, AllowanceSummary, StaffFeedback , CupSize, PendingReturnRow, TimeClockEntry, TimeClockSettings } from "./types";
 import { BRANCHES } from "./types";
 import { memoryStore } from "./store-memory";
 import { supabaseStore } from "./supabase";
@@ -349,8 +349,8 @@ export const db = {
       : Promise.resolve(memoryStore.unconfirmRestockReceipt(branch, date, itemId)),
   getPendingReceiptCount: (branch: Branch): Promise<number> =>
     useSupabase ? supabaseStore.getPendingReceiptCount(branch) : Promise.resolve(memoryStore.getPendingReceiptCount(branch)),
-  listAdminFlags: (includeResolved?: boolean): Promise<AdminFlag[]> =>
-    useSupabase ? supabaseStore.listAdminFlags(includeResolved) : Promise.resolve(memoryStore.listAdminFlags(includeResolved)),
+  listAdminFlags: (filter?: { includeResolved?: boolean; branch?: Branch; reasons?: AdminFlagReason[] }): Promise<AdminFlag[]> =>
+    useSupabase ? supabaseStore.listAdminFlags(filter) : Promise.resolve(memoryStore.listAdminFlags(filter)),
   resolveAdminFlag: (id: number, resolvedBy: string): Promise<void> =>
     useSupabase ? supabaseStore.resolveAdminFlag(id, resolvedBy) : Promise.resolve(memoryStore.resolveAdminFlag(id, resolvedBy)),
 };
