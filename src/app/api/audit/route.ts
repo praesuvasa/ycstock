@@ -27,14 +27,18 @@ export async function GET(req: Request) {
     if (isAdmin) {
       const branch = searchParams.get("branch");
       if (branch) filter.branch = branch;
-    } else {
-      // senior ผูกสาขาเดียวเสมอ ไม่รับ branch จาก client — กันเห็นสาขาอื่น
-      // ผลพลอยได้: action ระดับบัญชี/ระบบ (create_user, login, ฯลฯ) เขียน branch=null เสมอ
-      // → ไม่ผ่านตัวกรองนี้อยู่แล้ว ไม่ต้องมี blocklist แยกสำหรับ action พวกนั้น
-      if (s.branchScope !== "all") filter.branch = s.branchScope;
+      return NextResponse.json({ rows: await db.listAudit(filter), isSenior });
     }
 
-    return NextResponse.json({ rows: await db.listAudit(filter), isSenior });
+    // senior ผูกสาขาเดียวเสมอ ไม่รับ branch จาก client — กันเห็นสาขาอื่น
+    // ผลพลอยได้: action ระดับบัญชี/ระบบ (create_user, login, ฯลฯ) เขียน branch=null เสมอ
+    // → ไม่ผ่านตัวกรองนี้อยู่แล้ว ไม่ต้องมี blocklist แยกสำหรับ action พวกนั้น
+    if (s.branchScope !== "all") filter.branch = s.branchScope;
+    const rows = await db.listAudit(filter);
+    // แพรขอ 2026-08-06 — ให้เห็นแค่งานของพนักงาน ไม่รวมที่แอดมินแก้เอง
+    const users = await db.listUsers();
+    const adminIds = new Set(users.filter((u) => u.role === "admin").map((u) => u.id));
+    return NextResponse.json({ rows: rows.filter((r) => !adminIds.has(r.userId)), isSenior });
   } catch (e: any) {
     const a = authErrorResponse(e);
     if (a) return NextResponse.json(a.body, { status: a.status });

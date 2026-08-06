@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       await db.saveOwnCups(branch, date, body.ownCups);
     }
 
-    const result = await db.saveStock(branch, date, body.rows, s.name);
+    const result = await db.saveStock(branch, date, body.rows, s.name, s.role === "admin");
     await writeAudit(s, "save_stock", {
       branch, date,
       detail: `บันทึกสต็อก ${body.rows.length} รายการ${body.force ? " · ยืนยันทับงานของ " + (current.savedBy ?? "คนอื่น") : ""}`,

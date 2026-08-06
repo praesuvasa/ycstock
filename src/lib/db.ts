@@ -40,8 +40,10 @@ export const db = {
   getStock: (branch: Branch, date: string): Promise<StockRow[]> =>
     useSupabase ? supabaseStore.getStock(branch, date) : Promise.resolve(memoryStore.getStock(branch, date)),
 
-  saveStock: (branch: Branch, date: string, rows: StockRow[], userName?: string) =>
-    useSupabase ? supabaseStore.saveStock(branch, date, rows, userName) : Promise.resolve(memoryStore.saveStock(branch, date, rows, userName)),
+  saveStock: (branch: Branch, date: string, rows: StockRow[], userName?: string, isAdminActor?: boolean) =>
+    useSupabase
+      ? supabaseStore.saveStock(branch, date, rows, userName, isAdminActor)
+      : Promise.resolve(memoryStore.saveStock(branch, date, rows, userName, isAdminActor)),
 
   getStockSavedAt: (branch: Branch, date: string): Promise<{ savedAt: string | null; savedBy: string | null }> =>
     useSupabase ? supabaseStore.getStockSavedAt(branch, date) : Promise.resolve(memoryStore.getStockSavedAt(branch, date)),

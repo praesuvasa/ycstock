@@ -552,7 +552,7 @@ export const supabaseStore = {
     return { savedAt: data?.updated_at ?? null, savedBy: data?.updated_by_name ?? null };
   },
 
-  async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string) {
+  async saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string, isAdminActor?: boolean) {
     // เช็คว่ามีค่าที่เคย auto-fill จากการยืนยันรับของไหม — ถ้าพนักงานแก้ทับ ให้เตือนแอดมินครั้งเดียวแล้วเลิกติดตาม
     const { data: existingRows } = await sb().from("stock_daily")
       .select("item_id,in_auto_pack,in_auto_g,in_pack,in_g,used,returned,returned_g,remain_pack,remain_g,remain_confirmed,transfer_out,transfer_in_g,pack_adjust")
@@ -634,7 +634,9 @@ export const supabaseStore = {
         if (Number(before.used ?? 0) !== r.used) changes.push(`ขาย/ใช้ ${before.used ?? 0}→${r.used}`);
         if (Number(before.returned ?? 0) !== r.returned) changes.push(`ส่งคืน ${before.returned ?? 0}→${r.returned}`);
         if (Number(before.returned_g ?? 0) !== (r.returnedG ?? 0)) changes.push(`ส่งคืนเศษ ${before.returned_g ?? 0}→${r.returnedG ?? 0}g`);
-        if (changes.length) {
+        // แอดมินแก้เองไม่ต้องขึ้นแจ้งเตือน — คิวนี้ไว้ดักงานพนักงาน ไม่ใช่ให้แอดมินตรวจตัวเอง
+        // (แพรขอ 2026-08-06 — senior ที่เห็นคิวนี้ต้องเห็นแค่งานพนักงาน) ประวัติจริงยังอยู่ครบใน audit_log
+        if (changes.length && !isAdminActor) {
           flags.push({
             branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
             reason: isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",

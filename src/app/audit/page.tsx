@@ -75,7 +75,7 @@ export default function AuditPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
       <PageTitle
-        title={isAdmin ? "Audit Log" : "ประวัติการทำงาน"}
+        title={isAdmin ? "Audit Log" : "ประวัติการบันทึก"}
         right={isAdmin ? <Badge tone="blue">Admin</Badge> : <Badge tone="blue">สาขา {me?.branchScope}</Badge>}
       />
 

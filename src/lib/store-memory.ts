@@ -327,7 +327,7 @@ export const memoryStore = {
     return { savedAt: null, savedBy: null };
   },
 
-  saveStock(branch: Branch, date: string, rows: StockRow[], _userName?: string) {
+  saveStock(branch: Branch, date: string, rows: StockRow[], _userName?: string, isAdminActor?: boolean) {
     seed();
     let updated = 0, inserted = 0;
     for (const r of rows) {
@@ -372,7 +372,8 @@ export const memoryStore = {
         if ((existing.used ?? 0) !== r.used) changes.push(`ขาย/ใช้ ${existing.used ?? 0}→${r.used}`);
         if ((existing.returned ?? 0) !== r.returned) changes.push(`ส่งคืน ${existing.returned ?? 0}→${r.returned}`);
         if ((existing.returnedG ?? 0) !== (r.returnedG ?? 0)) changes.push(`ส่งคืนเศษ ${existing.returnedG ?? 0}→${r.returnedG ?? 0}g`);
-        if (changes.length) {
+        // แอดมินแก้เองไม่ต้องขึ้นแจ้งเตือน (แพรขอ 2026-08-06) — เหมือน supabase.ts
+        if (changes.length && !isAdminActor) {
           pushAdminFlag(branch, date, r.itemId, itemName, isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",
             `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`);
         }

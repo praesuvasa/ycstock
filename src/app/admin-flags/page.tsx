@@ -78,7 +78,7 @@ export default function AdminFlagsPage() {
   return (
     <div>
       <PageTitle
-        title={isSenior ? "แก้ยอดซ้ำ/ย้อนหลัง" : "รายการรอตรวจสอบ"}
+        title={isSenior ? "ประวัติการแก้ไข" : "รายการรอตรวจสอบ"}
         right={<span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>}
       />
       {isSenior && (

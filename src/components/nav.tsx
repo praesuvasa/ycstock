@@ -112,6 +112,15 @@ const RESTOCK_TABS: Tab[] = [
 const PRODUCTION_TABS: Tab[] = [
   { href: "/yogi", label: "หน้าหลัก", icon: "home" },
 ];
+// กลุ่ม "Logging" — senior เห็นได้ (แพรสั่ง 2026-08-06) โผล่ในเมนูหลัก ไม่ใช่ "ข้อมูลของฉัน"
+// เห็นแค่สาขาตัวเอง + แค่งานของพนักงาน (ไม่รวมที่แอดมินแก้เอง — กรองให้ที่ API แล้ว)
+const LOGGING_GROUP: Tab = {
+  label: "Logging", icon: "list",
+  children: [
+    { href: "/audit", label: "ประวัติการบันทึก", icon: "list" },
+    { href: "/admin-flags", label: "ประวัติการแก้ไข", icon: "flag" },
+  ],
+};
 const tabsForMe = (me: Me | null): Tab[] => {
   // ฝ่ายผลิต — เห็นแค่หน้าหลักของหน่วยตัวเอง (ยังไม่มีเมนูงานผลิตในระบบ)
   // เมนูลงเวลาอยู่ในกลุ่ม "ข้อมูลของฉัน" อยู่แล้ว ไม่ต้องซ้ำอีกที่
@@ -119,8 +128,8 @@ const tabsForMe = (me: Me | null): Tab[] => {
   const base = me?.role === "admin" ? ADMIN_TABS : me?.role === "restock" ? RESTOCK_TABS : USER_TABS;
   // ยังไม่เปิดใช้ตรวจวันหมดอายุ = ตัดออกจากเมนูไปเลย (แพรสั่ง 2026-07-28)
   // ระหว่างนี้ของที่ต้องส่งคืนให้ไปกรอกที่หน้า "ส่งคืน" ตามเดิม
-  if (me?.features?.expiryCheck) return base;
-  return base.filter((t) => t.href !== "/expiry");
+  const filtered = me?.features?.expiryCheck ? base : base.filter((t) => t.href !== "/expiry");
+  return me?.isSenior && me.role !== "admin" ? [...filtered, LOGGING_GROUP] : filtered;
 };
 
 // กลุ่ม "ข้อมูลของฉัน" — ของส่วนตัวรายคน แยกจากเมนูงานประจำวัน (แพรจัด 2026-07-27)
@@ -135,14 +144,7 @@ const accountMenuFor = (me: Me | null): Tab[] => [
       ]
     : []),
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
-  // senior เห็นประวัติการทำงาน + แก้ยอดซ้ำ/ย้อนหลังของสาขาตัวเอง (แพรสั่ง 2026-08-06)
-  // admin เห็นทั้งคู่ผ่าน "จัดการระบบ" อยู่แล้ว ไม่ต้องซ้ำเมนู
-  ...(me?.isSenior && me.role !== "admin"
-    ? [
-        { href: "/audit", label: "ประวัติการทำงาน", icon: "list" as IconKey },
-        { href: "/admin-flags", label: "แก้ยอดซ้ำ/ย้อนหลัง", icon: "flag" as IconKey },
-      ]
-    : []),
+  // ประวัติการบันทึก/แก้ไขของ senior ย้ายไปอยู่กลุ่ม "Logging" ในเมนูหลักแล้ว (แพรสั่ง 2026-08-06)
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },
 ];
