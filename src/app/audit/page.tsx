@@ -1,17 +1,25 @@
 "use client";
-// Audit Log (admin) — ดูประวัติการกระทำ + กรอง action/สาขา
+// Audit Log — ดูประวัติการกระทำ + กรอง action/สาขา
+// admin เห็นทุกสาขา · senior staff เห็นได้ด้วย (แพรสั่ง 2026-08-06) แต่ล็อกแค่สาขาตัวเอง — ซ่อนตัวกรองสาขา/action ระดับบัญชีให้
 import React from "react";
 import type { AuditEntry } from "@/lib/types";
 import { BRANCHES } from "@/lib/types";
 import { GlassCard, Badge, Segmented, PageTitle } from "@/components/ui";
+import { useMe } from "@/components/nav";
 
-const ACTION_OPTS = [
+const ACTION_OPTS_ADMIN = [
   { value: "", label: "ทั้งหมด" },
   { value: "save_stock", label: "สต็อก" },
   { value: "save_sales", label: "ยอดขาย" },
   { value: "create_user", label: "สร้างผู้ใช้" },
   { value: "update_user", label: "แก้ผู้ใช้" },
   { value: "login", label: "ล็อกอิน" },
+];
+// senior ไม่เห็น action ระดับบัญชี/ระบบ (server กรองให้อยู่แล้ว แต่ตัดตัวเลือกที่กดแล้วว่างเปล่าออกไปเลย)
+const ACTION_OPTS_SENIOR = [
+  { value: "", label: "ทั้งหมด" },
+  { value: "save_stock", label: "สต็อก" },
+  { value: "save_sales", label: "ยอดขาย" },
 ];
 const BRANCH_OPTS = [
   { value: "", label: "ทุกสาขา" },
@@ -35,6 +43,11 @@ function fmtTs(ts: string): string {
 }
 
 export default function AuditPage() {
+  const me = useMe();
+  const isAdmin = me?.role === "admin";
+  const isSenior = !isAdmin && !!me?.isSenior;
+  const ACTION_OPTS = isAdmin ? ACTION_OPTS_ADMIN : ACTION_OPTS_SENIOR;
+
   const [rows, setRows] = React.useState<AuditEntry[] | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [forbidden, setForbidden] = React.useState(false);
@@ -46,7 +59,7 @@ export default function AuditPage() {
     try {
       const qs = new URLSearchParams();
       if (action) qs.set("action", action);
-      if (branch) qs.set("branch", branch);
+      if (isAdmin && branch) qs.set("branch", branch);
       const res = await fetch("/api/audit" + (qs.toString() ? "?" + qs.toString() : ""));
       if (res.status === 403) { setForbidden(true); setRows([]); return; }
       const data = (await res.json()) as { rows?: AuditEntry[]; error?: string };
@@ -56,17 +69,23 @@ export default function AuditPage() {
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     }
-  }, [action, branch]);
+  }, [action, branch, isAdmin]);
   React.useEffect(() => { load(); }, [load]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
-      <PageTitle title="Audit Log" right={<Badge tone="blue">Admin</Badge>} />
+      <PageTitle
+        title={isAdmin ? "Audit Log" : "ประวัติการทำงาน"}
+        right={isAdmin ? <Badge tone="blue">Admin</Badge> : <Badge tone="blue">สาขา {me?.branchScope}</Badge>}
+      />
 
       {forbidden ? (
-        <GlassCard><p className="text-sm text-warn">เฉพาะ Admin เท่านั้น</p></GlassCard>
+        <GlassCard><p className="text-sm text-warn">เฉพาะ Admin และ senior staff เท่านั้น</p></GlassCard>
       ) : (
         <>
+          {isSenior && (
+            <p className="mb-3 text-[12px] text-brand-ink/50">เห็นเฉพาะรายการของสาขา {me?.branchScope}</p>
+          )}
           <GlassCard className="mb-3">
             <div className="grid gap-2">
               <div>
@@ -80,10 +99,12 @@ export default function AuditPage() {
                   ))}
                 </div>
               </div>
-              <div>
-                <span className="mb-1 block text-[11px] text-brand-ink/50">สาขา</span>
-                <Segmented options={BRANCH_OPTS} value={branch} onChange={setBranch} />
-              </div>
+              {isAdmin && (
+                <div>
+                  <span className="mb-1 block text-[11px] text-brand-ink/50">สาขา</span>
+                  <Segmented options={BRANCH_OPTS} value={branch} onChange={setBranch} />
+                </div>
+              )}
             </div>
           </GlassCard>
 

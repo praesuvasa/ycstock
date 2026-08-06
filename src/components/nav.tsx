@@ -96,6 +96,7 @@ const ADMIN_TABS: Tab[] = [
 ];
 const ADMIN_MENU: Tab[] = [
   { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
+  { href: "/stock-overview", label: "สรุปสต็อกคงเหลือ", icon: "clipboard" },
   { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
   { href: "/users", label: "ผู้ใช้", icon: "users" },
   { href: "/timeclock-report", label: "รายงานลงเวลา", icon: "clock" },
@@ -134,6 +135,8 @@ const accountMenuFor = (me: Me | null): Tab[] => [
       ]
     : []),
   { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
+  // senior เห็นประวัติการทำงานของสาขาตัวเอง (แพรสั่ง 2026-08-06) — admin เห็นผ่าน "จัดการระบบ" อยู่แล้ว ไม่ต้องซ้ำ
+  ...(me?.isSenior && me.role !== "admin" ? [{ href: "/audit", label: "ประวัติการทำงาน", icon: "list" as IconKey }] : []),
   ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
   { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },
 ];

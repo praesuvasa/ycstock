@@ -1,25 +1,40 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireAdmin, authErrorResponse } from "@/lib/authz";
+import { requireSession, AuthError, authErrorResponse } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/audit?userId=&branch=&action=&limit= → { rows } (admin เท่านั้น)
+// GET /api/audit?userId=&branch=&action=&limit= → { rows }
+// admin เห็นทุกสาขา · senior staff เห็นได้ด้วย (แพรสั่ง 2026-08-06) แต่ล็อกแค่สาขาตัวเอง
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    const s = await requireSession();
+    const isAdmin = s.role === "admin";
+    let isSenior = false;
+    if (!isAdmin) {
+      const me = await db.getUserById(s.userId);
+      isSenior = !!me?.isSenior;
+      if (!isSenior) throw new AuthError("เฉพาะ Admin และ senior staff เท่านั้น", 403);
+    }
     const { searchParams } = new URL(req.url);
     const filter: { userId?: string; branch?: string; action?: string; limit?: number } = {};
     const userId = searchParams.get("userId");
-    const branch = searchParams.get("branch");
     const action = searchParams.get("action");
     const limit = searchParams.get("limit");
     if (userId) filter.userId = userId;
-    if (branch) filter.branch = branch;
     if (action) filter.action = action;
     if (limit && Number.isFinite(Number(limit))) filter.limit = Number(limit);
+    if (isAdmin) {
+      const branch = searchParams.get("branch");
+      if (branch) filter.branch = branch;
+    } else {
+      // senior ผูกสาขาเดียวเสมอ ไม่รับ branch จาก client — กันเห็นสาขาอื่น
+      // ผลพลอยได้: action ระดับบัญชี/ระบบ (create_user, login, ฯลฯ) เขียน branch=null เสมอ
+      // → ไม่ผ่านตัวกรองนี้อยู่แล้ว ไม่ต้องมี blocklist แยกสำหรับ action พวกนั้น
+      if (s.branchScope !== "all") filter.branch = s.branchScope;
+    }
 
-    return NextResponse.json({ rows: await db.listAudit(filter) });
+    return NextResponse.json({ rows: await db.listAudit(filter), isSenior });
   } catch (e: any) {
     const a = authErrorResponse(e);
     if (a) return NextResponse.json(a.body, { status: a.status });
