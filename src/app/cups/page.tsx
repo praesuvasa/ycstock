@@ -193,7 +193,7 @@ export default function CupsPage() {
     const yogurt500 = byCat("Yogurt 500g/Box");
     const softserveCup = items.find((it) => it.name === "Softserve ถ้วยกระดาษ");
     const shake = softserveCup ? [...byCat("Shake แข็ง"), softserveCup] : byCat("Shake แข็ง");
-    const drink = byCat("Drink / แยมกระปุก").filter((it) => it.name !== "Peanut Butter");
+    const drink = byCat("Drink/Yogurt Pouch").filter((it) => it.name !== "Peanut Butter");
     const cereals = byCat("Cereals");
     return { items, acai, smoothies, yogurt500, shake, drink, cereals };
   }, [meta]);
@@ -385,7 +385,7 @@ export default function CupsPage() {
             <ReportTable title="Smoothies (Pre-packed)" lines={smoothiesLines} />
             <ReportTable title="Yogurt 500g/Box" lines={yogurt500Lines} />
             <ReportTable title="Shake (แช่แข็ง)" lines={shakeLines} />
-            <ReportTable title="Drink / แยมกระปุก" lines={drinkLines} />
+            <ReportTable title="Drink/Yogurt Pouch" lines={drinkLines} />
             <ReportTable title="Cereals" lines={cerealsLines} />
 
             <div className="mb-4">

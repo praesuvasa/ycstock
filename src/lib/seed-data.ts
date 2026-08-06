@@ -33,15 +33,15 @@ const RAW: Row[] = [
   ["Softserve ถ้วยกระดาษ", "Soft Serve / Ice Cream", "ถ้วย", 0, 0, null],
   // Shake แข็ง (special)
   ["Shake (แช่แข็ง)", "Shake แข็ง", "ถ้วย", 80, 100, null],
-  // Drink / แยมกระปุก
-  ["Peanut Butter", "Drink / แยมกระปุก", "กระปุก", null, null, null], // ตัด Par ออก 2026-07-19 ไม่มีของเข้า — ถ้ากลับมาใช้จะแจ้งเพิ่มใหม่
-  ["Water น้ำดื่ม", "Drink / แยมกระปุก", "ขวด", 12, 12, null],
-  ["ถุงสตรอเบอรี่", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
-  ["ถุงบลูเบอรี่", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
-  ["ถุงธรรมชาติ", "Drink / แยมกระปุก", "ถุง", 10, 12, 5],
-  ["ถุงลิ้นจี่", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
-  ["ถุงยูส", "Drink / แยมกระปุก", "ถุง", 8, 12, 5],
-  ["ถุงพีช", "Drink / แยมกระปุก", "ถุง", 5, 8, 5],
+  // Drink/Yogurt Pouch
+  ["Peanut Butter", "Drink/Yogurt Pouch", "กระปุก", null, null, null], // ตัด Par ออก 2026-07-19 ไม่มีของเข้า — ถ้ากลับมาใช้จะแจ้งเพิ่มใหม่
+  ["Water น้ำดื่ม", "Drink/Yogurt Pouch", "ขวด", 12, 12, null],
+  ["ถุงสตรอเบอรี่", "Drink/Yogurt Pouch", "ถุง", 8, 12, 5],
+  ["ถุงบลูเบอรี่", "Drink/Yogurt Pouch", "ถุง", 8, 12, 5],
+  ["ถุงธรรมชาติ", "Drink/Yogurt Pouch", "ถุง", 10, 12, 5],
+  ["ถุงลิ้นจี่", "Drink/Yogurt Pouch", "ถุง", 8, 12, 5],
+  ["ถุงยูส", "Drink/Yogurt Pouch", "ถุง", 8, 12, 5],
+  ["ถุงพีช", "Drink/Yogurt Pouch", "ถุง", 5, 8, 5],
   // Cereals
   ["Cornflakes Malt (M)", "Cereals", "กระปุก", 4, 4, null],
   ["Granola (M)", "Cereals", "กระปุก", 4, 4, null],

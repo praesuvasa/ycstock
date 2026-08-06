@@ -51,7 +51,7 @@ const NEW_ITEM_NAMES = ["Cranberry Cookies"];
 // ACAI/Shake แข็ง (2 หมวด special ที่เหลือ) ยืนยันให้อยู่คอลัมซ้าย ต่อท้าย Smoothies (Pre-packed)
 // "Yogurt Shake" เปลี่ยนชื่อเป็น "Yogurt Shake Toppings" 2026-07-21 + ย้ายไปคอลัมขวาต่อจาก Toppings (แพรยืนยัน)
 const PRINT_LEFT_CATEGORIES = [
-  "Yogurt 1kg/Box", "Yogurt 500g/Box", "Soft Serve / Ice Cream", "Drink / แยมกระปุก",
+  "Yogurt 1kg/Box", "Yogurt 500g/Box", "Soft Serve / Ice Cream", "Drink/Yogurt Pouch",
   "Cereals", "Sauces", "Fruits", "Smoothies (Pre-packed)",
   "ACAI", "Shake แข็ง",
 ];
