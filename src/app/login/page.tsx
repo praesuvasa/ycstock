@@ -54,8 +54,10 @@ function LoginForm() {
 
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-brand-ink/55">รหัสเข้าระบบ</span>
+          {/* autoComplete="off" — กัน password manager autofill รหัสเก่าที่เคยบันทึกไว้ตอนตั้ง PIN
+              รอบก่อน ๆ (ดูรายละเอียดที่ set-pin/page.tsx — สาเหตุจริงของ "ล็อกอินไม่ได้ทุกวัน") */}
           <input
-            type="password" inputMode="numeric" autoFocus value={pin}
+            type="password" inputMode="numeric" autoComplete="off" autoFocus value={pin}
             onChange={(e) => setPin(e.target.value)}
             placeholder="••••••" className="field text-center text-xl tracking-[.3em]"
           />

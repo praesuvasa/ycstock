@@ -4,6 +4,12 @@
 // เข้าหน้านี้ 2 ทาง:
 //  1) เข้าครั้งแรกด้วย "รหัสตั้งค่า" จากแอดมิน → middleware บังคับมาที่นี่ ข้ามไม่ได้
 //  2) เข้าเองจากเมนู เพื่อเปลี่ยนรหัสเมื่อไหร่ก็ได้
+//
+// autoComplete="off" ตั้งใจ (เดิมเป็น "new-password") — พบสาเหตุ "ล็อกอินไม่ได้ทุกวัน" (แพร 2026-08-06)
+// จริงๆ รหัสยังถูกต้องเสมอ แต่ browser/password manager เห็น autoComplete="new-password" แล้วเสนอ
+// "บันทึกรหัสผ่าน?" ทุกครั้งที่ตั้ง PIN ใหม่ พอเปลี่ยน PIN บ่อยจะมีรหัสเก่าหลายอันค้างอยู่ใน password
+// manager แล้วมันเดา autofill รหัสเก่าให้ที่หน้า login แทนรหัสปัจจุบัน — "off" ตัดสัญญาณนี้ทิ้ง
+// (ของเก่าที่บันทึกไปแล้วยังต้องให้แพรไปลบเองในตัวจัดการรหัสผ่านของเบราว์เซอร์)
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/components/nav";
@@ -73,7 +79,7 @@ export default function SetPinPage() {
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">รหัสใหม่ (6 หลัก)</span>
             <input
-              inputMode="numeric" type="password" autoComplete="new-password"
+              inputMode="numeric" type="password" autoComplete="off"
               value={pin} onChange={(e) => setPin(digitsOnly(e.target.value))}
               className="field text-center text-[20px] tracking-[.4em]"
               placeholder="••••••"
@@ -82,7 +88,7 @@ export default function SetPinPage() {
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">ยืนยันอีกครั้ง</span>
             <input
-              inputMode="numeric" type="password" autoComplete="new-password"
+              inputMode="numeric" type="password" autoComplete="off"
               value={confirm} onChange={(e) => setConfirm(digitsOnly(e.target.value))}
               className="field text-center text-[20px] tracking-[.4em]"
               placeholder="••••••"
