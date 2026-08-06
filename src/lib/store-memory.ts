@@ -96,11 +96,12 @@ const restockReceipts = new Map<string, RestockReceiptRec>(); // key = sk(date,b
 interface AdminFlagRec {
   id: number; branch: Branch; date: string; itemId: string | null; itemName: string;
   reason: AdminFlagReason; detail: string; createdAt: string; resolvedAt?: string; resolvedBy?: string;
+  editedBy?: string;
 }
 const adminFlags: AdminFlagRec[] = [];
 let adminFlagSeq = 1;
-function pushAdminFlag(branch: Branch, date: string, itemId: string | null, itemName: string, reason: AdminFlagReason, detail: string) {
-  adminFlags.push({ id: adminFlagSeq++, branch, date, itemId, itemName, reason, detail, createdAt: new Date().toISOString() });
+function pushAdminFlag(branch: Branch, date: string, itemId: string | null, itemName: string, reason: AdminFlagReason, detail: string, editedBy?: string) {
+  adminFlags.push({ id: adminFlagSeq++, branch, date, itemId, itemName, reason, detail, createdAt: new Date().toISOString(), editedBy });
 }
 
 // ── ใบสั่งผลิต (v1.5) ──
@@ -327,7 +328,7 @@ export const memoryStore = {
     return { savedAt: null, savedBy: null };
   },
 
-  saveStock(branch: Branch, date: string, rows: StockRow[], _userName?: string, isAdminActor?: boolean) {
+  saveStock(branch: Branch, date: string, rows: StockRow[], userName?: string, isAdminActor?: boolean) {
     seed();
     let updated = 0, inserted = 0;
     for (const r of rows) {
@@ -375,7 +376,7 @@ export const memoryStore = {
         // แอดมินแก้เองไม่ต้องขึ้นแจ้งเตือน (แพรขอ 2026-08-06) — เหมือน supabase.ts
         if (changes.length && !isAdminActor) {
           pushAdminFlag(branch, date, r.itemId, itemName, isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",
-            `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`);
+            `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`, userName);
         }
       }
 

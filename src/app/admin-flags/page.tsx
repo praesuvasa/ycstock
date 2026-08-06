@@ -100,6 +100,7 @@ export default function AdminFlagsPage() {
                     <Badge tone="blue">{f.branch}</Badge>
                   </div>
                   <div className="mt-0.5 text-[11px] text-brand-ink/50">
+                    {f.editedBy && <>แก้โดย <span className="font-medium text-brand-ink/70">{f.editedBy}</span> · </>}
                     {f.detail} · {thaiDate(f.date)} · {fmtWhen(f.createdAt)}
                   </div>
                 </div>

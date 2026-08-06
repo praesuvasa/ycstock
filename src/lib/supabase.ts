@@ -641,6 +641,7 @@ export const supabaseStore = {
             branch_id: branch, date, item_id: r.itemId, item_name: await nameOf(),
             reason: isBackdated ? "stock_backdated_edit" : "stock_same_day_edit",
             detail: `${isBackdated ? "แก้ย้อนหลัง" : "แก้ไขซ้ำ (วันนี้)"} · ${changes.join(" · ")}`,
+            edited_by: userName ?? null,
           });
         }
       }
@@ -1850,6 +1851,7 @@ export const supabaseStore = {
       id: f.id, branch: f.branch_id, date: f.date, itemId: f.item_id, itemName: f.item_name,
       reason: f.reason, detail: f.detail, createdAt: f.created_at,
       resolvedAt: f.resolved_at ?? undefined, resolvedBy: f.resolved_by ?? undefined,
+      editedBy: f.edited_by ?? undefined,
     }));
   },
 

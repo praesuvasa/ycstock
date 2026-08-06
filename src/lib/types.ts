@@ -577,6 +577,9 @@ export interface AdminFlag {
   createdAt: string;   // ISO
   resolvedAt?: string; // ISO — undefined = ยังไม่ตรวจ
   resolvedBy?: string;
+  // ใครเป็นคนแก้ (แพรขอ 2026-08-06) — ตอนนี้เติมให้เฉพาะ stock_same_day_edit/stock_backdated_edit
+  // เพราะเป็นจุดเดียวที่รู้ตัวคนแก้ชัดเจนจาก saveStock ตอนนี้
+  editedBy?: string;
 }
 
 export interface AuditEntry {
