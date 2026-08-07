@@ -11,17 +11,20 @@ function fail(e: unknown, msg: string) {
   return NextResponse.json({ error: (e as any)?.message ?? msg }, { status: 500 });
 }
 
-// GET /api/requisitions?mine=1 หรือ ?branch=NVP
-// role user → เห็นแค่ของตัวเองเสมอ (ไม่สนใจ query) · role restock/admin → เห็นทั้งหมด เลือก filter สาขาได้
+// GET /api/requisitions?mine=1 หรือ ?branch=NVP&date=YYYY-MM-DD
+// role user → เห็นแค่ของตัวเองเสมอ (ไม่สนใจ query) · role restock/admin → เห็นทั้งหมด เลือก filter สาขา/วันที่ได้
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
     const { searchParams } = new URL(req.url);
     const mineOnly = s.role === "user" || searchParams.get("mine") === "1";
     const branch = parseBranch(searchParams.get("branch"));
+    const dateParam = searchParams.get("date");
+    const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
     const rows = await db.listRequisitions({
       userId: mineOnly ? s.userId : undefined,
       branch: branch ?? undefined,
+      date,
       limit: 100,
     });
     return NextResponse.json({ rows });
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
     const qty = Number(body.qty);
     if (!Number.isFinite(qty) || qty <= 0) return NextResponse.json({ error: "จำนวนต้องมากกว่า 0" }, { status: 400 });
 
-    const input: Omit<Requisition, "id" | "createdAt"> = {
+    const input: Omit<Requisition, "id" | "createdAt" | "status"> = {
       branch, itemId: body.itemId || undefined, itemName, qty,
       unit: body.unit?.trim() || undefined, note: (body.note ?? "").trim(),
       requestedBy: s.name, requestedByUserId: s.userId,

@@ -19,6 +19,9 @@ const users: UserRec[] = [
 ];
 const auditRows: AuditEntry[] = [];
 const requisitions: Requisition[] = [];
+// ISO timestamp → วันที่ตามเวลาไทย (YYYY-MM-DD) — ใช้กรองคำขอเบิกเป็นรายวัน
+const bangkokDateOf = (iso: string): string =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date(iso));
 let noticeSeq = 1;
 const branchNotices: BranchNotice[] = [];
 
@@ -701,19 +704,21 @@ export const memoryStore = {
   },
 
   // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──
-  createRequisition(input: Omit<Requisition, "id" | "createdAt">): Requisition {
+  createRequisition(input: Omit<Requisition, "id" | "createdAt" | "status">): Requisition {
     const rec: Requisition = {
       ...input,
       id: "req-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       createdAt: new Date().toISOString(),
+      status: "pending",
     };
     requisitions.unshift(rec);
     return rec;
   },
-  listRequisitions(filter: { userId?: string; branch?: string; limit?: number }): Requisition[] {
+  listRequisitions(filter: { userId?: string; branch?: string; limit?: number; date?: string }): Requisition[] {
     let rows = requisitions;
     if (filter.userId) rows = rows.filter((r) => r.requestedByUserId === filter.userId);
     if (filter.branch) rows = rows.filter((r) => r.branch === filter.branch);
+    if (filter.date) rows = rows.filter((r) => bangkokDateOf(r.createdAt) === filter.date);
     return rows.slice(0, filter.limit ?? 100);
   },
   countUnseenRequisitions(): number {
@@ -722,6 +727,30 @@ export const memoryStore = {
   markAllRequisitionsSeen(): void {
     const now = new Date().toISOString();
     for (const r of requisitions) if (!r.seenAt) r.seenAt = now;
+  },
+  // ย้ายคำขอเบิกไปเป็นรายการพิเศษในเมนู "ต้องเติม" ของสาขา+วันที่ระบุ (แพรขอ 2026-08-07)
+  moveRequisitionToRestock(id: string, date: string, _actorUserId: string, actorName: string): Requisition {
+    const req = requisitions.find((r) => r.id === id);
+    if (!req) throw new Error("ไม่พบคำขอเบิกนี้");
+    if (req.status === "moved") throw new Error("รายการนี้ถูกย้ายไปแล้ว");
+
+    const key = `${req.branch}|${date}`;
+    const existing = restockExtraItems.get(key) ?? [];
+    const now = new Date().toISOString();
+    restockExtraItems.set(key, [
+      ...existing,
+      {
+        name: `${req.itemName}${req.unit ? ` (${req.unit})` : ""}`,
+        qty: req.qty,
+        note: `จากคำขอเบิกของ ${req.requestedBy}${req.note ? ` — ${req.note}` : ""}`,
+        createdByUserId: _actorUserId, createdByName: actorName, createdAt: now,
+      },
+    ]);
+
+    req.status = "moved";
+    req.movedAt = now;
+    req.movedBy = actorName;
+    return { ...req };
   },
 
   // ── ประกาศพิเศษ (v1.6) ──

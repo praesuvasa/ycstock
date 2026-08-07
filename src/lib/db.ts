@@ -105,14 +105,19 @@ export const db = {
     useSupabase ? supabaseStore.listAudit(filter) : Promise.resolve(memoryStore.listAudit(filter)),
 
   // ── ขอเบิกสินค้า ──
-  createRequisition: (input: Omit<Requisition, "id" | "createdAt">) =>
+  createRequisition: (input: Omit<Requisition, "id" | "createdAt" | "status">) =>
     useSupabase ? supabaseStore.createRequisition(input) : Promise.resolve(memoryStore.createRequisition(input)),
-  listRequisitions: (filter: { userId?: string; branch?: string; limit?: number }) =>
+  listRequisitions: (filter: { userId?: string; branch?: string; limit?: number; date?: string }) =>
     useSupabase ? supabaseStore.listRequisitions(filter) : Promise.resolve(memoryStore.listRequisitions(filter)),
   countUnseenRequisitions: () =>
     useSupabase ? supabaseStore.countUnseenRequisitions() : Promise.resolve(memoryStore.countUnseenRequisitions()),
   markAllRequisitionsSeen: () =>
     useSupabase ? supabaseStore.markAllRequisitionsSeen() : Promise.resolve(memoryStore.markAllRequisitionsSeen()),
+  // ย้ายคำขอเบิกไปเป็นรายการพิเศษในเมนู "ต้องเติม" ของสาขา+วันที่ (admin/restock เท่านั้น — เช็คสิทธิ์ที่ route)
+  moveRequisitionToRestock: (id: string, date: string, actorUserId: string, actorName: string) =>
+    useSupabase
+      ? supabaseStore.moveRequisitionToRestock(id, date, actorUserId, actorName)
+      : Promise.resolve(memoryStore.moveRequisitionToRestock(id, date, actorUserId, actorName)),
 
   // ── ประกาศพิเศษ (v1.6) ──
   listActiveNotices: (branch: Branch): Promise<BranchNotice[]> =>

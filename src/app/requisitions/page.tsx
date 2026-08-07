@@ -1,14 +1,17 @@
 "use client";
 // M4 · ขอเบิกสินค้า — พนักงานสาขา (user/admin) ส่งคำขอของเกิน Par หรือของนอกลิสต์
-// ไม่มีสถานะติดตาม (ยืนยันกับแพรแล้ว) — แค่ list ให้ restock/admin กวาดดูตอนเตรียมสั่งผลิต/เติมของ
+// v1.31 (แพรขอ 2026-08-07) — admin/restock กรองดูเป็นวันได้ + ย้ายรายการที่จะเติมจริงไปเมนู "ต้องเติม"
+// สถานะ (pending/moved) เห็นเฉพาะ admin/restock — พนักงานทั่วไป (role user) ไม่เห็นเลย ไม่ส่งไปแสดงในส่วน "คำขอของฉัน"
 import React from "react";
 import type { Branch, Meta, BranchNotice } from "@/lib/types";
 import { useMe } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Button, Badge } from "@/components/ui";
+import { todayISO } from "@/lib/fmt";
 
 interface RequisitionRow {
   id: string; branch: Branch; itemId?: string; itemName: string; qty: number; unit?: string;
   note: string; requestedBy: string; createdAt: string;
+  status?: "pending" | "moved"; movedAt?: string; movedBy?: string;
 }
 
 type PickMode = "existing" | "custom";
@@ -30,6 +33,13 @@ function beDate(d: Date): string {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear() + 543;
   return `${dd}/${mm}/${yyyy}`;
+}
+// yyyy-mm-dd จาก local components — ห้ามใช้ toISOString() ตรงๆ ที่นี่ เพราะแปลงเป็น UTC ก่อน
+// อาจได้วันที่เพี้ยนไป 1 วันถ้าเปิดหน้านี้ช่วงเช้ามืด (ก่อน 07:00 เวลาไทย = ยังเป็นเมื่อวานใน UTC)
+function isoDate(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 function atNoon(d: Date): Date { const x = new Date(d); x.setHours(12, 0, 0, 0); return x; }
 function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
@@ -91,6 +101,9 @@ export default function RequisitionsPage() {
   const [myRows, setMyRows] = React.useState<RequisitionRow[]>([]);
   const [allRows, setAllRows] = React.useState<RequisitionRow[]>([]);
   const [loadingAll, setLoadingAll] = React.useState(true);
+  // ว่าง = ดูทั้งหมด (ไม่กรองวัน) · ค่าเริ่มต้นวันนี้ กันคำขอทุกวันไหลรวมกันหน้าเดียว (แพรขอ 2026-08-07)
+  const [filterDate, setFilterDate] = React.useState(todayISO());
+  const [movingId, setMovingId] = React.useState<string | null>(null);
 
   const loadMine = React.useCallback(() => {
     if (!canSubmit) return;
@@ -103,15 +116,34 @@ export default function RequisitionsPage() {
   const loadAll = React.useCallback(() => {
     if (!(isRestock || isAdmin)) return;
     setLoadingAll(true);
-    fetch("/api/requisitions")
+    const qs = filterDate ? `?date=${filterDate}` : "";
+    fetch(`/api/requisitions${qs}`)
       .then((r) => r.json())
       .then((d: { rows?: RequisitionRow[] }) => setAllRows(d.rows ?? []))
       .finally(() => setLoadingAll(false))
       .catch(() => setLoadingAll(false));
-  }, [isRestock, isAdmin]);
+  }, [isRestock, isAdmin, filterDate]);
 
   React.useEffect(() => { loadMine(); }, [loadMine]);
   React.useEffect(() => { loadAll(); }, [loadAll]);
+
+  async function handleMoveToRestock(r: RequisitionRow) {
+    setMovingId(r.id);
+    try {
+      const res = await fetch("/api/requisitions/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: r.id, date: isoDate(round.deliveryDate) }),
+      });
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "ย้ายไม่สำเร็จ");
+      loadAll();
+    } catch (e: any) {
+      window.alert(`ย้ายไม่สำเร็จ: ${e?.message ?? e}`);
+    } finally {
+      setMovingId(null);
+    }
+  }
 
   // เปิดหน้านี้ (list รวม) = ถือว่าเห็นคำขอค้างทั้งหมดแล้ว — เคลียร์ badge ให้ทั้งทีม (restock/admin)
   React.useEffect(() => {
@@ -279,24 +311,65 @@ export default function RequisitionsPage() {
 
       {(isRestock || isAdmin) && (
         <GlassCard>
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[15px] font-semibold">คำขอเบิกทั้งหมด (ทุกสาขา)</h2>
-            <span className="text-xs text-brand-ink/50">{allRows.length} รายการล่าสุด</span>
+            <span className="text-xs text-brand-ink/50">{allRows.length} รายการ</span>
           </div>
+
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <input
+              type="date" value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-xs"
+            />
+            {filterDate !== todayISO() && (
+              <button
+                type="button" onClick={() => setFilterDate(todayISO())}
+                className="rounded-lg border border-black/5 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-ink"
+              >
+                วันนี้
+              </button>
+            )}
+            {filterDate && (
+              <button
+                type="button" onClick={() => setFilterDate("")}
+                className="rounded-lg border border-black/5 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-ink"
+              >
+                ดูทั้งหมด
+              </button>
+            )}
+          </div>
+
           {loadingAll ? (
             <p className="py-4 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
           ) : allRows.length === 0 ? (
-            <p className="py-4 text-center text-sm text-brand-ink/50">ยังไม่มีคำขอเบิก</p>
+            <p className="py-4 text-center text-sm text-brand-ink/50">
+              {filterDate ? "ไม่มีคำขอเบิกในวันนี้" : "ยังไม่มีคำขอเบิก"}
+            </p>
           ) : (
             <div className="grid gap-1.5">
               {allRows.map((r) => (
                 <div key={r.id} className="rounded-lg bg-black/[.02] px-2.5 py-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-medium">{fmtRow(r)}</span>
-                    <Badge tone="blue">{r.branch}</Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[13px] font-medium">{fmtRow(r)}</span>
+                      <Badge tone="blue">{r.branch}</Badge>
+                      {r.status === "moved" && <Badge tone="ok">ย้ายแล้ว</Badge>}
+                    </div>
+                    {r.status !== "moved" && (
+                      <button
+                        type="button"
+                        onClick={() => handleMoveToRestock(r)}
+                        disabled={movingId === r.id}
+                        className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold text-brand-ink disabled:opacity-50"
+                      >
+                        {movingId === r.id ? "กำลังย้าย…" : "ย้ายไปต้องเติม"}
+                      </button>
+                    )}
                   </div>
                   <div className="text-[11px] text-brand-ink/50">
                     {r.requestedBy} · {fmtWhen(r.createdAt)}{r.note ? ` · ${r.note}` : ""}
+                    {r.status === "moved" && r.movedBy ? ` · ย้ายโดย ${r.movedBy}` : ""}
                   </div>
                 </div>
               ))}

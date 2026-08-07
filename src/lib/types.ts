@@ -383,6 +383,12 @@ export interface Requisition {
   requestedByUserId: string;
   createdAt: string;   // ISO
   seenAt?: string;     // ISO — undefined/null = ยังไม่มีใครเปิดดู (ใช้ทำ badge เตือนที่เมนู/Dashboard)
+  // สถานะติดตาม (แพรขอ 2026-08-07) — admin/restock เห็นเท่านั้น พนักงาน (role user) ห้ามเห็น
+  // "moved" = แอดมิน/restock ย้ายเข้าไปเป็นรายการพิเศษในเมนูต้องเติมของวันที่เลือกแล้ว
+  // "pending" = ยังไม่ได้ย้าย (รอรอบถัดไป/รอของ/ยังไม่ตัดสินใจ) — ไม่มีเหตุผลย่อยแยก ใช้ค่าเดียวคลุมทุกกรณีรอ
+  status: "pending" | "moved";
+  movedAt?: string;    // ISO
+  movedBy?: string;    // ชื่อคนกดย้าย
 }
 
 // ── หลักฐานยอดขาย (v1.7) — แนบรูปสลิป/สรุปยอด ให้ Claude vision อ่านยอด+ชื่อผู้รับ เทียบกับที่กรอก ──

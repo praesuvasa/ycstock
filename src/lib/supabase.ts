@@ -1103,7 +1103,7 @@ export const supabaseStore = {
   },
 
   // ── ขอเบิกสินค้า (ไม่มีสถานะ แค่ log ให้ restock/admin กวาดดู) ──
-  async createRequisition(input: Omit<Requisition, "id" | "createdAt">): Promise<Requisition> {
+  async createRequisition(input: Omit<Requisition, "id" | "createdAt" | "status">): Promise<Requisition> {
     const { data, error } = await sb().from("requisitions").insert({
       branch_id: input.branch, item_id: input.itemId ?? null, item_name: input.itemName,
       qty: input.qty, unit: input.unit ?? null, note: input.note,
@@ -1112,10 +1112,17 @@ export const supabaseStore = {
     if (error) throw error;
     return rowFromReqDb(data);
   },
-  async listRequisitions(filter: { userId?: string; branch?: string; limit?: number }): Promise<Requisition[]> {
+  // date = กรองเฉพาะคำขอที่ส่งใน "วันนั้น" ตามเวลาไทย (แพรขอ 2026-08-07 — เดิมทุกคำขอไหลรวมกันหน้าเดียวยาวเกินไป)
+  async listRequisitions(filter: { userId?: string; branch?: string; limit?: number; date?: string }): Promise<Requisition[]> {
     let q = sb().from("requisitions").select("*").order("created_at", { ascending: false }).limit(filter.limit ?? 100);
     if (filter.userId) q = q.eq("requested_by_user_id", filter.userId);
     if (filter.branch) q = q.eq("branch_id", filter.branch);
+    if (filter.date) {
+      const start = `${filter.date}T00:00:00+07:00`;
+      const nextDay = new Date(start);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      q = q.gte("created_at", start).lt("created_at", nextDay.toISOString());
+    }
     const { data, error } = await q;
     if (error) throw error;
     return (data ?? []).map(rowFromReqDb);
@@ -1128,6 +1135,29 @@ export const supabaseStore = {
   async markAllRequisitionsSeen(): Promise<void> {
     const { error } = await sb().from("requisitions").update({ seen_at: new Date().toISOString() }).is("seen_at", null);
     if (error) throw error;
+  },
+  // ย้ายคำขอเบิกไปเป็นรายการพิเศษในเมนู "ต้องเติม" ของสาขา+วันที่ระบุ (แพรขอ 2026-08-07)
+  // เก็บของเดิมในชุด extra items ไว้ครบ (ไม่ใช่ replace) เพราะ saveRestockExtraItems เป็น full-replace ต่อ (branch,date)
+  async moveRequisitionToRestock(id: string, date: string, actorUserId: string, actorName: string): Promise<Requisition> {
+    const { data: reqRow, error: reqErr } = await sb().from("requisitions").select("*").eq("id", id).maybeSingle();
+    if (reqErr) throw reqErr;
+    if (!reqRow) throw new Error("ไม่พบคำขอเบิกนี้");
+    const req = rowFromReqDb(reqRow);
+    if (req.status === "moved") throw new Error("รายการนี้ถูกย้ายไปแล้ว");
+
+    const extras = await this.getRestockExtraItems(req.branch, date);
+    extras.push({
+      name: `${req.itemName}${req.unit ? ` (${req.unit})` : ""}`,
+      qty: req.qty,
+      note: `จากคำขอเบิกของ ${req.requestedBy}${req.note ? ` — ${req.note}` : ""}`,
+    });
+    await this.saveRestockExtraItems(req.branch, date, extras, actorUserId, actorName);
+
+    const { data: updated, error: updErr } = await sb().from("requisitions")
+      .update({ status: "moved", moved_at: new Date().toISOString(), moved_by: actorName })
+      .eq("id", id).select().single();
+    if (updErr) throw updErr;
+    return rowFromReqDb(updated);
   },
 
   // ── ประกาศพิเศษ (v1.6) ──
@@ -2048,6 +2078,8 @@ function rowFromReqDb(r: any): Requisition {
     qty: Number(r.qty), unit: r.unit ?? undefined, note: r.note ?? "",
     requestedBy: r.requested_by, requestedByUserId: r.requested_by_user_id, createdAt: r.created_at,
     seenAt: r.seen_at ?? undefined,
+    status: (r.status ?? "pending") as "pending" | "moved",
+    movedAt: r.moved_at ?? undefined, movedBy: r.moved_by ?? undefined,
   };
 }
 
