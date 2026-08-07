@@ -1,10 +1,31 @@
 // Shared types — สัญญากลางของทั้งระบบ (BFF + UI ใช้ร่วมกัน)
 
-export type Branch = "SND" | "NVP" | "KCN";
-export const BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
+export type Branch = "SND" | "NVP" | "KCN" | "NCD";
+export const BRANCHES: Branch[] = ["SND", "NVP", "KCN", "NCD"];
 export const BRANCH_LABEL_TH: Record<Branch, string> = {
-  SND: "สินธร", NVP: "เนอวาน่า พอร์ช", KCN: "กาญจนาภิเษก",
+  SND: "สินธร", NVP: "เนอวาน่า พอร์ช", KCN: "กาญจนาภิเษก", NCD: "นิชดา",
 };
+
+// เฉพาะ SND/NVP/KCN ที่ใช้ในระบบ "สั่งผลิต" (production_order_items.branch_key มี CHECK
+// constraint จำกัดแค่ 4 ค่า SND/NVP/KCN/OTHER อยู่แล้ว — NCD ยังไม่รองรับตรงนี้ ใช้ค่านี้แทน
+// BRANCHES ตรงๆ ที่จุดที่ loop เพื่อดึงข้อมูลมารวมเข้าโหมดสั่งผลิต กัน fetch เปล่าไปเปล่ามา)
+export const PROD_ORDER_BRANCHES: Branch[] = ["SND", "NVP", "KCN"];
+
+// NCD ยังเปิดให้เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07 — ทดลองใช้เองก่อนเปิดจริง ก.ย. 2569)
+// ใช้จุดที่ "แสดง/ให้เลือก" สาขาเท่านั้น — ห้ามใช้กรอง BRANCHES ที่ใช้ validate/loop ภายใน
+// (parseBranch, getMeta, getStock ฯลฯ ต้องรู้จัก NCD เต็มที่ ไม่งั้นแอดมินเองก็ใช้ไม่ได้)
+export function visibleBranches(role: Role | null | undefined): Branch[] {
+  return role === "admin" ? BRANCHES : BRANCHES.filter((b) => b !== "NCD");
+}
+
+// ชื่อ/หมวดที่ NCD เห็นต่างจากสาขาอื่น (แพรสั่ง 2026-08-07) — ไม่มีผลกับ SND/NVP/KCN เลย
+// เพราะเช็ค branch === "NCD" ก่อนเสมอ ไม่งั้นคืนค่าเดิมของ item ตรงๆ
+export function displayNameFor(item: Item, branch: Branch): string {
+  return branch === "NCD" && item.ncdDisplayName ? item.ncdDisplayName : item.name;
+}
+export function displayCategoryFor(item: Item, branch: Branch): string {
+  return branch === "NCD" && item.ncdToGoCategory ? item.ncdToGoCategory : item.category;
+}
 
 export type Weekday = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 export type CupSize = "P" | "S" | "BOWL" | "14OZ";
@@ -76,6 +97,11 @@ export interface Item {
   expiryConvertG?: number | null;  // กรัมที่เข้าไปเพิ่มให้ปลายทาง ต่อ 1 หน่วยต้นทาง
   // ไม่ระบุ = "yc" (ของทั้งหมดที่มีอยู่ก่อน Staple เปิด)
   brand?: ItemBrand;
+  // ── เฉพาะ NCD (v1.30) — ไม่มีผลกับสาขาอื่นเลย อ่านผ่าน displayNameFor/displayCategoryFor เท่านั้น ──
+  // ชื่อที่ NCD เห็นแทนชื่อจริง (เช่น "Cup (14oz)" ของ YC/Staple โลโก้คนละแบบ ต้องเรียกชื่อต่างกัน)
+  ncdDisplayName?: string | null;
+  // หมวดโซน "To-Go" ที่ NCD เท่านั้น (ลูกค้าหยิบเองได้) — ของเดิมยังอยู่หมวดปกติที่สาขาอื่น
+  ncdToGoCategory?: string | null;
 }
 
 // config ที่ตั้งได้ต่อ item (หน้า Settings)

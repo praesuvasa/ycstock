@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { BRANCHES } from "@/lib/types";
+import { visibleBranches } from "@/lib/types";
 import type { Branch } from "@/lib/types";
 import { requireSession, authErrorResponse } from "@/lib/authz";
 import { weekdayFromDate, isExpiryCheckDue } from "@/lib/calc";
@@ -23,8 +23,9 @@ export async function GET() {
     if (!isExpiryCheckDue(weekdayFromDate(today))) return NextResponse.json({ count: 0, due: false });
 
     const done = new Set(await db.getBranchesWithExpiryCheck(today));
+    // NCD ยังไม่มีคนตรวจวันหมดอายุจริง — scope="all" (restock) ไม่ควรนับ NCD ปนจนตัวเลข badge เพี้ยน (แพร 2026-08-07)
     const scope = s.branchScope;
-    const targets: Branch[] = scope === "all" ? [...BRANCHES] : [scope as Branch];
+    const targets: Branch[] = scope === "all" ? visibleBranches(s.role) : [scope as Branch];
     const count = targets.filter((b) => !done.has(b)).length;
     return NextResponse.json({ count, due: true });
   } catch (e) {

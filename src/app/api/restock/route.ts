@@ -11,11 +11,15 @@ const VALID_DAYS: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 // day รับได้ทุกวันในสัปดาห์ (ไม่ใช่แค่ wed/sat) — ตั้งแต่หน้า restock เปลี่ยนมาใช้ date picker จริง
 export async function GET(req: NextRequest) {
   try {
-    await requireAdminOrRestock();
+    const s = await requireAdminOrRestock();
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
       return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+    }
+    // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — เหมือน /api/restock/selections
+    if (branch === "NCD" && s.role !== "admin") {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
     }
     const day = searchParams.get("day") as Weekday | null;
     if (!day || !VALID_DAYS.includes(day)) {

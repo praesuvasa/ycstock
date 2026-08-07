@@ -17,11 +17,16 @@ function fail(e: unknown, msg: string) {
 // ยังไม่เคย save (branch,date) นี้เลย → entries = {} (ไม่ error) — client fallback ไป default จาก need/PAR เอง
 export async function GET(req: NextRequest) {
   try {
-    await requireAdminOrRestock();
+    const s = await requireAdminOrRestock();
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
       return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+    }
+    // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — route นี้ไม่ผ่าน resolveBranch เพราะ restock
+    // ต้องข้ามสาขาได้ปกติ จึงต้องกันเฉพาะ NCD ตรงนี้แทน ไม่ให้ restock role ยิง ?branch=NCD ตรงๆ ได้
+    if (branch === "NCD" && s.role !== "admin") {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
     }
     const date = searchParams.get("date");
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
@@ -49,6 +54,9 @@ export async function POST(req: NextRequest) {
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
       return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+    }
+    if (branch === "NCD" && s.role !== "admin") {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
     }
     const date = body.date;
     if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });

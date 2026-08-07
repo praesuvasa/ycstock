@@ -19,6 +19,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const mineOnly = s.role === "user" || searchParams.get("mine") === "1";
     const branch = parseBranch(searchParams.get("branch"));
+    // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — เหมือน /api/restock: role restock ไม่ผ่าน resolveBranch
+    // ตรงนี้ (list ทุกสาขาได้ปกติ) จึงต้องกันเฉพาะ NCD เพิ่มเอง
+    if (branch === "NCD" && s.role !== "admin") {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
+    }
     const dateParam = searchParams.get("date");
     const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
     const rows = await db.listRequisitions({

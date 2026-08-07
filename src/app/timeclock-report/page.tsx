@@ -6,9 +6,10 @@
 // ตัวเลขที่แก้ได้เงียบ ๆ ไม่มีใครเชื่อ แล้วระบบลงเวลาทั้งระบบก็เสียเปล่า
 import React from "react";
 import { GlassCard, PageTitle, Button, Badge } from "@/components/ui";
-import { BRANCHES } from "@/lib/types";
+import { visibleBranches } from "@/lib/types";
 import type { Branch, TimeClockEntry } from "@/lib/types";
 import { thaiDate } from "@/lib/fmt";
+import { useMe } from "@/components/nav";
 
 interface Row extends TimeClockEntry { minutes: number | null }
 interface Summary { userId: string; userName: string; minutes: number; shifts: number; openShifts: number; days: number }
@@ -25,6 +26,7 @@ const thisMonth = (): string => new Date(Date.now() + 7 * 3600_000).toISOString(
 const timeValue = (iso: string): string => new Date(new Date(iso).getTime() + 7 * 3600_000).toISOString().slice(11, 16);
 
 export default function TimeClockReportPage() {
+  const me = useMe();
   const [month, setMonth] = React.useState(thisMonth());
   const [branch, setBranch] = React.useState<Branch | "">("");
   const [data, setData] = React.useState<Resp | null>(null);
@@ -59,7 +61,7 @@ export default function TimeClockReportPage() {
             >
               ทุกสาขา
             </button>
-            {BRANCHES.map((b) => (
+            {visibleBranches(me?.role).map((b) => (
               <button
                 key={b} type="button" onClick={() => setBranch(b)}
                 className={`rounded-full px-3 py-1.5 text-[12px] font-medium ${branch === b ? "bg-brand-ink text-white" : "border border-black/10 bg-white/70"}`}

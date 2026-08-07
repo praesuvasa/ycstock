@@ -1,7 +1,7 @@
 // Supabase-backed store (production path, USE_SUPABASE=1). เข้าถึงจาก BFF เท่านั้น
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, Item, ParMap, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, ExpiryCheckRow, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
-import { BRANCHES } from "./types";
+import { BRANCHES, displayNameFor, displayCategoryFor } from "./types";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY } from "./calc";
 import { hashPasscode, verifyPasscode, generateSetupCode, SETUP_CODE_TTL_HOURS, passcodeLookupHash } from "./auth";
 import { todayBangkok } from "./fmt";
@@ -691,7 +691,10 @@ export const supabaseStore = {
       // ไม่ตัด special ที่ไม่ถึงรอบออกอีกต่อไป — ส่งกลับมาให้หน้า UI แยกไปโชว์ในส่วน "สั่งฉุกเฉินนอกรอบ" แทน
       // (ใช้ active/specialActive ตัดสินใจแยกส่วนที่ฝั่ง frontend, ดู restock/page.tsx RestockByBranch)
       const remain = remainMap.get(it.id) ?? 0;
-      rows.push({ itemId: it.id, name: it.name, category: it.category, unit: it.unit,
+      // เฉพาะ NCD — ชื่อ/หมวดที่แสดงอาจต่างจากสาขาอื่น (ดู displayNameFor/displayCategoryFor)
+      // แก้ตรงนี้จุดเดียวพอ เพราะ RestockRow.name/category เป็น string แบนที่ทุกจุดใน
+      // restock/page.tsx (จัดกลุ่ม/ใบพิมพ์/CSV) ใช้ต่อโดยตรง ไม่ได้อ้างกลับไปที่ Item เดิม
+      rows.push({ itemId: it.id, name: displayNameFor(it, branch), category: displayCategoryFor(it, branch), unit: it.unit,
         par: p, remain, need: restockNeed(p, remain), isSpecial: it.isSpecial,
         remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
         isCup: it.isCup || undefined, hasVariableYield: it.variableYield || undefined });

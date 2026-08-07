@@ -1,7 +1,8 @@
 "use client";
 // Glass UI kit — ทุก module ใช้ร่วมกัน (อย่าแก้ signature)
 import React from "react";
-import { BRANCHES } from "@/lib/types";
+import { visibleBranches } from "@/lib/types";
+import { useMe } from "@/components/nav";
 
 export function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`glass p-4 sm:p-5 ${className}`}>{children}</div>;
@@ -47,7 +48,9 @@ export function Segmented<T extends string>({ options, value, onChange }: {
 export function BranchPicker<T extends string>({ value, onChange, locked, options }: {
   options?: { value: T; label: string }[]; value: T; onChange: (v: T) => void; locked?: boolean;
 }) {
-  const opts = options ?? BRANCHES.map((b) => ({ value: b as unknown as T, label: `สาขา ${b}` }));
+  // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — filter ตรงนี้ที่เดียว ครอบคลุมทุกหน้าที่ใช้ BranchPicker
+  const me = useMe();
+  const opts = options ?? visibleBranches(me?.role).map((b) => ({ value: b as unknown as T, label: `สาขา ${b}` }));
   if (locked) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-black/5 bg-white/70 px-3 py-2">

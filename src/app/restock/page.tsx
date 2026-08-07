@@ -16,7 +16,7 @@ import type {
   // alias กัน ProductionOrder/ProductionOrderItem (type) ชนชื่อกับ component ProductionOrder เดิมในไฟล์นี้ — ดู spec ข้อ 8
   ProductionOrder as ProductionOrderRecord, ProductionOrderItem as ProductionOrderItemRecord,
 } from "@/lib/types";
-import { BRANCH_LABEL_TH, BRANCHES } from "@/lib/types";
+import { BRANCH_LABEL_TH, PROD_ORDER_BRANCHES } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
 
@@ -54,10 +54,16 @@ const PRINT_LEFT_CATEGORIES = [
   "Yogurt 1kg/Box", "Yogurt 500g/Box", "Soft Serve / Ice Cream", "Drink/Yogurt Pouch",
   "Cereals", "Sauces", "Fruits", "Smoothies (Pre-packed)",
   "ACAI", "Shake แข็ง",
+  // เฉพาะ NCD — หมวดใหม่จาก NCD_Brand_Tagging.xlsx (แพร 2026-08-07) ไม่มีผลกับสาขาอื่นเพราะไม่มีของจริงในหมวดพวกนี้เลย
+  "Bread", "Cheese", "Meat", "Sause Spread", "Smoothies/Juice", "Vegetable",
+  // โซน To-Go (NCD เท่านั้น) — จัดกลุ่มท้ายคอลัมน์ซ้ายด้วยกันตามที่ออกแบบไว้ในหน้า Excel
+  "To-Go Yogurt", "To-Go Beverage", "To-Go Snack", "To-Go Sandwich & Salad", "To-Go Cheese",
 ];
 const PRINT_RIGHT_CATEGORIES = [
   "Toppings", "Yogurt Shake Toppings", "Softserve Toppings", "CUP/ถ้วย", "TOPPING CUP", "LID/ฝา",
   "SPOON/ช้อน", "BAG/ถุง", "STICKER", "ของใช้", "น้ำยาทำความสะอาด", "Yogurt Smoothies Powder",
+  // เฉพาะ NCD — "Bags" เป็นหมวดแยกจาก "BAG/ถุง" เดิม (ชื่อจากไฟล์ Excel ไม่ตรงกัน แต่เป็นคนละหมวดจริง)
+  "Box", "Bags",
 ];
 
 // ── ไอคอนผลไม้/ถ้วย — ช่วยคนจัดของที่อ่านภาษาไทยไม่ออกจำรายการจากรูปแทน ──
@@ -1247,7 +1253,9 @@ interface ProdPrintRow { id: string; name: string; snd: string; nvp: string; kcn
 const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 30;
 // ชื่อสาขาแบบสั้นสำหรับหัวตารางใบสั่งผลิตเท่านั้น (แพรสั่งตัด "พอร์ช"/"ภิเษก" ออก 2026-07-28)
 // ที่อื่นยังใช้ชื่อเต็มจาก BRANCH_LABEL_TH เหมือนเดิม
-const PROD_BRANCH_SHORT: Record<Branch, string> = { SND: "สินธร", NVP: "เนอวาน่า", KCN: "กาญจนา" };
+// NCD ยังไม่รองรับในระบบสั่งผลิต (branch_key คอลัมน์จริงมี CHECK จำกัดแค่ SND/NVP/KCN/OTHER)
+// ใส่ไว้ให้ type ผ่านเฉยๆ ไม่มีที่ไหนอ่านค่านี้จริง (คอลัมน์ใบสั่งผลิตยัง hardcode แค่ 3 สาขาบน)
+const PROD_BRANCH_SHORT: Record<Branch, string> = { SND: "สินธร", NVP: "เนอวาน่า", KCN: "กาญจนา", NCD: "นิชดา" };
 // ข้อ 17: หมวดพิเศษบนใบสั่งผลิต — ของที่มีอยู่แล้ว ไม่ต้องผลิตใหม่ แค่หยิบจากสต็อกเดิมไปส่ง
 const IN_STOCK_CATEGORY = "✅ มีของแล้ว — ไม่ต้องผลิต (หยิบจากสต็อกเดิม)";
 
@@ -1438,7 +1446,7 @@ function ProductionOrder({
     setReflectedLoading(true);
     setReflectedError(null);
     Promise.all(
-      BRANCHES.map((b) =>
+      PROD_ORDER_BRANCHES.map((b) =>
         fetch(`/api/restock/selections?branch=${b}&date=${deliveryDate}`).then(async (r) => {
           const data = await r.json();
           if (!r.ok) throw new Error((data as any)?.error ?? `โหลดตัวเลือกสาขา ${b} ไม่สำเร็จ`);

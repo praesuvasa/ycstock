@@ -8,6 +8,7 @@
 import React from "react";
 import Link from "next/link";
 import type { Branch, Item, Meta, StockRow } from "@/lib/types";
+import { displayNameFor, displayCategoryFor } from "@/lib/types";
 import { remainPieces, variance, isCheckDue, weekdayFromDate } from "@/lib/calc";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import {
@@ -234,8 +235,10 @@ export default function StockPage() {
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
-      let g = out.find((x) => x.category === it.category);
-      if (!g) { g = { category: it.category, items: [] }; out.push(g); }
+      // เฉพาะ NCD — บางรายการย้ายไปโชว์ในหมวด "To-Go" แทนหมวดปกติ (ไม่กระทบสาขาอื่น ดู displayCategoryFor)
+      const cat = displayCategoryFor(it, branch);
+      let g = out.find((x) => x.category === cat);
+      if (!g) { g = { category: cat, items: [] }; out.push(g); }
       g.items.push(it);
     }
     return out;
@@ -296,8 +299,10 @@ export default function StockPage() {
       .sort((a, b) => a.sort - b.sort);
     const out: { category: string; items: Item[] }[] = [];
     for (const it of shown) {
-      let g = out.find((x) => x.category === it.category);
-      if (!g) { g = { category: it.category, items: [] }; out.push(g); }
+      // เฉพาะ NCD — บางรายการย้ายไปโชว์ในหมวด "To-Go" แทนหมวดปกติ (ไม่กระทบสาขาอื่น ดู displayCategoryFor)
+      const cat = displayCategoryFor(it, branch);
+      let g = out.find((x) => x.category === cat);
+      if (!g) { g = { category: cat, items: [] }; out.push(g); }
       g.items.push(it);
     }
     return out;
@@ -820,7 +825,7 @@ export default function StockPage() {
                   return (
                     <div key={it.id} className="glass-soft px-2 py-1.5">
                       <div className="mb-1 flex items-center justify-between gap-2">
-                        <span className="text-[13.5px] font-medium leading-tight">{it.name}</span>
+                        <span className="text-[13.5px] font-medium leading-tight">{displayNameFor(it, branch)}</span>
                         <div className="flex flex-shrink-0 items-center gap-1.5">
                           {par != null && <Badge tone="blue">Par {par}</Badge>}
                           <Badge>{it.unit}</Badge>

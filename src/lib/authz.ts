@@ -55,6 +55,10 @@ export async function requireAdminOrRestock(): Promise<Session> {
 export function resolveBranch(session: Session, requested: Branch | null): Branch {
   if (session.branchScope === "all") {
     if (!requested) throw new AuthError("ต้องระบุสาขา", 400);
+    // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — scope="all" (เช่น restock) ปกติข้ามสาขาได้หมด
+    // กันเฉพาะ NCD ไว้ตรงนี้จุดเดียว เพื่อคุ้มครองทุก route ที่เรียก resolveBranch (confirm-receipt ฯลฯ)
+    // ไม่กระทบ user ที่ผูกสาขาเดียวเป็น NCD เอง (ยังไม่มีจริงตอนนี้) เพราะ path นั้นเช็คแค่ requested===scope ข้างล่าง
+    if (requested === "NCD" && session.role !== "admin") throw new AuthError("ไม่มีสิทธิ์เข้าถึงสาขานี้", 403);
     return requested;
   }
   // ผูกสาขาเดียว: บังคับเป็นของตัวเอง; ขอสาขาอื่น = ปฏิเสธ
