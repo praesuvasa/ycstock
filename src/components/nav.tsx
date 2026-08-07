@@ -319,17 +319,36 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
 /* ── โลโก้ + ชื่อผู้ใช้ (ใช้ร่วม sidebar / topbar) ── */
 function Brand({ me, compact }: { me: Me | null; compact?: boolean }) {
+  // สาขาขายควบ 2 แบรนด์ (KCN/NCD) โชว์โลโก้คู่ Staple → "|" → YC (แพรสั่ง 2026-08-07)
+  // สาขาอื่นยังเป็นโลโก้ YC เดี่ยวเหมือนเดิมทุกอย่าง
+  const dualBrand = !!me && isDualBrandBranch(me.branchScope);
   return (
     <div className="flex items-center gap-2.5">
-      <img
-        src="/logo-yc.png"
-        alt="Yogurt Culture"
-        className={compact ? "h-9 w-auto" : "h-11 w-auto"}
-      />
+      {dualBrand ? (
+        <div className="flex items-center gap-2">
+          <img
+            src="/logo-staple.png"
+            alt="Staple"
+            className={compact ? "h-7 w-auto" : "h-9 w-auto"}
+          />
+          <span className={`font-light text-brand-ink/25 ${compact ? "text-lg" : "text-xl"}`}>|</span>
+          <img
+            src="/logo-yc.png"
+            alt="Yogurt Culture"
+            className={compact ? "h-9 w-auto" : "h-11 w-auto"}
+          />
+        </div>
+      ) : (
+        <img
+          src="/logo-yc.png"
+          alt="Yogurt Culture"
+          className={compact ? "h-9 w-auto" : "h-11 w-auto"}
+        />
+      )}
       <div className="leading-tight">
         {/* หัวจอเปลี่ยนตามหน่วยงาน (v1.24) — ฝ่ายผลิตไม่ได้ทำงานหน้าร้าน เห็นคำว่า "ระบบหน้าร้าน" แล้วสับสน
             v1.25: เพิ่มแถบสีประจำหน่วย (หน้าร้าน = แดง YC · ฝ่ายผลิต = ฟ้า Yogi)
-            โลโก้ยังเป็น YC เหมือนเดิม เพราะยังไม่มีไฟล์โลโก้ Yogi/Staple ในระบบ */}
+            v1.30: KCN/NCD โชว์โลโก้คู่ Staple+YC ด้านบน — ที่เหลือยังเป็น YC เดี่ยว */}
         <div className={`flex items-center gap-1.5 ${compact ? "text-[15px] font-semibold" : "text-base font-semibold"}`}>
           <span className={`h-3.5 w-1 shrink-0 rounded-full ${unitBrand(me?.workUnit).dotCls}`} />
           {unitBrand(me?.workUnit).headline}
