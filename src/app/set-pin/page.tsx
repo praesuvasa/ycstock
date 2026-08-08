@@ -10,6 +10,11 @@
 // "บันทึกรหัสผ่าน?" ทุกครั้งที่ตั้ง PIN ใหม่ พอเปลี่ยน PIN บ่อยจะมีรหัสเก่าหลายอันค้างอยู่ใน password
 // manager แล้วมันเดา autofill รหัสเก่าให้ที่หน้า login แทนรหัสปัจจุบัน — "off" ตัดสัญญาณนี้ทิ้ง
 // (ของเก่าที่บันทึกไปแล้วยังต้องให้แพรไปลบเองในตัวจัดการรหัสผ่านของเบราว์เซอร์)
+//
+// v1.31 (2026-08-08) — พนักงานเข้าไม่ได้พร้อมกันหลายคน สาเหตุใหม่: Safari ไม่สนใจ
+// autoComplete="off" กับ input type="password" เลย (ยืนยันจาก WebKit เอง) ยังเสนอ/auto-fill รหัสเก่าจาก
+// Keychain ให้อยู่ดี — เปลี่ยนช่องกรอกจาก type="password" เป็น type="text" + บังตัวเลขด้วย CSS
+// text-security แทน ตัด Safari ไม่ให้มองว่าเป็นช่องรหัสผ่านตั้งแต่ต้น (ดูรายละเอียดที่ login/page.tsx)
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useMe } from "@/components/nav";
@@ -79,7 +84,9 @@ export default function SetPinPage() {
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">รหัสใหม่ (6 หลัก)</span>
             <input
-              inputMode="numeric" type="password" autoComplete="off"
+              inputMode="numeric" type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off"
+              spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
+              style={{ WebkitTextSecurity: "disc", MozTextSecurity: "disc", textSecurity: "disc" } as React.CSSProperties}
               value={pin} onChange={(e) => setPin(digitsOnly(e.target.value))}
               className="field text-center text-[20px] tracking-[.4em]"
               placeholder="••••••"
@@ -88,7 +95,9 @@ export default function SetPinPage() {
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-brand-ink/50">ยืนยันอีกครั้ง</span>
             <input
-              inputMode="numeric" type="password" autoComplete="off"
+              inputMode="numeric" type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off"
+              spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
+              style={{ WebkitTextSecurity: "disc", MozTextSecurity: "disc", textSecurity: "disc" } as React.CSSProperties}
               value={confirm} onChange={(e) => setConfirm(digitsOnly(e.target.value))}
               className="field text-center text-[20px] tracking-[.4em]"
               placeholder="••••••"

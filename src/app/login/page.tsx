@@ -54,12 +54,18 @@ function LoginForm() {
 
         <label className="flex flex-col gap-1.5">
           <span className="text-[12px] text-brand-ink/55">รหัสเข้าระบบ</span>
-          {/* autoComplete="off" — กัน password manager autofill รหัสเก่าที่เคยบันทึกไว้ตอนตั้ง PIN
-              รอบก่อน ๆ (ดูรายละเอียดที่ set-pin/page.tsx — สาเหตุจริงของ "ล็อกอินไม่ได้ทุกวัน") */}
+          {/* type="text" + text-security แทน type="password" (แพรแจ้ง 2026-08-08 — ทุกคนเข้าไม่ได้พร้อมกัน)
+              Safari ไม่สนใจ autoComplete="off" กับ input type="password" เลย ยังเสนอ/auto-fill รหัสเก่าจาก
+              Keychain ให้อยู่ดี (คนละสาเหตุกับ 6 ส.ค. ที่เป็นเรื่อง "new-password" ชวนเซฟ) — สลับ type ไปเป็น
+              text แล้วบังตัวเลขด้วย CSS text-security แทน ตัดไม่ให้ Safari มองว่าเป็นช่องรหัสผ่านเลยทั้งช่อง
+              data-lpignore/data-1p-ignore กัน 1Password/LastPass เสนอ autofill ซ้ำอีกที */}
           <input
-            type="password" inputMode="numeric" autoComplete="off" autoFocus value={pin}
-            onChange={(e) => setPin(e.target.value)}
+            type="text" inputMode="numeric" autoComplete="off" autoCorrect="off" autoCapitalize="off"
+            spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
+            autoFocus value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="••••••" className="field text-center text-xl tracking-[.3em]"
+            style={{ WebkitTextSecurity: "disc", MozTextSecurity: "disc", textSecurity: "disc" } as React.CSSProperties}
           />
         </label>
 
