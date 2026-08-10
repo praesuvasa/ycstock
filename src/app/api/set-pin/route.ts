@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const res = NextResponse.json({ ok: true });
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production",
-      maxAge: 12 * 3600,
+      maxAge: 24 * 3600,
     });
     // บันทึกแค่ว่า "เปลี่ยนแล้ว" ไม่เก็บตัวรหัสลงที่ไหนทั้งสิ้น
     await writeAudit(s, "set_passcode", { detail: "ตั้งรหัสเข้าระบบด้วยตัวเอง" });

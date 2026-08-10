@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     const res = NextResponse.json({ ok: true, user, mustSetPasscode });
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production",
-      maxAge: 12 * 3600,
+      maxAge: 24 * 3600,
     });
     await writeAudit(
       { userId: user.id, name: user.name, role: user.role, branchScope: user.branchScope, exp: 0 },
