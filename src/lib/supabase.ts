@@ -1141,6 +1141,11 @@ export const supabaseStore = {
   },
   // ย้ายคำขอเบิกไปเป็นรายการพิเศษในเมนู "ต้องเติม" ของสาขา+วันที่ระบุ (แพรขอ 2026-08-07)
   // เก็บของเดิมในชุด extra items ไว้ครบ (ไม่ใช่ replace) เพราะ saveRestockExtraItems เป็น full-replace ต่อ (branch,date)
+  //
+  // v1.33 (2026-08-11) — เดิมเข้า "รายการอื่นๆ" เสมอไม่ว่ารายการนั้นจะมีอยู่ในระบบจริงไหม แอดมินเลยต้อง
+  // มาพิมพ์จำนวนซ้ำเข้าช่องของจริงเองอยู่ดี (แพรชี้หลังต้องย้ายทีละ 20 รายการ) — ถ้า itemId ตรงกับ catalog
+  // ปัจจุบัน ใส่จำนวนบวกเข้าช่องรายการนั้นใน restock_selections ตรงๆ เลย เหลือแค่ของที่ไม่มี itemId หรือ
+  // itemId ตรงกับของที่ถูกลบออกจากระบบไปแล้ว ที่ยังต้องเข้ารายการอื่นๆ เหมือนเดิม
   async moveRequisitionToRestock(id: string, date: string, actorUserId: string, actorName: string): Promise<Requisition> {
     const { data: reqRow, error: reqErr } = await sb().from("requisitions").select("*").eq("id", id).maybeSingle();
     if (reqErr) throw reqErr;
@@ -1148,13 +1153,24 @@ export const supabaseStore = {
     const req = rowFromReqDb(reqRow);
     if (req.status === "moved") throw new Error("รายการนี้ถูกย้ายไปแล้ว");
 
-    const extras = await this.getRestockExtraItems(req.branch, date);
-    extras.push({
-      name: `${req.itemName}${req.unit ? ` (${req.unit})` : ""}`,
-      qty: req.qty,
-      note: `จากคำขอเบิกของ ${req.requestedBy}${req.note ? ` — ${req.note}` : ""}`,
-    });
-    await this.saveRestockExtraItems(req.branch, date, extras, actorUserId, actorName);
+    const meta = await this.getMeta();
+    const catalogItem = req.itemId ? meta.items.find((it) => it.id === req.itemId) : undefined;
+
+    if (catalogItem) {
+      const cur = (await this.getRestockSelections(req.branch, date))[req.itemId!];
+      await this.saveRestockSelections(req.branch, date, [{
+        itemId: req.itemId!, selected: true,
+        qty: (cur?.qty ?? 0) + req.qty, qtyG: cur?.qtyG ?? 0, qtyG2: cur?.qtyG2 ?? 0,
+      }], actorUserId, actorName);
+    } else {
+      const extras = await this.getRestockExtraItems(req.branch, date);
+      extras.push({
+        name: `${req.itemName}${req.unit ? ` (${req.unit})` : ""}`,
+        qty: req.qty,
+        note: `จากคำขอเบิกของ ${req.requestedBy}${req.note ? ` — ${req.note}` : ""}`,
+      });
+      await this.saveRestockExtraItems(req.branch, date, extras, actorUserId, actorName);
+    }
 
     const { data: updated, error: updErr } = await sb().from("requisitions")
       .update({ status: "moved", moved_at: new Date().toISOString(), moved_by: actorName })
