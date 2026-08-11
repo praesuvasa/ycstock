@@ -104,6 +104,8 @@ export default function RequisitionsPage() {
   // ว่าง = ดูทั้งหมด (ไม่กรองวัน) · ค่าเริ่มต้นวันนี้ กันคำขอทุกวันไหลรวมกันหน้าเดียว (แพรขอ 2026-08-07)
   const [filterDate, setFilterDate] = React.useState(todayISO());
   const [movingId, setMovingId] = React.useState<string | null>(null);
+  // เลือกได้ว่าจะย้ายไปต้องเติมของวันไหน ต่อรายการ (แพรขอ 2026-08-11) — ไม่เลือก = ใช้รอบส่งของถัดไปเหมือนเดิม
+  const [moveDate, setMoveDate] = React.useState<Record<string, string>>({});
 
   const loadMine = React.useCallback(() => {
     if (!canSubmit) return;
@@ -133,7 +135,7 @@ export default function RequisitionsPage() {
       const res = await fetch("/api/requisitions/move", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: r.id, date: isoDate(round.deliveryDate) }),
+        body: JSON.stringify({ id: r.id, date: moveDate[r.id] ?? isoDate(round.deliveryDate) }),
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok || data.error) throw new Error(data.error ?? "ย้ายไม่สำเร็จ");
@@ -357,14 +359,23 @@ export default function RequisitionsPage() {
                       {r.status === "moved" && <Badge tone="ok">ย้ายแล้ว</Badge>}
                     </div>
                     {r.status !== "moved" && (
-                      <button
-                        type="button"
-                        onClick={() => handleMoveToRestock(r)}
-                        disabled={movingId === r.id}
-                        className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold text-brand-ink disabled:opacity-50"
-                      >
-                        {movingId === r.id ? "กำลังย้าย…" : "ย้ายไปต้องเติม"}
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {/* เลือกวันที่ต้องเติมปลายทางได้เอง — ไม่แตะ = ใช้รอบส่งของถัดไปเหมือนเดิม (แพรขอ 2026-08-11) */}
+                        <input
+                          type="date"
+                          value={moveDate[r.id] ?? isoDate(round.deliveryDate)}
+                          onChange={(e) => setMoveDate((m) => ({ ...m, [r.id]: e.target.value }))}
+                          className="rounded-lg border border-black/10 bg-white/70 px-2 py-1.5 text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleMoveToRestock(r)}
+                          disabled={movingId === r.id}
+                          className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold text-brand-ink disabled:opacity-50"
+                        >
+                          {movingId === r.id ? "กำลังย้าย…" : "ย้ายไปต้องเติม"}
+                        </button>
+                      </div>
                     )}
                   </div>
                   <div className="text-[11px] text-brand-ink/50">
