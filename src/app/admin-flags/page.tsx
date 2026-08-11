@@ -52,6 +52,7 @@ export default function AdminFlagsPage() {
   const [flags, setFlags] = React.useState<AdminFlag[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [resolvingId, setResolvingId] = React.useState<number | null>(null);
+  const [resolvingAll, setResolvingAll] = React.useState(false);
 
   const load = React.useCallback(() => {
     setLoading(true);
@@ -77,11 +78,42 @@ export default function AdminFlagsPage() {
     }
   }
 
+  // ตรวจแล้วทั้งหมด (แพรขอ 2026-08-11) — ทีเดียวทุกรายการที่เห็นอยู่ในหน้านี้
+  async function resolveAll() {
+    const ids = flags.map((f) => f.id);
+    if (ids.length === 0) return;
+    if (!window.confirm(`ตรวจแล้วทั้งหมด ${ids.length} รายการ?`)) return;
+    setResolvingAll(true);
+    try {
+      await fetch("/api/admin-flags", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      setFlags([]);
+    } finally {
+      setResolvingAll(false);
+    }
+  }
+
   return (
     <div>
       <PageTitle
         title={isSenior ? "ประวัติการแก้ไข" : "รายการรอตรวจสอบ"}
-        right={<span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>}
+        right={
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>
+            {isAdmin && flags.length > 0 && (
+              <button
+                onClick={resolveAll}
+                disabled={resolvingAll || resolvingId !== null}
+                className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
+              >
+                {resolvingAll ? "กำลังตรวจ…" : "ตรวจแล้วทั้งหมด"}
+              </button>
+            )}
+          </div>
+        }
       />
       {isSenior && (
         <p className="mb-3 text-[12px] text-brand-ink/50">เห็นเฉพาะสาขา {me?.branchScope} · ตรวจสอบให้แอดมินดูอย่างเดียว</p>

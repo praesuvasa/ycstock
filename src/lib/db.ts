@@ -360,6 +360,9 @@ export const db = {
     useSupabase ? supabaseStore.listAdminFlags(filter) : Promise.resolve(memoryStore.listAdminFlags(filter)),
   resolveAdminFlag: (id: number, resolvedBy: string): Promise<void> =>
     useSupabase ? supabaseStore.resolveAdminFlag(id, resolvedBy) : Promise.resolve(memoryStore.resolveAdminFlag(id, resolvedBy)),
+  // ตรวจแล้วทั้งหมด (แพรขอ 2026-08-11) — ทีเดียวหลาย id แทนกดทีละรายการ
+  resolveAdminFlags: (ids: number[], resolvedBy: string): Promise<void> =>
+    useSupabase ? supabaseStore.resolveAdminFlags(ids, resolvedBy) : Promise.resolve(memoryStore.resolveAdminFlags(ids, resolvedBy)),
 };
 
 // helper สำหรับ BFF validate branch

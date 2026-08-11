@@ -41,11 +41,18 @@ export async function GET() {
   }
 }
 
-// PATCH /api/admin-flags { id } — กด "ตรวจแล้ว"
+// PATCH /api/admin-flags { id } — กด "ตรวจแล้ว" ทีละรายการ
+// PATCH /api/admin-flags { ids: number[] } — กด "ตรวจแล้วทั้งหมด" (แพรขอ 2026-08-11)
 export async function PATCH(req: Request) {
   try {
     const s = await requireAdmin();
-    const body = (await req.json()) as { id?: number };
+    const body = (await req.json()) as { id?: number; ids?: number[] };
+    if (Array.isArray(body.ids)) {
+      if (body.ids.length === 0) return NextResponse.json({ error: "ids จำเป็น" }, { status: 400 });
+      await db.resolveAdminFlags(body.ids, s.name);
+      await writeAudit(s, "resolve_admin_flag", { detail: `ตรวจสอบรายการแจ้งเตือนแล้ว ${body.ids.length} รายการ` });
+      return NextResponse.json({ ok: true });
+    }
     if (!body.id) return NextResponse.json({ error: "id จำเป็น" }, { status: 400 });
     await db.resolveAdminFlag(body.id, s.name);
     await writeAudit(s, "resolve_admin_flag", { entity: String(body.id), detail: "ตรวจสอบรายการแจ้งเตือนแล้ว" });

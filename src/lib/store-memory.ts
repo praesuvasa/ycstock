@@ -1259,6 +1259,12 @@ export const memoryStore = {
     const f = adminFlags.find((x) => x.id === id);
     if (f) { f.resolvedAt = new Date().toISOString(); f.resolvedBy = resolvedBy; }
   },
+  // ตรวจแล้วทั้งหมด (แพรขอ 2026-08-11)
+  resolveAdminFlags(ids: number[], resolvedBy: string): void {
+    const now = new Date().toISOString();
+    const idSet = new Set(ids);
+    for (const f of adminFlags) if (idSet.has(f.id)) { f.resolvedAt = now; f.resolvedBy = resolvedBy; }
+  },
 
   // ── ใบสั่งผลิต (v1.5) — ตรรกะเดียวกับฝั่ง supabase แต่ทำงานบน Map ล้วนๆ ──
   listProductionOrders(limit = 50): ProductionOrderSummary[] {

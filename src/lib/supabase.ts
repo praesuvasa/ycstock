@@ -1909,6 +1909,12 @@ export const supabaseStore = {
       .update({ resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).eq("id", id);
     if (error) throw error;
   },
+  // ตรวจแล้วทั้งหมด (แพรขอ 2026-08-11)
+  async resolveAdminFlags(ids: number[], resolvedBy: string): Promise<void> {
+    const { error } = await sb().from("stock_admin_flags")
+      .update({ resolved_at: new Date().toISOString(), resolved_by: resolvedBy }).in("id", ids);
+    if (error) throw error;
+  },
 
   // ── ใบสั่งผลิต (v1.5) ──
   async listProductionOrders(limit = 50): Promise<ProductionOrderSummary[]> {
