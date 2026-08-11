@@ -1144,8 +1144,8 @@ export const supabaseStore = {
   //
   // v1.33 (2026-08-11) — เดิมเข้า "รายการอื่นๆ" เสมอไม่ว่ารายการนั้นจะมีอยู่ในระบบจริงไหม แอดมินเลยต้อง
   // มาพิมพ์จำนวนซ้ำเข้าช่องของจริงเองอยู่ดี (แพรชี้หลังต้องย้ายทีละ 20 รายการ) — ถ้า itemId ตรงกับ catalog
-  // ปัจจุบัน ใส่จำนวนบวกเข้าช่องรายการนั้นใน restock_selections ตรงๆ เลย เหลือแค่ของที่ไม่มี itemId หรือ
-  // itemId ตรงกับของที่ถูกลบออกจากระบบไปแล้ว ที่ยังต้องเข้ารายการอื่นๆ เหมือนเดิม
+  // ปัจจุบัน ใส่จำนวนทับเข้าช่องรายการนั้นใน restock_selections ตรงๆ เลย (ทับ ไม่บวกรวม — แพรยืนยัน)
+  // เหลือแค่ของที่ไม่มี itemId หรือ itemId ตรงกับของที่ถูกลบออกจากระบบไปแล้ว ที่ยังต้องเข้ารายการอื่นๆ เหมือนเดิม
   async moveRequisitionToRestock(id: string, date: string, actorUserId: string, actorName: string): Promise<Requisition> {
     const { data: reqRow, error: reqErr } = await sb().from("requisitions").select("*").eq("id", id).maybeSingle();
     if (reqErr) throw reqErr;
@@ -1157,10 +1157,10 @@ export const supabaseStore = {
     const catalogItem = req.itemId ? meta.items.find((it) => it.id === req.itemId) : undefined;
 
     if (catalogItem) {
-      const cur = (await this.getRestockSelections(req.branch, date))[req.itemId!];
+      // ทับค่าตรงๆ ไม่บวกรวมกับที่มีอยู่ก่อน (แพรยืนยัน 2026-08-11) — ถ้าช่องนั้นมีคนกรอกจำนวนไว้ก่อนแล้ว
+      // (ไม่ว่าจากคำขอเบิกอื่นหรือกรอกเอง) ค่าล่าสุดที่ย้ายมาจะเป็นตัวชี้ขาดแทน
       await this.saveRestockSelections(req.branch, date, [{
-        itemId: req.itemId!, selected: true,
-        qty: (cur?.qty ?? 0) + req.qty, qtyG: cur?.qtyG ?? 0, qtyG2: cur?.qtyG2 ?? 0,
+        itemId: req.itemId!, selected: true, qty: req.qty, qtyG: 0, qtyG2: 0,
       }], actorUserId, actorName);
     } else {
       const extras = await this.getRestockExtraItems(req.branch, date);

@@ -729,8 +729,8 @@ export const memoryStore = {
     for (const r of requisitions) if (!r.seenAt) r.seenAt = now;
   },
   // ย้ายคำขอเบิกไปเป็นรายการพิเศษในเมนู "ต้องเติม" ของสาขา+วันที่ระบุ (แพรขอ 2026-08-07)
-  // v1.33 (2026-08-11) — ถ้า itemId ตรงกับ catalog ปัจจุบัน ใส่จำนวนบวกเข้าช่องรายการนั้นตรงๆ แทนที่จะ
-  // เข้ารายการอื่นๆ เสมอ (ดูเหตุผลเต็มที่ supabase.ts moveRequisitionToRestock)
+  // v1.33 (2026-08-11) — ถ้า itemId ตรงกับ catalog ปัจจุบัน ใส่จำนวนทับเข้าช่องรายการนั้นตรงๆ (ทับ ไม่บวกรวม
+  // กับที่มีอยู่ก่อน — แพรยืนยัน) แทนที่จะเข้ารายการอื่นๆ เสมอ (ดูเหตุผลเต็มที่ supabase.ts moveRequisitionToRestock)
   moveRequisitionToRestock(id: string, date: string, _actorUserId: string, actorName: string): Requisition {
     const req = requisitions.find((r) => r.id === id);
     if (!req) throw new Error("ไม่พบคำขอเบิกนี้");
@@ -740,10 +740,9 @@ export const memoryStore = {
     const catalogItem = req.itemId ? ITEMS.find((it) => it.id === req.itemId) : undefined;
 
     if (catalogItem) {
-      const cur = restockSelections.get(sk(date, req.branch, req.itemId!));
       restockSelections.set(sk(date, req.branch, req.itemId!), {
         date, branch: req.branch, itemId: req.itemId!, selected: true,
-        qty: (cur?.qty ?? 0) + req.qty, qtyG: cur?.qtyG ?? 0, qtyG2: cur?.qtyG2 ?? 0,
+        qty: req.qty, qtyG: 0, qtyG2: 0,
         updatedByUserId: _actorUserId, updatedByName: actorName, updatedAt: now,
       });
     } else {
