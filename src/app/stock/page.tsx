@@ -369,7 +369,11 @@ export default function StockPage() {
       const d = derive(r, it.gramsPerUOM);
       const cur = map.get(it.category) ?? { count: 0, totalUsed: 0 };
       cur.count += 1;
-      cur.totalUsed += d.usedTotalG;
+      // ปัดติดลบเป็น 0 ก่อนรวม (แพรชี้ 2026-08-12) — รายการที่คงเหลือเกินของที่มี (ค่าที่ผิดอยู่แล้ว
+      // มีป้ายเตือนแดงแยกต่างหาก) เคยลาก usedTotalG ติดลบมาหักยอดรวมทั้งบาน ทำให้ไม่ตรงกับหน้า "ถ้วย"
+      // (cupReconcile ใน calc.ts ปัดติดลบเป็น 0 ต่อรายการอยู่แล้ว) — ไม่แตะ d.usedTotalG/overG ตรงๆ
+      // เพราะยังใช้คำนวณป้ายเตือน "เกิน" อยู่ที่อื่นในไฟล์นี้
+      cur.totalUsed += Math.max(d.usedTotalG, 0);
       map.set(it.category, cur);
     }
     return map;
