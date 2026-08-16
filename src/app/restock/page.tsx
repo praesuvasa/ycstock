@@ -55,9 +55,11 @@ const PRINT_LEFT_CATEGORIES = [
   "Cereals", "Sauces", "Fruits", "Smoothies (Pre-packed)",
   "ACAI", "Shake แข็ง",
   // เฉพาะ NCD — หมวดใหม่จาก NCD_Brand_Tagging.xlsx (แพร 2026-08-07) ไม่มีผลกับสาขาอื่นเพราะไม่มีของจริงในหมวดพวกนี้เลย
-  "Bread", "Cheese", "Meat", "Sause Spread", "Smoothies/Juice", "Vegetable",
+  "Bread", "Cheese", "Meat", "Sause Spread", "Smoothies/Juice", "Vegetable", "Coffee", "Dressings",
   // โซน To-Go (NCD เท่านั้น) — จัดกลุ่มท้ายคอลัมน์ซ้ายด้วยกันตามที่ออกแบบไว้ในหน้า Excel
+  // To-Go Chia Pudding/Overnight Oats เพิ่ม 2026-08-16 — หมวดใหม่ที่แพรกรอกเพิ่มใน New Staple Items ทีหลัง
   "To-Go Yogurt", "To-Go Beverage", "To-Go Snack", "To-Go Sandwich & Salad", "To-Go Cheese",
+  "To-Go Chia Pudding", "To-Go Overnight Oats",
 ];
 const PRINT_RIGHT_CATEGORIES = [
   "Toppings", "Yogurt Shake Toppings", "Softserve Toppings", "CUP/ถ้วย", "TOPPING CUP", "LID/ฝา",
