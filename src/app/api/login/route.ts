@@ -17,16 +17,20 @@ function clientIp(req: Request): string {
   return (fwd ? fwd.split(",")[0] : req.headers.get("x-real-ip"))?.trim() || "unknown";
 }
 
+// v1.31 (2026-08-17) — ก่อนล็อกอินสำเร็จ เซิร์ฟเวอร์ยังไม่รู้ว่าใครกำลังพิมพ์ จึงเดาภาษาของคนพิมพ์
+// ไม่ได้เลย (ยังไม่มี user context) — ทุก error response เลยแถม "code" ที่เป็นกลางทางภาษามาด้วย
+// เสมอ ให้ฝั่ง client (login/page.tsx) ไปแปลเองตามภาษาที่เลือกไว้ในเครื่อง (ปุ่ม EN/TH บนหน้า login)
+// "error" (ข้อความไทย) ยังส่งไปด้วยเพื่อ backward-compat/log แต่ client ควรใช้ code เป็นหลัก
 export async function POST(req: Request) {
   const ip = clientIp(req);
   try {
     const { passcode } = (await req.json()) as { passcode?: string };
-    if (!passcode) return NextResponse.json({ error: "กรอกรหัส" }, { status: 400 });
+    if (!passcode) return NextResponse.json({ error: "กรอกรหัส", code: "errEmptyPin" }, { status: 400 });
 
     const fails = await db.countRecentFailedLogins(ip, WINDOW_MINUTES);
     if (fails >= MAX_FAILS) {
       return NextResponse.json(
-        { error: `กรอกรหัสผิดหลายครั้งเกินไป — รออีก ${WINDOW_MINUTES} นาทีแล้วลองใหม่` },
+        { error: `กรอกรหัสผิดหลายครั้งเกินไป — รออีก ${WINDOW_MINUTES} นาทีแล้วลองใหม่`, code: "errTooManyFails", minutes: WINDOW_MINUTES },
         { status: 429 }
       );
     }
@@ -39,21 +43,28 @@ export async function POST(req: Request) {
       // ยังไม่นับว่าเข้าไม่ถูกล็อกชั่วคราวเพิ่ม เพราะสาเหตุชัดเจนอยู่แล้ว ไม่ใช่พิมพ์มั่ว
       if (found) {
         return NextResponse.json({
-          error: "รหัสตั้งค่านี้หมดอายุแล้ว — แจ้งแอดมินให้ออกรหัสตั้งค่าใหม่ให้",
+          error: "รหัสตั้งค่านี้หมดอายุแล้ว — แจ้งแอดมินให้ออกรหัสตั้งค่าใหม่ให้", code: "errSetupExpired",
         }, { status: 401 });
       }
-      return NextResponse.json({
-        error: left > 0 && left <= 3
-          ? `รหัสไม่ถูกต้อง (เหลืออีก ${left} ครั้งก่อนถูกล็อกชั่วคราว) — ถ้าเพิ่งตั้ง PIN ไปแล้ว ให้ใช้ PIN ใหม่ที่ตั้งเอง ไม่ใช่รหัสตั้งค่าเดิม (ใช้ได้ครั้งเดียว)`
-          : "รหัสไม่ถูกต้อง",
-      }, { status: 401 });
+      return NextResponse.json(
+        left > 0 && left <= 3
+          ? {
+              error: `รหัสไม่ถูกต้อง (เหลืออีก ${left} ครั้งก่อนถูกล็อกชั่วคราว) — ถ้าเพิ่งตั้ง PIN ไปแล้ว ให้ใช้ PIN ใหม่ที่ตั้งเอง ไม่ใช่รหัสตั้งค่าเดิม (ใช้ได้ครั้งเดียว)`,
+              code: "errWrongWithCountdown", left,
+            }
+          : { error: "รหัสไม่ถูกต้อง", code: "errWrong" },
+        { status: 401 }
+      );
     }
 
     const { user, mustSetPasscode } = found;
     await db.recordLoginAttempt(ip, true);
 
+    // ภาษาของ session — ตอนนี้รู้ตัวตนแล้ว ใช้ preferredLang ของบัญชีนั้นได้เลย (ไม่ใช่ default จากสาขาอีกต่อไป
+    // เพราะ preferredLang ถูกตั้ง default ไว้แล้วตั้งแต่ตอนสร้างบัญชี ดู createUser ใน supabase.ts/store-memory.ts)
+    const lang = user.preferredLang ?? "th";
     const token = await signSession({
-      userId: user.id, name: user.name, role: user.role, branchScope: user.branchScope,
+      userId: user.id, name: user.name, role: user.role, branchScope: user.branchScope, lang,
       ...(mustSetPasscode ? { mustSetPasscode: true } : {}),
     });
     const res = NextResponse.json({ ok: true, user, mustSetPasscode });
@@ -71,6 +82,6 @@ export async function POST(req: Request) {
     // ไม่ส่ง e.message ดิบออกไปหน้าจอพนักงาน — อาจมีรายละเอียดภายใน (DB/schema) หลุดออกไปได้
     // log ไว้ฝั่งเซิร์ฟเวอร์พอสำหรับตามรอย ส่วนที่พนักงานเห็นให้เป็นข้อความไทยที่เข้าใจง่ายเสมอ
     console.error("[login] unexpected error:", e);
-    return NextResponse.json({ error: "เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง" }, { status: 500 });
+    return NextResponse.json({ error: "เข้าสู่ระบบไม่สำเร็จ ลองใหม่อีกครั้ง", code: "errServerError" }, { status: 500 });
   }
 }

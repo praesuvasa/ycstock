@@ -4,6 +4,7 @@ import { requireSession, authErrorResponse } from "@/lib/authz";
 import { signSession, SESSION_COOKIE } from "@/lib/session";
 import { validatePin } from "@/lib/auth";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -14,23 +15,25 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = await req.json();
     const newPin = String(body?.newPin ?? "");
     const confirmPin = String(body?.confirmPin ?? "");
 
-    if (newPin !== confirmPin) return NextResponse.json({ error: "รหัสสองช่องไม่ตรงกัน" }, { status: 400 });
-    const invalid = validatePin(newPin);
+    if (newPin !== confirmPin) return NextResponse.json({ error: t(lang, "setPin.errMismatch") }, { status: 400 });
+    const invalid = validatePin(newPin, lang);
     if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
     const result = await db.setOwnPasscode(s.userId, newPin);
     if (!result.ok) {
       // ไม่บอกว่าซ้ำกับใคร — ไม่งั้นกลายเป็นบอกใบ้รหัสของเพื่อนร่วมงาน
-      return NextResponse.json({ error: "รหัสนี้ใช้ไม่ได้ ลองเลขอื่น" }, { status: 409 });
+      return NextResponse.json({ error: t(lang, "setPin.errDuplicate") }, { status: 409 });
     }
 
     // ออก session ใหม่ที่ไม่มี mustSetPasscode แล้ว — ไม่งั้นจะโดน middleware เด้งกลับมาหน้านี้ตลอด
+    // เก็บ lang เดิมไว้ด้วย (ไม่งั้นเปลี่ยน PIN แล้วภาษาจะเด้งกลับเป็นไทยทุกครั้ง)
     const token = await signSession({
-      userId: s.userId, name: s.name, role: s.role, branchScope: s.branchScope,
+      userId: s.userId, name: s.name, role: s.role, branchScope: s.branchScope, lang,
     });
     const res = NextResponse.json({ ok: true });
     res.cookies.set(SESSION_COOKIE, token, {

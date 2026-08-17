@@ -1,5 +1,6 @@
 // Passcode hashing (Node runtime — login / create-user routes เท่านั้น)
 import { scryptSync, randomBytes, timingSafeEqual, createHash } from "node:crypto";
+import { t, type Lang } from "./i18n";
 
 /** เก็บเป็น "salt:hash" (hex) */
 export function hashPasscode(pin: string): string {
@@ -41,10 +42,11 @@ export function generateSetupCode(): string {
 }
 
 /** PIN ต้องเป็นตัวเลขล้วน 6 หลัก และไม่ใช่รูปแบบที่เดาง่ายจนเกินไป */
-export function validatePin(pin: string): string | null {
-  if (!/^\d{6}$/.test(pin)) return `รหัสต้องเป็นตัวเลข ${PIN_LENGTH} หลัก`;
-  if (/^(\d)\1{5}$/.test(pin)) return "รหัสซ้ำตัวเดียวทั้งหมดใช้ไม่ได้ (เช่น 111111)";
+// lang เผื่อ NCD (พนักงานต่างชาติ) — default "th" ไว้เหมือนเดิม ไม่กระทบผู้เรียกเดิมที่ไม่ส่งมา
+export function validatePin(pin: string, lang: Lang = "th"): string | null {
+  if (!/^\d{6}$/.test(pin)) return t(lang, "setPin.errNotSixDigits");
+  if (/^(\d)\1{5}$/.test(pin)) return t(lang, "setPin.errRepeat");
   const asc = "0123456789", desc = "9876543210";
-  if (asc.includes(pin) || desc.includes(pin)) return "รหัสเรียงกันใช้ไม่ได้ (เช่น 123456)";
+  if (asc.includes(pin) || desc.includes(pin)) return t(lang, "setPin.errSequential");
   return null;
 }

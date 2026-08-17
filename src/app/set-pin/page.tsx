@@ -17,11 +17,13 @@
 // text-security แทน ตัด Safari ไม่ให้มองว่าเป็นช่องรหัสผ่านตั้งแต่ต้น (ดูรายละเอียดที่ login/page.tsx)
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { GlassCard, PageTitle, Button } from "@/components/ui";
+import { t } from "@/lib/i18n";
 
 export default function SetPinPage() {
   const me = useMe();
+  const lang = useLang();
   const router = useRouter();
   const [pin, setPin] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
@@ -35,14 +37,14 @@ export default function SetPinPage() {
   // เซิร์ฟเวอร์ยังตรวจซ้ำอีกชั้นเสมอ (defense-in-depth) จุดนี้แค่ช่วยเรื่อง UX
   function localPinIssue(v: string): string | null {
     if (v.length < 6) return null; // ยังพิมพ์ไม่ครบ ไม่ต้องขึ้น error
-    if (/^(\d)\1{5}$/.test(v)) return "รหัสซ้ำตัวเดียวทั้งหมดใช้ไม่ได้ (เช่น 111111)";
+    if (/^(\d)\1{5}$/.test(v)) return t(lang, "setPin.errRepeat");
     const asc = "0123456789", desc = "9876543210";
-    if (asc.includes(v) || desc.includes(v)) return "รหัสเรียงกันใช้ไม่ได้ (เช่น 123456)";
+    if (asc.includes(v) || desc.includes(v)) return t(lang, "setPin.errSequential");
     return null;
   }
 
   const pinIssue = localPinIssue(pin);
-  const mismatch = pin.length === 6 && confirm.length === 6 && pin !== confirm ? "รหัสสองช่องไม่ตรงกัน" : null;
+  const mismatch = pin.length === 6 && confirm.length === 6 && pin !== confirm ? t(lang, "setPin.errMismatch") : null;
   const clientIssue = pinIssue ?? mismatch;
   const ready = pin.length === 6 && confirm.length === 6 && !saving && !clientIssue;
 
@@ -56,14 +58,14 @@ export default function SetPinPage() {
         body: JSON.stringify({ newPin: pin, confirmPin: confirm }),
       });
       const d = await res.json();
-      if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ตั้งรหัสไม่สำเร็จ");
-      window.alert("ตั้งรหัสเรียบร้อย — ครั้งหน้าใช้รหัสนี้เข้าระบบ");
+      if (!res.ok || !d?.ok) throw new Error(d?.error ?? t(lang, "setPin.errGeneric"));
+      window.alert(t(lang, "setPin.successAlert"));
       // เข้าครั้งแรก (ยังไม่ลงทะเบียนใบหน้า) → ไปลงทะเบียนใบหน้าต่อทันที
       // เข้าเองจากเมนู "เปลี่ยนรหัสของฉัน" (ลงทะเบียนแล้ว) → กลับหน้าหลัก ไม่ใช่พาไปหน้าลงเวลา
       router.replace(me?.mustEnrollFace ? "/time-clock" : "/");
       router.refresh();
     } catch (e: any) {
-      setErr(e?.message ?? "ตั้งรหัสไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "setPin.errGeneric"));
       setPin(""); setConfirm("");
     } finally {
       setSaving(false);
@@ -72,17 +74,17 @@ export default function SetPinPage() {
 
   return (
     <div className="mx-auto max-w-md px-4 py-6">
-      <PageTitle title="ตั้งรหัสของคุณ" />
+      <PageTitle title={t(lang, "setPin.title")} />
 
       <GlassCard>
         <p className="mb-3 text-[12.5px] leading-relaxed text-brand-ink/60">
-          {me ? <><b>{me.name}</b>{me.branchScope !== "all" ? ` · สาขา ${me.branchScope}` : ""} — </> : null}
-          ตั้งรหัสตัวเลข 6 หลักที่จำได้ ใช้เข้าระบบครั้งต่อไป
+          {me ? <><b>{me.name}</b>{me.branchScope !== "all" ? ` · ${t(lang, "setPin.branchPrefix")}${me.branchScope}` : ""} — </> : null}
+          {t(lang, "setPin.introSuffix")}
         </p>
 
         <div className="grid gap-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">รหัสใหม่ (6 หลัก)</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "setPin.newPinLabel")}</span>
             <input
               inputMode="numeric" type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off"
               spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
@@ -93,7 +95,7 @@ export default function SetPinPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">ยืนยันอีกครั้ง</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "setPin.confirmLabel")}</span>
             <input
               inputMode="numeric" type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off"
               spellCheck={false} data-lpignore="true" data-1p-ignore="true" data-bwignore="true"
@@ -114,17 +116,17 @@ export default function SetPinPage() {
           )}
 
           <Button onClick={save} disabled={!ready}>
-            {saving ? "กำลังบันทึก…" : "บันทึกรหัส"}
+            {saving ? t(lang, "setPin.saving") : t(lang, "setPin.save")}
           </Button>
         </div>
 
         <div className="mt-3 rounded-lg bg-warn/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-warn">
-          <b>ห้ามบอกใคร</b> — แอดมินก็ดูรหัสนี้ไม่ได้ ระบบเก็บเป็นค่าเข้ารหัสเท่านั้น
-          <br />ลืมรหัสให้แจ้งแอดมินออก &ldquo;รหัสตั้งค่าใหม่&rdquo; ให้ แล้วมาตั้งใหม่ที่หน้านี้
+          <b>{t(lang, "setPin.warnTitle")}</b> — {t(lang, "setPin.warnBody")}
+          <br />{t(lang, "setPin.warnForgot")}
         </div>
 
         <p className="mt-2 text-[11px] leading-relaxed text-brand-ink/45">
-          ใช้เลขซ้ำกันทั้งหมด (111111) หรือเลขเรียง (123456) ไม่ได้ — เดาง่ายเกินไป
+          {t(lang, "setPin.ruleHint")}
         </p>
       </GlassCard>
     </div>

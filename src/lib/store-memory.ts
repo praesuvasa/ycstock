@@ -590,12 +590,14 @@ export const memoryStore = {
   listUsers(): User[] {
     return users.map(({ passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub }) => pub);
   },
-  createUser(input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }): User & { setupCode: string } {
+  createUser(input: { name: string; role: Role; branchScope: BranchScope; createdBy: string; preferredLang?: "th" | "en" }): User & { setupCode: string } {
     const setupCode = generateSetupCode();
+    // NCD เป็นสาขาที่มีพนักงานต่างชาติ (แพรสั่ง 2026-08-17) — ตั้ง default ภาษาอังกฤษให้เลย (mirror ของ supabase.ts)
+    const preferredLang = input.preferredLang ?? (input.branchScope === "NCD" ? "en" : "th");
     const u: UserRec = {
       id: "u-" + Math.abs(Date.now() % 1_000_000).toString(36) + users.length,
       name: input.name, role: input.role, branchScope: input.branchScope, active: true,
-      passcodeHash: null, mustSetPasscode: true,
+      passcodeHash: null, mustSetPasscode: true, preferredLang,
       setupCodeHash: hashPasscode(setupCode),
       setupCodeExpiresAt: Date.now() + SETUP_CODE_TTL_HOURS * 3600_000,
     };
@@ -603,7 +605,7 @@ export const memoryStore = {
     const { passcodeHash, setupCodeHash, setupCodeExpiresAt, ...pub } = u;
     return { ...pub, setupCode };
   },
-  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean }): User | null {
+  updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean; preferredLang?: "th" | "en" }): User | null {
     const u = users.find((x) => x.id === id);
     if (!u) return null;
     if (patch.name !== undefined) u.name = patch.name;
@@ -613,6 +615,8 @@ export const memoryStore = {
     if (patch.allowanceEnabled !== undefined) u.allowanceEnabled = patch.allowanceEnabled;
     if (patch.allowanceMonthly !== undefined) u.allowanceMonthly = patch.allowanceMonthly;
     if (patch.workUnit !== undefined) u.workUnit = patch.workUnit;
+    if (patch.isSenior !== undefined) u.isSenior = patch.isSenior;
+    if (patch.preferredLang !== undefined) u.preferredLang = patch.preferredLang;
     const { passcodeHash, ...pub } = u;
     return pub;
   },

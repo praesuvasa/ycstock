@@ -19,6 +19,12 @@ const SCOPE_OPTS: { value: BranchScope; label: string }[] = [
   { value: "all" as BranchScope, label: "ทุกสาขา" },
   ...BRANCHES.map((b) => ({ value: b as BranchScope, label: b })),
 ];
+// ภาษา UI (v1.31) — เตรียมรองรับพนักงานต่างชาติที่ NCD (แพรสั่ง 2026-08-17)
+// default "th" ตอนสร้างบัญชีอยู่แล้ว (เว้นแต่สาขา NCD → default "en") ตรงนี้ให้แอดมินเปลี่ยนทีหลังได้
+const LANG_OPTS: { value: "th" | "en"; label: string }[] = [
+  { value: "th", label: "ไทย" },
+  { value: "en", label: "English" },
+];
 
 export default function UsersPage() {
   const [users, setUsers] = React.useState<User[] | null>(null);
@@ -288,6 +294,11 @@ export default function UsersPage() {
                           onChange={(v) => v !== u.branchScope && patch(u.id, { branchScope: v })} />
                       </div>
                     )}
+                    <div>
+                      <span className="mb-1 block text-[11px] text-brand-ink/50">ภาษา UI</span>
+                      <Segmented options={LANG_OPTS} value={u.preferredLang ?? "th"}
+                        onChange={(v) => v !== (u.preferredLang ?? "th") && patch(u.id, { preferredLang: v })} />
+                    </div>
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-black/[.03] px-2.5 py-2">
                       <div className="min-w-0">
                         <div className="text-[12.5px]">สิทธิ์ซื้อของในร้าน</div>

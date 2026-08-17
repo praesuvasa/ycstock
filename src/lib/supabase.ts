@@ -161,6 +161,7 @@ const userRow = (r: any): User => ({
   allowanceEnabled: r.allowance_enabled ?? false,
   allowanceMonthly: Number(r.allowance_monthly ?? ALLOWANCE_DEFAULT_MONTHLY),
   workUnit: (r.work_unit ?? "store") as User["workUnit"],
+  preferredLang: (r.preferred_lang ?? "th") as User["preferredLang"],
 });
 
 const allowanceRow = (r: any): StaffAllowanceUse => ({
@@ -931,31 +932,35 @@ export const supabaseStore = {
   // อ่านผู้ใช้รายคน — ใช้ตอนเช็ค session ทุก request จึงต้องเบา (แถวเดียว ไม่ใช่ทั้งตาราง)
   async getUserById(id: string): Promise<User | null> {
     const { data } = await sb().from("users")
-      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior")
+      .select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior,preferred_lang")
       .eq("id", id).maybeSingle();
     return data ? userRow(data) : null;
   },
 
   async listUsers(): Promise<User[]> {
-    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior").order("created_at");
+    const { data } = await sb().from("users").select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,must_set_passcode,work_unit,is_senior,preferred_lang").order("created_at");
     return (data ?? []).map(userRow);
   },
   // ไม่รับ PIN จากแอดมินอีกต่อไป (v1.15) — สร้างบัญชีพร้อม "รหัสตั้งค่า" แล้วให้เจ้าตัวไปตั้ง PIN เอง
   // คืน setupCode ให้แอดมินเห็นครั้งเดียวตอนสร้าง (ใน DB เก็บแค่ hash เปิดดูย้อนหลังไม่ได้)
-  async createUser(input: { name: string; role: Role; branchScope: BranchScope; createdBy: string }): Promise<User & { setupCode: string }> {
+  async createUser(input: { name: string; role: Role; branchScope: BranchScope; createdBy: string; preferredLang?: "th" | "en" }): Promise<User & { setupCode: string }> {
     const id = "u-" + Math.abs(Date.now() % 1_000_000).toString(36);
     const setupCode = generateSetupCode();
+    // NCD เป็นสาขาที่มีพนักงานต่างชาติ (แพรสั่ง 2026-08-17) — ตั้ง default ภาษาอังกฤษให้เลย
+    // แอดมินเปลี่ยนทีหลังได้เสมอที่หน้า /users ค่านี้แค่ default ตอนสร้างบัญชีเท่านั้น
+    const preferredLang = input.preferredLang ?? (input.branchScope === "NCD" ? "en" : "th");
     const { error } = await sb().from("users").insert({
       id, name: input.name, role: input.role, branch_scope: input.branchScope,
       passcode_hash: null, active: true, created_by: input.createdBy,
       setup_code_hash: hashPasscode(setupCode),
       setup_code_expires_at: new Date(Date.now() + SETUP_CODE_TTL_HOURS * 3600_000).toISOString(),
       must_set_passcode: true,
+      preferred_lang: preferredLang,
     });
     if (error) throw error;
-    return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true, setupCode };
+    return { id, name: input.name, role: input.role, branchScope: input.branchScope, active: true, preferredLang, setupCode };
   },
-  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean }): Promise<User | null> {
+  async updateUser(id: string, patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: User["workUnit"]; isSenior?: boolean; preferredLang?: "th" | "en" }): Promise<User | null> {
     const upd: any = {};
     if (patch.name !== undefined) upd.name = patch.name;
     if (patch.role !== undefined) upd.role = patch.role;
@@ -965,7 +970,8 @@ export const supabaseStore = {
     if (patch.allowanceMonthly !== undefined) upd.allowance_monthly = patch.allowanceMonthly;
     if (patch.workUnit !== undefined) upd.work_unit = patch.workUnit;
     if (patch.isSenior !== undefined) upd.is_senior = patch.isSenior;
-    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit,is_senior").maybeSingle();
+    if (patch.preferredLang !== undefined) upd.preferred_lang = patch.preferredLang;
+    const { data, error } = await sb().from("users").update(upd).eq("id", id).select("id,name,role,branch_scope,active,allowance_enabled,allowance_monthly,work_unit,is_senior,preferred_lang").maybeSingle();
     if (error) throw error;
     return data ? userRow(data) : null;
   },

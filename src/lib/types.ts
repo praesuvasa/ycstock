@@ -345,6 +345,9 @@ export interface User {
   // branchScope = เห็นข้อมูลสาขาไหนได้ · workUnit = ทำงานอยู่หน่วยไหน
   // ฝ่ายผลิตไม่ได้สังกัดสาขาขาย เห็นแค่เมนูลงเวลากับข้อมูลของตัวเอง
   workUnit?: WorkUnit;
+  // ── ภาษา UI (v1.31) — เตรียมรองรับพนักงานต่างชาติที่ NCD (แพรสั่ง 2026-08-17) ──
+  // default 'th' ทุกคน · ตั้งเองได้ที่เมนู หรือแอดมินตั้งให้ตอนสร้างบัญชี
+  preferredLang?: "th" | "en";
 }
 
 export type WorkUnit = "store" | "production";
@@ -394,6 +397,9 @@ export interface Session {
   // v1.15 — เข้าด้วย "รหัสตั้งค่าครั้งแรก" ยังไม่ได้ตั้ง PIN ของตัวเอง
   // middleware จะบังคับไปหน้า /set-pin จนกว่าจะตั้งเสร็จ (ใช้หน้าอื่นไม่ได้เลย)
   mustSetPasscode?: boolean;
+  // v1.31 — ภาษาที่ resolve ไว้ตอนล็อกอิน (ไม่ใช่ preferredLang ดิบ — คำนวณ default ตาม branch ไปแล้ว)
+  // ใส่ไว้ใน session เพื่อให้ API routes อ่านได้ทันทีโดยไม่ต้อง query DB ซ้ำทุก request
+  lang?: "th" | "en";
 }
 
 // ── ขอเบิกสินค้า (v1.3) — พนักงานสาขาขอของเกิน Par หรือของนอกลิสต์ ไม่มีสถานะติดตาม แค่ list ให้ restock/admin กวาดดู ──

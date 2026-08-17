@@ -35,9 +35,10 @@ export async function POST(req: Request) {
     if (!name) return NextResponse.json({ error: "ต้องระบุชื่อ" }, { status: 400 });
     if (!ROLES.includes(role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
     if (!SCOPES.includes(branchScope)) return NextResponse.json({ error: `สาขาไม่ถูกต้อง (${SCOPES.join("|")})` }, { status: 400 });
+    const preferredLang = body?.preferredLang === "en" ? "en" : body?.preferredLang === "th" ? "th" : undefined;
 
     // แอดมินไม่ตั้ง PIN ให้อีกต่อไป (v1.15) — คืน "รหัสตั้งค่า" ให้ส่งต่อ แล้วเจ้าตัวไปตั้ง PIN เอง
-    const user = await db.createUser({ name, role, branchScope, createdBy: s.userId });
+    const user = await db.createUser({ name, role, branchScope, createdBy: s.userId, preferredLang });
     await writeAudit(s, "create_user", { entity: user.id, detail: "สร้าง " + name + " (" + role + ") + ออกรหัสตั้งค่า" });
     return NextResponse.json({ ok: true, user, setupCode: user.setupCode });
   } catch (e: any) {
@@ -55,11 +56,13 @@ export async function PATCH(req: Request) {
     const id = typeof body?.id === "string" ? body.id : "";
     if (!id) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
 
-    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: "store" | "production"; isSenior?: boolean } = {};
+    const patch: { name?: string; role?: Role; branchScope?: BranchScope; active?: boolean; allowanceEnabled?: boolean; allowanceMonthly?: number; workUnit?: "store" | "production"; isSenior?: boolean; preferredLang?: "th" | "en" } = {};
     // หน่วยงาน (v1.24) — ฝ่ายผลิตไม่เห็นเมนูหน้าร้าน และลงเวลาได้โดยไม่ต้องผูกสาขา
     if (body.workUnit === "store" || body.workUnit === "production") patch.workUnit = body.workUnit;
     if (typeof body.name === "string") patch.name = body.name.trim();
     if (typeof body.isSenior === "boolean") patch.isSenior = body.isSenior;
+    // ภาษา UI (v1.31) — เตรียมรองรับพนักงานต่างชาติที่ NCD
+    if (body.preferredLang === "th" || body.preferredLang === "en") patch.preferredLang = body.preferredLang;
     if (body.role !== undefined) {
       if (!ROLES.includes(body.role)) return NextResponse.json({ error: `role ไม่ถูกต้อง (${ROLES.join("|")})` }, { status: 400 });
       patch.role = body.role;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { Role, BranchScope } from "@/lib/types";
 import { unitBrand, branchBrandLabel, isDualBrandBranch } from "@/lib/units";
+import { t, type Lang } from "@/lib/i18n";
 
 export type Me = {
   id: string; name: string; role: Role; branchScope: BranchScope;
@@ -12,6 +13,8 @@ export type Me = {
   workUnit?: "store" | "production";
   // senior staff — แก้ตารางกะของสาขาตัวเองได้
   isSenior?: boolean;
+  // ภาษา UI (v1.31) — เตรียมรองรับพนักงานต่างชาติที่ NCD
+  preferredLang?: Lang;
   // เมนูที่แอดมินยังไม่เปิดใช้ — ซ่อนทั้งเมนู เช็คลิสต์ และ badge พร้อมกัน
   features?: { expiryCheck?: boolean; staffTimeMenu?: boolean };
 };
@@ -60,65 +63,67 @@ function Icon({ name, size = 18 }: { name: IconKey; size?: number }) {
 }
 
 // children = เมนูกลุ่ม (กดแล้วกางออก) — ตัวกลุ่มเองไม่มี href
-type Tab = { href?: string; label: string; icon: IconKey; children?: Tab[] };
+// labelKey = คีย์แปลภาษา (src/lib/i18n) — label ยังเก็บไว้เป็นค่าไทยตั้งต้น/fallback เผื่อ labelKey หา
+// ไม่เจอ (t() เองก็ fallback เป็นไทยอยู่แล้ว แต่กันเหนียวอีกชั้นตรงนี้)
+type Tab = { href?: string; label: string; labelKey: string; icon: IconKey; children?: Tab[] };
 
 // ลำดับเมนูพนักงาน — แพรกำหนด 2026-07-27 ให้เรียงตามลำดับงานจริงในวัน
 // (รับของ → นับสต็อก → ปิดยอด → ส่งเงิน) ของที่ทำนาน ๆ ครั้งไปอยู่ท้าย
 // หน้าประวัติ 2 อันยุบเป็นกลุ่มเดียว เพราะเป็นของ "ย้อนดู" ไม่ใช่งานประจำวัน
 const USER_TABS: Tab[] = [
-  { href: "/store", label: "หน้าหลัก", icon: "home" },
-  { href: "/confirm-receipt", label: "ยืนยันรับของ", icon: "inbox" },
-  { href: "/stock", label: "เช็คสต็อก", icon: "clipboard" },
-  { href: "/sales", label: "รายงานยอดขาย", icon: "banknote" },
-  { href: "/cash-remittance", label: "เงินสด", icon: "bank" },
-  { href: "/expiry", label: "ตรวจสอบวันหมดอายุ", icon: "calendar" },
-  { href: "/requisitions", label: "ขอเบิกสินค้า", icon: "request" },
+  { href: "/store", label: "หน้าหลัก", labelKey: "nav.user.home", icon: "home" },
+  { href: "/confirm-receipt", label: "ยืนยันรับของ", labelKey: "nav.user.confirmReceipt", icon: "inbox" },
+  { href: "/stock", label: "เช็คสต็อก", labelKey: "nav.user.stock", icon: "clipboard" },
+  { href: "/sales", label: "รายงานยอดขาย", labelKey: "nav.user.sales", icon: "banknote" },
+  { href: "/cash-remittance", label: "เงินสด", labelKey: "nav.user.cashRemittance", icon: "bank" },
+  { href: "/expiry", label: "ตรวจสอบวันหมดอายุ", labelKey: "nav.user.expiry", icon: "calendar" },
+  { href: "/requisitions", label: "ขอเบิกสินค้า", labelKey: "nav.user.requisitions", icon: "request" },
   {
-    label: "ประวัติ", icon: "list",
+    label: "ประวัติ", labelKey: "nav.user.history", icon: "list",
     children: [
-      { href: "/stock-in", label: "ประวัติสินค้าเข้า", icon: "truck" },
-      { href: "/returns", label: "ประวัติส่งคืน / ของเสีย", icon: "undo" },
+      { href: "/stock-in", label: "ประวัติสินค้าเข้า", labelKey: "nav.user.stockInHistory", icon: "truck" },
+      { href: "/returns", label: "ประวัติส่งคืน / ของเสีย", labelKey: "nav.user.returnsHistory", icon: "undo" },
     ],
   },
 ];
 const ADMIN_TABS: Tab[] = [
-  { href: "/store", label: "หน้าหลัก", icon: "home" },
-  { href: "/stock", label: "สต็อก", icon: "clipboard" },
-  { href: "/stock-in", label: "สินค้าเข้า", icon: "truck" },
-  { href: "/confirm-receipt", label: "รับของ", icon: "inbox" },
-  { href: "/restock", label: "ต้องเติม", icon: "package" },
-  { href: "/sales", label: "ยอดขาย", icon: "banknote" },
-  { href: "/cash-remittance", label: "โอนเงินสด", icon: "bank" },
-  { href: "/cups", label: "สรุปจำนวน", icon: "cup" },
-  { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
-  { href: "/expiry", label: "วันหมดอายุ", icon: "calendar" },
-  { href: "/returns", label: "ส่งคืน/ของเสีย", icon: "undo" },
+  { href: "/store", label: "หน้าหลัก", labelKey: "nav.admin.home", icon: "home" },
+  { href: "/stock", label: "สต็อก", labelKey: "nav.admin.stock", icon: "clipboard" },
+  { href: "/stock-in", label: "สินค้าเข้า", labelKey: "nav.admin.stockIn", icon: "truck" },
+  { href: "/confirm-receipt", label: "รับของ", labelKey: "nav.admin.confirmReceipt", icon: "inbox" },
+  { href: "/restock", label: "ต้องเติม", labelKey: "nav.admin.restock", icon: "package" },
+  { href: "/sales", label: "ยอดขาย", labelKey: "nav.admin.sales", icon: "banknote" },
+  { href: "/cash-remittance", label: "โอนเงินสด", labelKey: "nav.admin.cashRemittance", icon: "bank" },
+  { href: "/cups", label: "สรุปจำนวน", labelKey: "nav.admin.cups", icon: "cup" },
+  { href: "/requisitions", label: "คำขอเบิก", labelKey: "nav.admin.requisitions", icon: "request" },
+  { href: "/expiry", label: "วันหมดอายุ", labelKey: "nav.admin.expiry", icon: "calendar" },
+  { href: "/returns", label: "ส่งคืน/ของเสีย", labelKey: "nav.admin.returns", icon: "undo" },
 ];
 const ADMIN_MENU: Tab[] = [
-  { href: "/admin-flags", label: "รายการรอตรวจสอบ", icon: "flag" },
-  { href: "/stock-overview", label: "สรุปสต็อกคงเหลือ", icon: "clipboard" },
-  { href: "/settings", label: "ตั้งค่าสินค้า", icon: "sliders" },
-  { href: "/users", label: "ผู้ใช้", icon: "users" },
-  { href: "/timeclock-report", label: "รายงานลงเวลา", icon: "clock" },
-  { href: "/timeclock-admin", label: "ตั้งค่าระบบ", icon: "sliders" },
-  { href: "/notices", label: "ประกาศ", icon: "megaphone" },
-  { href: "/audit", label: "Audit Log", icon: "list" },
+  { href: "/admin-flags", label: "รายการรอตรวจสอบ", labelKey: "nav.adminMenu.adminFlags", icon: "flag" },
+  { href: "/stock-overview", label: "สรุปสต็อกคงเหลือ", labelKey: "nav.adminMenu.stockOverview", icon: "clipboard" },
+  { href: "/settings", label: "ตั้งค่าสินค้า", labelKey: "nav.adminMenu.settings", icon: "sliders" },
+  { href: "/users", label: "ผู้ใช้", labelKey: "nav.adminMenu.users", icon: "users" },
+  { href: "/timeclock-report", label: "รายงานลงเวลา", labelKey: "nav.adminMenu.timeclockReport", icon: "clock" },
+  { href: "/timeclock-admin", label: "ตั้งค่าระบบ", labelKey: "nav.adminMenu.timeclockAdmin", icon: "sliders" },
+  { href: "/notices", label: "ประกาศ", labelKey: "nav.adminMenu.notices", icon: "megaphone" },
+  { href: "/audit", label: "Audit Log", labelKey: "nav.adminMenu.auditLog", icon: "list" },
 ];
 // role "restock" — เข้าได้แค่ 2 หน้า (เติมของ/สั่งผลิต + คำขอเบิก) ไม่เห็นเมนูอื่นเลย
 const RESTOCK_TABS: Tab[] = [
-  { href: "/restock", label: "เติมของ/สั่งผลิต", icon: "package" },
-  { href: "/requisitions", label: "คำขอเบิก", icon: "request" },
+  { href: "/restock", label: "เติมของ/สั่งผลิต", labelKey: "nav.restock.restock", icon: "package" },
+  { href: "/requisitions", label: "คำขอเบิก", labelKey: "nav.restock.requisitions", icon: "request" },
 ];
 const PRODUCTION_TABS: Tab[] = [
-  { href: "/yogi", label: "หน้าหลัก", icon: "home" },
+  { href: "/yogi", label: "หน้าหลัก", labelKey: "nav.production.home", icon: "home" },
 ];
 // กลุ่ม "Logging" — senior เห็นได้ (แพรสั่ง 2026-08-06) โผล่ในเมนูหลัก ไม่ใช่ "ข้อมูลของฉัน"
 // เห็นแค่สาขาตัวเอง + แค่งานของพนักงาน (ไม่รวมที่แอดมินแก้เอง — กรองให้ที่ API แล้ว)
 const LOGGING_GROUP: Tab = {
-  label: "Logging", icon: "list",
+  label: "Logging", labelKey: "nav.logging.group", icon: "list",
   children: [
-    { href: "/audit", label: "ประวัติการบันทึก", icon: "list" },
-    { href: "/admin-flags", label: "ประวัติการแก้ไข", icon: "flag" },
+    { href: "/audit", label: "ประวัติการบันทึก", labelKey: "nav.logging.auditLog", icon: "list" },
+    { href: "/admin-flags", label: "ประวัติการแก้ไข", labelKey: "nav.logging.adminFlags", icon: "flag" },
   ],
 };
 const tabsForMe = (me: Me | null): Tab[] => {
@@ -139,14 +144,14 @@ const accountMenuFor = (me: Me | null): Tab[] => [
   // แอดมินเห็นตลอดเพื่อทดสอบ · เปิดให้พนักงานได้ที่หน้า "ตั้งค่าระบบ" ไม่ต้อง deploy ใหม่ (แพรยืนยัน 2026-08-04 — โชว์ที่แอดมินได้)
   ...(me?.role === "admin" || me?.features?.staffTimeMenu
     ? [
-        { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", icon: "clock" as IconKey },
-        { href: "/schedule", label: "ตารางงาน", icon: "calendar" as IconKey },
+        { href: "/time-clock", label: "ลงเวลาเข้า-ออกงาน", labelKey: "nav.account.timeClock", icon: "clock" as IconKey },
+        { href: "/schedule", label: "ตารางงาน", labelKey: "nav.account.schedule", icon: "calendar" as IconKey },
       ]
     : []),
-  { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", icon: "lock" },
+  { href: "/set-pin", label: "เปลี่ยนรหัสของฉัน", labelKey: "nav.account.setPin", icon: "lock" },
   // ประวัติการบันทึก/แก้ไขของ senior ย้ายไปอยู่กลุ่ม "Logging" ในเมนูหลักแล้ว (แพรสั่ง 2026-08-06)
-  ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", icon: "ticket" as IconKey }] : []),
-  { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", icon: "chat" },
+  ...(me?.allowanceEnabled ? [{ href: "/allowance", label: "สิทธิ์ซื้อของ", labelKey: "nav.account.allowance", icon: "ticket" as IconKey }] : []),
+  { href: "/feedback", label: "ความคิดเห็นและข้อเสนอแนะ", labelKey: "nav.account.feedback", icon: "chat" },
 ];
 
 
@@ -155,6 +160,14 @@ const MeCtx = React.createContext<Me | null>(null);
 /** อ่านข้อมูลผู้ใช้ที่ล็อกอิน (null = ยังไม่โหลด/ไม่ได้ล็อกอิน) — ใช้ในหน้าเพื่อจำกัดสาขา */
 export function useMe(): Me | null {
   return React.useContext(MeCtx);
+}
+
+// ภาษา UI (v1.31) — ผูกกับ me.preferredLang เสมอ (default "th" ก่อน me จะโหลดเสร็จ)
+// เตรียมรองรับพนักงานต่างชาติที่ NCD (แพรสั่ง 2026-08-17)
+const LangCtx = React.createContext<Lang>("th");
+/** อ่านภาษา UI ปัจจุบันของคนที่ล็อกอินอยู่ — ใช้คู่กับ t() จาก @/lib/i18n */
+export function useLang(): Lang {
+  return React.useContext(LangCtx);
 }
 
 // จำนวนคำขอเบิกที่ยังไม่มีใครเปิดดู — โชว์ badge ที่เมนู "ขอเบิกสินค้า" (เฉพาะ restock/admin)
@@ -207,6 +220,40 @@ function useLogout() {
     router.replace("/login");
     router.refresh();
   }, [router]);
+}
+
+// สลับภาษาของบัญชีที่ล็อกอินอยู่ (v1.31) — self-service คู่กับที่แอดมินตั้งให้ได้ที่หน้า /users
+// (แพรสั่ง 2026-08-17 — เตรียมรองรับพนักงานต่างชาติที่ NCD) reload ทั้งหน้าหลัง PATCH สำเร็จ ง่ายสุด
+// และชัวร์สุดว่าทุกอย่าง (nav + หน้าที่เปิดอยู่) sync กับภาษาใหม่พร้อมกันหมด
+function LangSwitch() {
+  const lang = useLang();
+  const [busy, setBusy] = React.useState(false);
+  async function toggle() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next: Lang = lang === "th" ? "en" : "th";
+      await fetch("/api/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preferredLang: next }),
+      });
+      window.location.reload();
+    } catch {
+      setBusy(false);
+    }
+  }
+  return (
+    <button
+      type="button" onClick={toggle} disabled={busy}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13px] font-medium text-brand-ink/70 transition hover:bg-white/70 hover:text-brand-ink disabled:opacity-50"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden="true">
+        <path d="M4 5h9M8.5 3v2.5M6 5c.3 3 2 5.5 5 7M11 5c-.7 2-2.2 4-5.5 6M12 21l4-9 4 9M13.6 18h4.8" />
+      </svg>
+      <span className="flex-1 truncate">{lang === "th" ? "English" : "ภาษาไทย"}</span>
+    </button>
+  );
 }
 
 export function NavShell({ children }: { children: React.ReactNode }) {
@@ -296,6 +343,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
   return (
     <MeCtx.Provider value={me}>
+      <LangCtx.Provider value={me?.preferredLang ?? "th"}>
       <UnseenReqCtx.Provider value={unseenReq}>
         <PendingReceiptCtx.Provider value={pendingReceipt}>
           <AdminFlagsCtx.Provider value={adminFlags}>
@@ -313,6 +361,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
           </AdminFlagsCtx.Provider>
         </PendingReceiptCtx.Provider>
       </UnseenReqCtx.Provider>
+      </LangCtx.Provider>
     </MeCtx.Provider>
   );
 }
@@ -376,6 +425,7 @@ const Chevron = ({ open }: { open: boolean }) => (
 
 /** เมนูกลุ่มในแถบซ้าย — กางเองอัตโนมัติเมื่ออยู่ในหน้าลูก จะได้ไม่ต้องกดซ้ำทุกครั้ง */
 function NavGroup({ tab, isOn, onNavigate }: { tab: Tab; isOn: (href: string) => boolean; onNavigate?: () => void }) {
+  const lang = useLang();
   const hasActiveChild = (tab.children ?? []).some((c) => c.href && isOn(c.href));
   const [open, setOpen] = React.useState(hasActiveChild);
   React.useEffect(() => { if (hasActiveChild) setOpen(true); }, [hasActiveChild]);
@@ -383,7 +433,7 @@ function NavGroup({ tab, isOn, onNavigate }: { tab: Tab; isOn: (href: string) =>
     <div>
       <button type="button" onClick={() => setOpen((o) => !o)} className={ITEM_CLS(false)} aria-expanded={open}>
         <Icon name={tab.icon} />
-        <span className="flex-1 truncate">{tab.label}</span>
+        <span className="flex-1 truncate">{t(lang, tab.labelKey)}</span>
         <Chevron open={open} />
       </button>
       {open && (
@@ -398,6 +448,7 @@ function NavGroup({ tab, isOn, onNavigate }: { tab: Tab; isOn: (href: string) =>
 }
 
 function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; onClick?: () => void; badge?: number }) {
+  const lang = useLang();
   return (
     <Link
       href={tab.href ?? "#"}
@@ -409,7 +460,7 @@ function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; o
       }`}
     >
       <Icon name={tab.icon} />
-      <span className="flex-1 truncate">{tab.label}</span>
+      <span className="flex-1 truncate">{t(lang, tab.labelKey)}</span>
       {!!badge && (
         <span className={`grid h-5 min-w-[20px] place-items-center rounded-full px-1 text-[11px] font-semibold ${
           active ? "bg-white text-brand-red" : "bg-brand-red text-white"
@@ -424,6 +475,7 @@ function NavItem({ tab, active, onClick, badge }: { tab: Tab; active: boolean; o
 /* ── Desktop: sidebar แนวตั้ง (≥lg) ── */
 function Sidebar() {
   const me = React.useContext(MeCtx);
+  const lang = useLang();
   const unseenReq = React.useContext(UnseenReqCtx);
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const adminFlags = React.useContext(AdminFlagsCtx);
@@ -448,29 +500,30 @@ function Sidebar() {
       {/* เมนูยาวเกินจอแล้ว (แอดมิน 13 + จัดการระบบ 5) — ต้องเลื่อนได้ ไม่งั้นกลุ่มล่างกดไม่ถึง */}
       <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
         <nav className="flex flex-col gap-px">
-          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">เมนู</div>
-          {tabs.map((t) =>
-            t.children
-              ? <NavGroup key={t.label} tab={t} isOn={isOn} />
-              : <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={tabBadge(t.href!)} />
+          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">{t(lang, "nav.groupMenu")}</div>
+          {tabs.map((tab) =>
+            tab.children
+              ? <NavGroup key={tab.label} tab={tab} isOn={isOn} />
+              : <NavItem key={tab.href} tab={tab} active={isOn(tab.href!)} badge={tabBadge(tab.href!)} />
           )}
         </nav>
 
         <nav className="mt-3.5 flex flex-col gap-px">
-          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
-          {accountMenuFor(me).map((t) => (
+          <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">{t(lang, "nav.groupAccount")}</div>
+          {accountMenuFor(me).map((tab) => (
             <NavItem
-              key={t.href} tab={t} active={isOn(t.href!)}
-              badge={t.href === "/feedback" ? unseenFeedback : undefined}
+              key={tab.href} tab={tab} active={isOn(tab.href!)}
+              badge={tab.href === "/feedback" ? unseenFeedback : undefined}
             />
           ))}
+          <LangSwitch />
         </nav>
 
         {me?.role === "admin" && (
           <nav className="mt-3.5 flex flex-col gap-px">
-            <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
-            {ADMIN_MENU.map((t) => (
-              <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={t.href === "/admin-flags" ? adminFlags : undefined} />
+            <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">{t(lang, "nav.groupSystem")}</div>
+            {ADMIN_MENU.map((tab) => (
+              <NavItem key={tab.href} tab={tab} active={isOn(tab.href!)} badge={tab.href === "/admin-flags" ? adminFlags : undefined} />
             ))}
           </nav>
         )}
@@ -481,7 +534,7 @@ function Sidebar() {
         className="mt-2.5 flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium text-warn transition hover:bg-warn/10"
       >
         <Icon name="logout" />
-        <span>ออกจากระบบ</span>
+        <span>{t(lang, "nav.logout")}</span>
       </button>
     </aside>
   );
@@ -494,6 +547,7 @@ function Sidebar() {
 // ทุกอย่างอยู่ในนี้ที่เดียว: เมนูหลัก · กลุ่มประวัติ (กดกาง) · จัดการระบบ (แอดมิน) · เปลี่ยนรหัส · ออกจากระบบ
 function MobileNav() {
   const me = React.useContext(MeCtx);
+  const lang = useLang();
   const unseenReq = React.useContext(UnseenReqCtx);
   const pendingReceipt = React.useContext(PendingReceiptCtx);
   const adminFlags = React.useContext(AdminFlagsCtx);
@@ -528,7 +582,7 @@ function MobileNav() {
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
         <button
           onClick={() => setOpen(true)}
-          aria-label="เปิดเมนู"
+          aria-label={t(lang, "nav.openMenu")}
           className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/60 bg-white/60"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
@@ -554,7 +608,7 @@ function MobileNav() {
               <Brand me={me} compact />
               <button
                 onClick={() => setOpen(false)}
-                aria-label="ปิดเมนู"
+                aria-label={t(lang, "nav.closeMenu")}
                 className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-brand-ink/50"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
@@ -565,20 +619,20 @@ function MobileNav() {
 
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               <nav className="flex flex-col gap-px">
-                {tabs.map((t) =>
-                  t.children
-                    ? <NavGroup key={t.label} tab={t} isOn={isOn} onNavigate={() => setOpen(false)} />
-                    : <NavItem key={t.href} tab={t} active={isOn(t.href!)} badge={tabBadge(t.href)} onClick={() => setOpen(false)} />
+                {tabs.map((tab) =>
+                  tab.children
+                    ? <NavGroup key={tab.label} tab={tab} isOn={isOn} onNavigate={() => setOpen(false)} />
+                    : <NavItem key={tab.href} tab={tab} active={isOn(tab.href!)} badge={tabBadge(tab.href)} onClick={() => setOpen(false)} />
                 )}
               </nav>
 
               {me?.role === "admin" && (
                 <nav className="mt-3.5 flex flex-col gap-px">
-                  <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">จัดการระบบ</div>
-                  {ADMIN_MENU.map((t) => (
+                  <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">{t(lang, "nav.groupSystem")}</div>
+                  {ADMIN_MENU.map((tab) => (
                     <NavItem
-                      key={t.href} tab={t} active={isOn(t.href!)}
-                      badge={t.href === "/admin-flags" ? adminFlags : undefined}
+                      key={tab.href} tab={tab} active={isOn(tab.href!)}
+                      badge={tab.href === "/admin-flags" ? adminFlags : undefined}
                       onClick={() => setOpen(false)}
                     />
                   ))}
@@ -586,14 +640,15 @@ function MobileNav() {
               )}
 
               <nav className="mt-3.5 flex flex-col gap-px">
-                <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">ข้อมูลของฉัน</div>
-                {accountMenuFor(me).map((t) => (
+                <div className="px-2.5 pb-1 text-[10.5px] font-medium uppercase tracking-wide text-brand-ink/35">{t(lang, "nav.groupAccount")}</div>
+                {accountMenuFor(me).map((tab) => (
                   <NavItem
-                    key={t.href} tab={t} active={isOn(t.href!)}
-                    badge={t.href === "/feedback" ? unseenFeedback : undefined}
+                    key={tab.href} tab={tab} active={isOn(tab.href!)}
+                    badge={tab.href === "/feedback" ? unseenFeedback : undefined}
                     onClick={() => setOpen(false)}
                   />
                 ))}
+                <LangSwitch />
               </nav>
             </div>
 
@@ -602,7 +657,7 @@ function MobileNav() {
               className="m-3 mt-0 flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[9px] text-[13px] font-medium text-warn transition hover:bg-warn/10"
             >
               <Icon name="logout" />
-              <span>ออกจากระบบ</span>
+              <span>{t(lang, "nav.logout")}</span>
             </button>
           </aside>
         </>
