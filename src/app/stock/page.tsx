@@ -14,8 +14,9 @@ import { todayISO, thaiDate } from "@/lib/fmt";
 import {
   GlassCard, Badge, Button, BranchPicker, Accordion, SaveBar, PageTitle,
 } from "@/components/ui";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { TodayNextStep } from "@/components/today-next-step";
+import { t } from "@/lib/i18n";
 
 const toNum = (raw: string): number => {
   const x = parseFloat(raw);
@@ -46,11 +47,11 @@ const isFilled = (r: StockRow): boolean =>
 
 // กลุ่มย่อยที่ "พับเก็บไว้ก่อน" ในหมวดของมัน — ของที่ไม่ค่อยเข้า กินพื้นที่จอเปล่า ๆ (แพรขอ 2026-07-26)
 // ยังกรอกได้ปกติ แค่ต้องกดเปิดก่อน · เพิ่มกลุ่มใหม่ได้โดยใส่ต่อในลิสต์นี้ ไม่ต้องแก้ที่อื่น
-const COLLAPSIBLE_SUBGROUPS: { label: string; match: (it: Item) => boolean }[] = [
-  { label: "ถุงมือ", match: (it) => it.name.startsWith("Gloves YG") },
+const COLLAPSIBLE_SUBGROUPS: { labelKey: string; match: (it: Item) => boolean }[] = [
+  { labelKey: "stock.subGroupGlovesLabel", match: (it) => it.name.startsWith("Gloves YG") },
 ];
 const subGroupOf = (it: Item): string | null =>
-  COLLAPSIBLE_SUBGROUPS.find((sg) => sg.match(it))?.label ?? null;
+  COLLAPSIBLE_SUBGROUPS.find((sg) => sg.match(it))?.labelKey ?? null;
 
 // เพดานช่อง "แพ็คเต็ม" ของรายการที่ชั่งกิโล/นับเศษ + ผลไม้ (แพรยืนยัน 2026-07-26)
 // ของกลุ่มนี้ Par สูงสุด 6 แพ็ค — พิมพ์เกิน 15 คือผิดแน่นอน ไม่ใช่ของเข้าเยอะจริง
@@ -108,6 +109,7 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
   label: string; isConfirmed: boolean; value: number; warn?: boolean; maxLength?: number;
   confirmLabel?: string; onConfirm?: () => void; onUnconfirm: () => void; onChange: (v: string) => void;
 }) {
+  const lang = useLang();
   if (!isConfirmed) {
     return (
       <label className="flex flex-col gap-0.5">
@@ -121,7 +123,7 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
           </button>
         ) : (
           <div className="field flex min-h-[34px] items-center justify-center bg-black/[.03] px-1 py-1 text-center text-[10px] text-brand-ink/35">
-            ยืนยัน?
+            {t(lang, "stock.confirmPrompt")}
           </div>
         )}
       </label>
@@ -131,7 +133,7 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
     <div className="flex flex-col gap-0.5">
       <div className="flex items-center justify-between gap-1">
         <span className="text-[8.5px] leading-tight text-brand-ink/50">{label}</span>
-        <button type="button" onClick={onUnconfirm} className="text-[8.5px] text-sky-700 underline">แก้ไข</button>
+        <button type="button" onClick={onUnconfirm} className="text-[8.5px] text-sky-700 underline">{t(lang, "stock.editLink")}</button>
       </div>
       <input
         inputMode="numeric" value={value} maxLength={maxLength}
@@ -144,6 +146,7 @@ function RemainCell({ label, isConfirmed, value, warn, maxLength, confirmLabel, 
 
 export default function StockPage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
@@ -284,11 +287,11 @@ export default function StockPage() {
   // กดแสดงแล้วเลื่อนไปหาให้เลย — หมวดที่ซ่อนอยู่ท้ายสุดของทุกหมวด ถ้าไม่เลื่อนให้จะหาไม่เจอ
   React.useEffect(() => {
     if (!showHidden) return;
-    const t = setTimeout(
+    const timer = setTimeout(
       () => document.getElementById("hidden-start")?.scrollIntoView({ behavior: "smooth", block: "start" }),
       60
     );
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [showHidden]);
   // กลุ่มย่อยที่พับไว้ (เช่น ถุงมือ) — key = "หมวด|ชื่อกลุ่ม" กันชนกันข้ามหมวด
   const [openSub, setOpenSub] = React.useState<Record<string, boolean>>({});
@@ -391,18 +394,24 @@ export default function StockPage() {
       if (it.remainderGroup) continue; // กลุ่มเช็คแยกด้านล่าง
       if (it.hasRemainder) {
         const d = derive(r, it.gramsPerUOM);
-        if (d.usedTotalG < 0) errs.push(`${it.name} — เกิน ${d.overG} ${it.isCup ? "ชิ้น" : "g"}`);
+        if (d.usedTotalG < 0) {
+          errs.push(t(lang, "stock.errorItemOverQty", {
+            name: it.name, n: d.overG, unit: it.isCup ? t(lang, "stock.unitPiece") : "g",
+          }));
+        }
       } else {
         const v = varianceOf(r, it.gramsPerUOM);
-        if (v !== 0) errs.push(`${it.name} — ยอดไม่ตรง (ต่าง ${v > 0 ? "+" : ""}${v})`);
+        if (v !== 0) {
+          errs.push(t(lang, "stock.errorItemVarianceMismatch", { name: it.name, sign: v > 0 ? "+" : "", n: v }));
+        }
       }
     }
     for (const [g] of groupIds) {
       const overG = groupTotals(g).overG;
-      if (overG > 0) errs.push(`กลุ่ม ${g} — เกิน ${overG} g`);
+      if (overG > 0) errs.push(t(lang, "stock.errorGroupOver", { group: g, n: overG }));
     }
     return { filledCount: filled, errorCount: errs.length, unconfirmedCount: unconfirmed, errorItems: errs };
-  }, [shownItems, rows, groupIds, groupTotals, confirmed]);
+  }, [shownItems, rows, groupIds, groupTotals, confirmed, lang]);
 
   type NumField = "inPack" | "used" | "remainPack" | "returned" | "inG" | "usedG" | "remainG" | "returnedG";
   // คงเหลือแพ็ค = ยกมา + รับเข้า − ออก/ขาย − ส่งคืน/เสีย (ส่งคืนหักจากยอด stock)
@@ -508,8 +517,12 @@ export default function StockPage() {
     if (errorCount > 0) {
       // โชว์ชื่อรายการที่มีปัญหาให้ครบ (จำกัด 15 บรรทัดกัน popup ยาวเกินจอมือถือ) จะได้กลับไปแก้ถูกตัว
       const shown = errorItems.slice(0, 15).map((s) => `• ${s}`).join("\n");
-      const more = errorItems.length > 15 ? `\n… และอีก ${errorItems.length - 15} รายการ` : "";
-      const ok = window.confirm(`มี ${errorCount} รายการที่ยอดไม่ตรง/คงเหลือเกินของที่มี\n\n${shown}${more}\n\nต้องการบันทึกเลยไหม?`);
+      const more = errorItems.length > 15
+        ? `\n${t(lang, "stock.saveErrorMoreItems", { n: errorItems.length - 15 })}`
+        : "";
+      const ok = window.confirm(
+        `${t(lang, "stock.saveErrorConfirmPrefix", { n: errorCount })}\n\n${shown}${more}\n\n${t(lang, "stock.saveErrorConfirmSuffix")}`
+      );
       if (!ok) return;
     }
     setSaving(true);
@@ -537,26 +550,25 @@ export default function StockPage() {
 
       // มีคนบันทึกแทรกหลังจากเราเปิดหน้านี้ — ให้เลือกเอง ไม่ทับเงียบ ๆ และไม่ทิ้งที่กรอกไว้เอง
       if (res.status === 409 && data.conflict) {
-        const who = data.savedBy ?? "คนอื่น";
+        const who = data.savedBy ?? t(lang, "stock.conflictOtherPerson");
         const when = data.savedAt ? new Date(data.savedAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "";
         const overwrite = window.confirm(
-          `${who} บันทึกสต็อกของวันนี้ไปแล้ว${when ? ` เมื่อ ${when} น.` : ""}\n\n` +
-          `กด "ตกลง" = บันทึกทับด้วยตัวเลขที่คุณกรอก (ตัวเลขของ ${who} จะหายไป)\n` +
-          `กด "ยกเลิก" = ไม่บันทึก แล้วโหลดหน้าใหม่เพื่อดูตัวเลขล่าสุดก่อน`
+          `${t(lang, "stock.conflictSavedBy", { who })}${when ? t(lang, "stock.conflictSavedAtSuffix", { time: when }) : ""}\n\n` +
+          t(lang, "stock.conflictConfirmBody", { who })
         );
         if (!overwrite) {
-          window.alert("ยังไม่ได้บันทึก — กดรีเฟรชหน้าเพื่อดูตัวเลขล่าสุดก่อนกรอกต่อ");
+          window.alert(t(lang, "stock.conflictCancelAlert"));
           return;
         }
         res = await post(true);
         data = await res.json();
       }
 
-      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "stock.saveFailedGeneric"));
       setBaseSavedAt(data.savedAt ?? null); // กันเด้งเตือนซ้ำถ้ากดบันทึกอีกรอบโดยไม่ได้ออกจากหน้า
       setShowSavePrompt(true); // แทน alert เดิม — ชวนไปกรอกยอดขายต่อ
     } catch (e: any) {
-      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "stock.saveFailedPrefix", { msg: e?.message ?? e }));
     } finally {
       setSaving(false);
     }
@@ -564,7 +576,7 @@ export default function StockPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
-      <PageTitle title="กรอกสต็อกรายวัน" right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
+      <PageTitle title={t(lang, "stock.pageTitle")} right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
 
       {/* สาขา + วันที่ อยู่บรรทัดเดียวกัน (แพรขอ 2026-07-29) — พนักงานทำงานบนมือถือ ทุกบรรทัดที่ตัดได้คือการเลื่อนที่หายไป */}
       <div className="glass mb-2.5 p-2.5">
@@ -584,7 +596,7 @@ export default function StockPage() {
             />
           </div>
           {date !== todayISO() && (
-            <span className="text-[11px] font-medium text-warn">⚠️ ไม่ใช่วันนี้ — {thaiDate(date)}</span>
+            <span className="text-[11px] font-medium text-warn">{t(lang, "stock.notToday", { date: thaiDate(date) })}</span>
           )}
           {!started && (
             <button
@@ -592,7 +604,7 @@ export default function StockPage() {
               onClick={() => setStarted(true)}
               className="w-full rounded-xl bg-brand-red px-4 py-2.5 text-[15px] font-semibold text-white shadow-glass"
             >
-              ยืนยัน แล้วเริ่มนับสต็อก
+              {t(lang, "stock.startButton")}
             </button>
           )}
         </div>
@@ -601,17 +613,16 @@ export default function StockPage() {
       {!started && pendingToday > 0 && (
         <div className="mb-3 rounded-xl border border-warn/40 bg-warn/10 px-3.5 py-3">
           <p className="text-[13.5px] font-semibold text-warn">
-            กรุณากดยืนยันรับสินค้าเข้าก่อนเช็คสต็อก
+            {t(lang, "stock.receiptPendingTodayTitle")}
           </p>
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/60">
-            ยังไม่ได้ยืนยัน {pendingToday} รายการของวันนี้ — ถ้ายังไม่ยืนยัน ช่อง &ldquo;รับเข้า&rdquo; จะว่าง
-            แล้วยอดคงเหลือที่นับได้จะดูเหมือนเกินของที่มี
+            {t(lang, "stock.receiptPendingTodayBody", { n: pendingToday })}
           </p>
           <Link
             href={`/confirm-receipt?branch=${branch}`}
             className="mt-2.5 block rounded-xl bg-brand-red px-4 py-2.5 text-center text-[13px] font-semibold text-white"
           >
-            ไปยืนยันรับสินค้า →
+            {t(lang, "stock.goConfirmReceipt")}
           </Link>
         </div>
       )}
@@ -619,22 +630,21 @@ export default function StockPage() {
       {!started && pendingOld > 0 && (
         <div className="mb-3 rounded-xl border border-black/10 bg-white/70 px-3.5 py-3">
           <p className="text-[12.5px] font-medium">
-            มีใบเก่าค้างยืนยันอีก {pendingOld} รายการ
-            {oldestPendingDate ? ` (เก่าสุด ${thaiDate(oldestPendingDate)})` : ""}
+            {t(lang, "stock.oldPendingSheets", { n: pendingOld })}
+            {oldestPendingDate ? t(lang, "stock.oldestPendingSuffix", { date: thaiDate(oldestPendingDate) }) : ""}
           </p>
           <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-            ควรเคลียร์ให้จบ เหลือแต่ใบล่าสุด — ถ้าของไม่ได้มาจริง ปิดทั้งใบว่า &ldquo;ไม่ได้รับ&rdquo; ได้เลย
-            แล้วระบบจะแจ้งแอดมินให้เอง
+            {t(lang, "stock.oldPendingBody")}
             <br />
             <span className="text-brand-ink/45">
-              ยิ่งค้างนานยิ่งเพี้ยน — กดยืนยันวันไหน ยอดจะไปลง &ldquo;รับเข้า&rdquo; ของวันนั้น ไม่ใช่วันที่ของถึงจริง
+              {t(lang, "stock.oldPendingSub")}
             </span>
           </p>
           <Link
             href={`/confirm-receipt?branch=${branch}`}
             className="mt-2 inline-block text-[12.5px] font-medium text-brand-red underline underline-offset-2"
           >
-            ไปจัดการใบค้าง
+            {t(lang, "stock.goManagePending")}
           </Link>
         </div>
       )}
@@ -642,8 +652,8 @@ export default function StockPage() {
       {!started && (
         <GlassCard>
           <p className="py-6 text-center text-sm leading-relaxed text-brand-ink/50">
-            ตรวจสาขาและวันที่ด้านบนให้ถูกก่อน<br />
-            แล้วกด &ldquo;ยืนยัน แล้วเริ่มนับสต็อก&rdquo; เพื่อดู/กรอกรายการ
+            {t(lang, "stock.preStartHintLine1")}<br />
+            {t(lang, "stock.preStartHintLine2")}
           </p>
         </GlassCard>
       )}
@@ -655,25 +665,25 @@ export default function StockPage() {
           href={`/confirm-receipt?branch=${branch}`}
           className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2.5 text-sm text-brand-ink/80"
         >
-          <span>⚠️ กรุณายืนยันรับของก่อนนับสต็อก</span>
-          <span className="shrink-0 font-semibold text-warn underline underline-offset-2">ไปยืนยันรับของ</span>
+          <span>{t(lang, "stock.receiptPendingBanner")}</span>
+          <span className="shrink-0 font-semibold text-warn underline underline-offset-2">{t(lang, "stock.goConfirmReceiptShort")}</span>
         </Link>
       )}
 
       {/* สรุปหัวหน้าเป็นบรรทัดเดียวแทนการ์ด 3 ใบ — ตัวเลขชุดเดิมทั้งหมด แค่กินที่น้อยลง (แพรขอ 2026-07-29) */}
       <div className="mb-2.5 flex items-center gap-3 rounded-xl border border-black/[.06] bg-white/70 px-3 py-2 text-[12px] text-brand-ink/55">
         <span>
-          ยืนยันแล้ว{" "}
+          {t(lang, "stock.confirmedCountLabel")}{" "}
           <b className={`text-[14px] tabular-nums ${total > 0 && filledCount === total ? "text-ok" : "text-brand-ink"}`}>
             {filledCount}/{total}
           </b>
         </span>
         <span>
-          ค้าง{" "}
+          {t(lang, "stock.pendingCountLabel")}{" "}
           <b className={`text-[14px] tabular-nums ${unconfirmedCount > 0 ? "text-warn" : "text-ok"}`}>{unconfirmedCount}</b>
         </span>
         {errorCount > 0 && (
-          <span className="ml-auto font-semibold text-warn">⚠️ เกิน/ผิด {errorCount}</span>
+          <span className="ml-auto font-semibold text-warn">{t(lang, "stock.errorCountLabel", { n: errorCount })}</span>
         )}
       </div>
 
@@ -685,25 +695,25 @@ export default function StockPage() {
         >
           <span>
             {showHidden
-              ? `กำลังแสดง ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ค — กรอกได้ปกติถ้ามีของเข้า`
-              : `ซ่อนไว้ ${hiddenTodayCount} รายการที่ไม่ถึงรอบเช็ควันนี้ — ถ้ามีของเข้านอกใบยืนยันรับของ กดเพื่อกรอก`}
+              ? t(lang, "stock.hiddenShownBanner", { n: hiddenTodayCount })
+              : t(lang, "stock.hiddenHiddenBanner", { n: hiddenTodayCount })}
           </span>
           <span className="shrink-0 font-semibold text-sky-700 underline underline-offset-2">
-            {showHidden ? "ซ่อน" : "แสดงรายการ"}
+            {showHidden ? t(lang, "stock.hideAction") : t(lang, "stock.showListAction")}
           </span>
         </button>
       )}
 
       {err && (
         <GlassCard className="mb-3">
-          <p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {err}</p>
+          <p className="text-sm text-warn">{t(lang, "stock.loadErrorPrefix", { err })}</p>
         </GlassCard>
       )}
 
       {loading ? (
-        <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+        <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
       ) : groups.length === 0 ? (
-        <GlassCard><p className="text-sm text-brand-ink/50">ไม่มีรายการสต็อกสำหรับสาขานี้</p></GlassCard>
+        <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "stock.emptyForBranch")}</p></GlassCard>
       ) : (
         displayGroups.map((g, gi) => {
           const cupSum = cupSummaryByCategory.get(g.category);
@@ -722,12 +732,12 @@ export default function StockPage() {
           // ลำดับที่ render: รายการปกติ → หัวข้อกลุ่มพับ → (ถ้ากดเปิด) รายการในกลุ่มนั้น ต่อท้ายหัวข้อทันที
           type RowEntry =
             | { kind: "item"; item: Item }
-            | { kind: "toggle"; label: string; items: Item[] };
+            | { kind: "toggle"; labelKey: string; items: Item[] };
           const rowEntries: RowEntry[] = [
             ...mainItems.map((item) => ({ kind: "item", item }) as RowEntry),
-            ...Array.from(subBuckets.entries()).flatMap(([label, items]) => [
-              { kind: "toggle", label, items } as RowEntry,
-              ...(openSub[`${g.category}|${label}`]
+            ...Array.from(subBuckets.entries()).flatMap(([labelKey, items]) => [
+              { kind: "toggle", labelKey, items } as RowEntry,
+              ...(openSub[`${g.category}|${labelKey}`]
                 ? items.map((item) => ({ kind: "item", item }) as RowEntry)
                 : []),
             ]),
@@ -737,7 +747,7 @@ export default function StockPage() {
             <React.Fragment key={g.category}>
             {isFirstHidden && (
               <div id="hidden-start" className="mb-2 mt-1 px-1 text-[11px] font-medium text-ok">
-                ↓ รายการที่ไม่ถึงรอบเช็ควันนี้ — กรอกรับเข้าได้เลย
+                {t(lang, "stock.hiddenStartMarker")}
               </div>
             )}
             <Accordion
@@ -746,22 +756,22 @@ export default function StockPage() {
                   {g.category}
                   {isHiddenGroup ? (
                     <span className="rounded-full bg-ok/15 px-1.5 py-0.5 text-[10px] font-semibold text-ok">
-                      ยังไม่ถึงรอบเช็ค กรอกรับเข้า
+                      {t(lang, "stock.hiddenCategoryBadge")}
                     </span>
                   ) : categoryIncomplete && (
                     <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
-                      กรอกไม่ครบ
+                      {t(lang, "stock.incompleteCategoryBadge")}
                     </span>
                   )}
                 </span>
               }
-              count={`${g.items.length} รายการ`}
+              count={t(lang, "stock.itemCountSuffix", { n: g.items.length })}
               defaultOpen={gi === 0 || isHiddenGroup}
             >
               <div className="grid gap-1 py-0.5">
                 {rowEntries.map((e) => {
                   if (e.kind === "toggle") {
-                    const key = `${g.category}|${e.label}`;
+                    const key = `${g.category}|${e.labelKey}`;
                     const open = !!openSub[key];
                     const pending = e.items.filter((x) => rows[x.id] && !confirmed[x.id]).length;
                     return (
@@ -773,11 +783,11 @@ export default function StockPage() {
                       >
                         <span className="flex items-center gap-1.5 text-xs font-medium text-brand-ink/70">
                           <span className={`inline-block text-[10px] transition-transform ${open ? "rotate-90" : ""}`}>▶</span>
-                          {e.label} {e.items.length} รายการ
+                          {t(lang, e.labelKey)} {t(lang, "stock.itemCountSuffix", { n: e.items.length })}
                         </span>
                         {!open && pending > 0 && (
                           <span className="rounded-full bg-warn/15 px-1.5 py-0.5 text-[10px] font-semibold text-warn">
-                            ยังไม่กรอก {pending}
+                            {t(lang, "stock.subGroupNotFilled", { n: pending })}
                           </span>
                         )}
                       </button>
@@ -790,7 +800,7 @@ export default function StockPage() {
                   const d = derive(row, N);
                   const filled = isFilled(row);
                   const v = varianceOf(row, it.gramsPerUOM);
-                  const su = it.isCup ? "ชิ้น" : "g"; // หน่วยย่อย: ถ้วยนับชิ้น · อื่นเป็นกรัม
+                  const su = it.isCup ? t(lang, "stock.unitPiece") : "g"; // หน่วยย่อย: ถ้วยนับชิ้น · อื่นเป็นกรัม
                   const grp = it.remainderGroup;
                   const isLeader = !!grp && groupIds.get(grp)?.[0] === it.id;
                   const gt = grp ? groupTotals(grp) : null;
@@ -808,8 +818,8 @@ export default function StockPage() {
                   // ไอเทมนี้มีช่องเศษ (g) ที่ต้องยืนยันคู่กับ pack ไหม (leader กลุ่ม หรือ hasRemainder เดี่ยว)
                   const hasGField = it.hasRemainder || (!!grp && isLeader);
                   const confirmLabel = hasGField
-                    ? `✓ เท่ายกมา (${row.carryPack} แพ็ค + ${row.carryG} ${su})`
-                    : `✓ เท่ายกมา (${row.carryPack} แพ็ค)`;
+                    ? t(lang, "stock.confirmedToCarryWithG", { pack: row.carryPack, g: row.carryG, unit: su })
+                    : t(lang, "stock.confirmedToCarry", { pack: row.carryPack });
 
                   const returnedExpanded = returnOpen[it.id] ?? (row.returned > 0 || (row.returnedG ?? 0) > 0);
                   // บรรทัด "โอนภายใน" — โผล่เฉพาะแถวที่มีการแกะจริงในวันนั้น (v1.17)
@@ -840,14 +850,14 @@ export default function StockPage() {
                         <div className="mb-2 grid gap-1">
                           {xferOut > 0 && (
                             <p className="rounded-md bg-brand-blue/15 px-2 py-1 text-[10.5px] leading-tight text-brand-ink/70">
-                              ↗ แกะไปรวมกับ {xferToName ?? "รายการอื่น"} · {xferOut} {it.unit}
-                              <span className="text-brand-ink/45"> (ไม่นับเป็นยอดขาย)</span>
+                              {t(lang, "stock.transferOutNote", { name: xferToName ?? t(lang, "stock.transferFallbackItem"), qty: xferOut, unit: it.unit })}
+                              <span className="text-brand-ink/45"> {t(lang, "stock.transferOutSub")}</span>
                             </p>
                           )}
                           {xferInG > 0 && (
                             <p className="rounded-md bg-brand-blue/15 px-2 py-1 text-[10.5px] leading-tight text-brand-ink/70">
-                              ↘ ได้จากการแกะ {xferFromName ?? "รายการอื่น"} · +{xferInLabel}
-                              <span className="text-brand-ink/45"> (ระบบนับให้แล้ว ไม่ต้องกรอกรับเข้า)</span>
+                              {t(lang, "stock.transferInNote", { name: xferFromName ?? t(lang, "stock.transferFallbackItem"), amount: xferInLabel })}
+                              <span className="text-brand-ink/45"> {t(lang, "stock.transferInSub")}</span>
                             </p>
                           )}
                         </div>
@@ -857,28 +867,28 @@ export default function StockPage() {
                       {(it.hasRemainder || grp) ? (
                         <div className="flex gap-1.5">
                           <BlockTag
-                            text={grp ? "กล่อง" : "แพ็ค"}
-                            title={N > 0 ? `1 ${grp ? "กล่อง" : "แพ็ค"} = ${N} ${su}` : undefined}
+                            text={grp ? t(lang, "stock.unitBox") : t(lang, "stock.unitPack")}
+                            title={N > 0 ? t(lang, "stock.boxUnitTooltip", { unit: grp ? t(lang, "stock.unitBox") : t(lang, "stock.unitPack"), n: N, su }) : undefined}
                           />
                           <div className="grid flex-1 grid-cols-4 gap-1.5">
-                            <CompactField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
+                            <CompactField label={t(lang, "stock.labelCarry")} value={row.carryPack} readOnly tone="ro" />
                             <CompactField
-                              label="รับเข้า" value={blankZero(row.inPack)}
+                              label={t(lang, "stock.labelIn")} value={blankZero(row.inPack)}
                               maxLength={packLimited ? 2 : undefined} warn={inPackWarn}
                               tone="green"
                               onChange={(x) => setField(it.id, "inPack", x, N)}
                             />
                             <CompactField
-                              label="แกะ/ออก" value={blankZero(row.used)}
+                              label={t(lang, "stock.labelOutUsedAlt")} value={blankZero(row.used)}
                               maxLength={packLimited ? 2 : undefined} warn={usedWarn}
                               readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                               onChange={(x) => setField(it.id, "used", x, N)}
                             />
                             {isHiddenGroup ? (
-                              <CompactField label="คงเหลือ" value={row.remainPack} readOnly tone="ro" maxLength={packLimited ? 2 : undefined} />
+                              <CompactField label={t(lang, "stock.labelRemain")} value={row.remainPack} readOnly tone="ro" maxLength={packLimited ? 2 : undefined} />
                             ) : (
                               <RemainCell
-                                label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
+                                label={t(lang, "stock.labelRemain")} isConfirmed={isConfirmed} value={row.remainPack}
                                 warn={remainPackWarn} maxLength={packLimited ? 2 : undefined}
                                 confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
                                 onUnconfirm={() => unconfirmItem(it.id)}
@@ -889,18 +899,18 @@ export default function StockPage() {
                         </div>
                       ) : (
                         <div className="grid grid-cols-4 gap-1.5">
-                          <CompactField label="ยกมา" value={row.carryPack} readOnly tone="ro" />
-                          <CompactField label="รับเข้า" value={blankZero(row.inPack)}
+                          <CompactField label={t(lang, "stock.labelCarry")} value={row.carryPack} readOnly tone="ro" />
+                          <CompactField label={t(lang, "stock.labelIn")} value={blankZero(row.inPack)}
                             tone="green"
                             onChange={(x) => setField(it.id, "inPack", x, N)} />
-                          <CompactField label="ขาย/ใช้" value={blankZero(row.used)}
+                          <CompactField label={t(lang, "stock.labelOutUsed")} value={blankZero(row.used)}
                             readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                             onChange={(x) => setField(it.id, "used", x, N)} />
                           {isHiddenGroup ? (
-                            <CompactField label="คงเหลือ" value={row.remainPack} readOnly tone="ro" />
+                            <CompactField label={t(lang, "stock.labelRemain")} value={row.remainPack} readOnly tone="ro" />
                           ) : (
                             <RemainCell
-                              label="คงเหลือ" isConfirmed={isConfirmed} value={row.remainPack}
+                              label={t(lang, "stock.labelRemain")} isConfirmed={isConfirmed} value={row.remainPack}
                               confirmLabel={confirmLabel} onConfirm={() => confirmItem(it.id, hasGField)}
                               onUnconfirm={() => unconfirmItem(it.id)}
                               onChange={(x) => setField(it.id, "remainPack", x, N)}
@@ -909,7 +919,7 @@ export default function StockPage() {
                         </div>
                       )}
                       {anyPackWarn && (
-                        <div className="mt-1 text-[10px] font-medium text-warn">⚠️ จำนวนผิด</div>
+                        <div className="mt-1 text-[10px] font-medium text-warn">{t(lang, "stock.invalidQtyWarning")}</div>
                       )}
 
                       {/* ส่งคืน/เสีย — ซ่อนเป็นดีฟอลต์ (เว้นแต่มีค่าติดมาจาก DB) · กลุ่มเศษรวม (Strawberry/Blueberry) กรอกที่ leader เป็นกรัมอย่างเดียว ไม่มีช่องกล่อง
@@ -921,19 +931,19 @@ export default function StockPage() {
                               <div className={grp ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
                                 {!grp && (
                                   <CompactField
-                                    label="ส่งคืน/เสีย" value={blankZero(row.returned)}
+                                    label={t(lang, "stock.labelReturned")} value={blankZero(row.returned)}
                                     onChange={(x) => setField(it.id, "returned", x, N)}
                                   />
                                 )}
                                 {(grp ? isLeader : it.category === "Yogurt 1kg/Box") && (
-                                  <CompactField label={`ส่งคืนเศษ (${su})`} value={blankZero(row.returnedG ?? 0)}
+                                  <CompactField label={t(lang, "stock.labelReturnedG", { unit: su })} value={blankZero(row.returnedG ?? 0)}
                                     onChange={(x) => setField(it.id, "returnedG", x, N)} />
                                 )}
                               </div>
                               {(row.returned > 0 || (row.returnedG ?? 0) > 0) && (
                                 <label className="flex flex-col gap-0.5">
-                                  <span className="text-[8.5px] leading-tight text-brand-ink/50">หมายเหตุ (ส่งคืน/เสีย)</span>
-                                  <input className="field px-1.5 py-1 text-left text-xs" placeholder="เหตุผล เช่น หมดอายุ / แตก"
+                                  <span className="text-[8.5px] leading-tight text-brand-ink/50">{t(lang, "stock.labelReturnNote")}</span>
+                                  <input className="field px-1.5 py-1 text-left text-xs" placeholder={t(lang, "stock.returnNotePlaceholder")}
                                     value={row.note} onChange={(e) => setNote(it.id, e.target.value)} />
                                 </label>
                               )}
@@ -943,7 +953,7 @@ export default function StockPage() {
                               type="button" onClick={() => setReturnOpen((p) => ({ ...p, [it.id]: true }))}
                               className="text-[11px] font-medium text-brand-ink/40 underline underline-offset-2"
                             >
-                              + ส่งคืน/เสีย
+                              {t(lang, "stock.addReturnButton")}
                             </button>
                           )}
                         </div>
@@ -953,17 +963,17 @@ export default function StockPage() {
                       {grp ? (
                         isLeader ? (
                           <div className="mt-1.5 flex gap-1.5">
-                            <BlockTag text="กรัม" title={`เศษรวมกลุ่ม ${grp} — กรอกที่รายการนี้ที่เดียว`} />
+                            <BlockTag text={t(lang, "stock.unitGram")} title={t(lang, "stock.remainderGroupTooltip", { group: grp })} />
                             <div className="grid flex-1 grid-cols-3 gap-1.5">
-                              <CompactField label="ยกมา g" value={row.carryG} readOnly tone="ro" />
-                              <CompactField label="รับเข้า g" value={blankZero(row.inG)}
+                              <CompactField label={t(lang, "stock.labelCarryG")} value={row.carryG} readOnly tone="ro" />
+                              <CompactField label={t(lang, "stock.labelInG")} value={blankZero(row.inG)}
                                 tone="green"
                                 onChange={(x) => setField(it.id, "inG", x, N)} />
                               {isHiddenGroup ? (
-                                <CompactField label="เศษคงเหลือ g" value={row.remainG} readOnly tone="ro" />
+                                <CompactField label={t(lang, "stock.labelRemainG")} value={row.remainG} readOnly tone="ro" />
                               ) : (
                                 <RemainCell
-                                  label="เศษคงเหลือ g" isConfirmed={isConfirmed} value={row.remainG}
+                                  label={t(lang, "stock.labelRemainG")} isConfirmed={isConfirmed} value={row.remainG}
                                   onUnconfirm={() => unconfirmItem(it.id)}
                                   onChange={(x) => setField(it.id, "remainG", x, N)}
                                 />
@@ -972,25 +982,25 @@ export default function StockPage() {
                           </div>
                         ) : (
                           <div className="mt-1.5 rounded-lg bg-black/[.03] px-2 py-1 text-[11px] text-brand-ink/50">
-                            🔗 เศษรวมกลุ่ม {grp} — กรอกที่ “{leaderName}”
+                            {t(lang, "stock.remainderGroupLinked", { group: grp, leader: leaderName })}
                           </div>
                         )
                       ) : it.hasRemainder ? (
                         <div className="mt-1.5 flex gap-1.5">
-                          <BlockTag text={it.isCup ? "ชิ้น" : "กรัม"} title={it.isCup ? "ถ้วยเปิดแพ็ค" : "Sale Unit"} />
+                          <BlockTag text={it.isCup ? t(lang, "stock.unitPiece") : t(lang, "stock.unitGram")} title={it.isCup ? t(lang, "stock.cupOpenTooltip") : "Sale Unit"} />
                           <div className="grid flex-1 grid-cols-4 gap-1.5">
-                            <CompactField label={`ยกมา ${su}`} value={row.carryG} readOnly tone="ro" />
-                            <CompactField label={`รับเข้า ${su}`} value={blankZero(row.inG)}
+                            <CompactField label={t(lang, "stock.labelCarryUnit", { unit: su })} value={row.carryG} readOnly tone="ro" />
+                            <CompactField label={t(lang, "stock.labelInUnit", { unit: su })} value={blankZero(row.inG)}
                               tone="green"
                               onChange={(x) => setField(it.id, "inG", x, N)} />
-                            <CompactField label={`ขาย/ใช้ ${su}`} value={blankZero(Math.max(d.usedTotalG, 0))}
+                            <CompactField label={t(lang, "stock.labelOutUnit", { unit: su })} value={blankZero(Math.max(d.usedTotalG, 0))}
                               readOnly={isHiddenGroup} tone={isHiddenGroup ? "ro" : undefined}
                               onChange={(x) => setField(it.id, "usedG", x, N)} />
                             {isHiddenGroup ? (
-                              <CompactField label={`คงเหลือ ${su}`} value={row.remainG} readOnly tone="ro" />
+                              <CompactField label={t(lang, "stock.labelRemainUnit", { unit: su })} value={row.remainG} readOnly tone="ro" />
                             ) : (
                               <RemainCell
-                                label={`คงเหลือ ${su}`} isConfirmed={isConfirmed} value={row.remainG}
+                                label={t(lang, "stock.labelRemainUnit", { unit: su })} isConfirmed={isConfirmed} value={row.remainG}
                                 onUnconfirm={() => unconfirmItem(it.id)}
                                 onChange={(x) => setField(it.id, "remainG", x, N)}
                               />
@@ -1004,34 +1014,37 @@ export default function StockPage() {
                         isLeader && gt ? (
                           gt.overG > 0 ? (
                             <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
-                              ⚠️ เศษรวมกลุ่ม {grp} เกินของที่มี (เกิน {gt.overG} g)
+                              {t(lang, "stock.groupOverWarning", { group: grp, n: gt.overG })}
                             </div>
                           ) : (
                             <div className="mt-1.5 rounded-lg bg-ok/15 px-2 py-1 text-xs font-medium text-ok">
-                              ✓ กลุ่ม {grp}: ใช้ไปรวม {gt.usedG} g · คงเหลือรวม {gt.remainG} g (มี {gt.availG} g)
+                              {t(lang, "stock.groupOkSummary", { group: grp, used: gt.usedG, remain: gt.remainG, avail: gt.availG })}
                             </div>
                           )
                         ) : null
                       ) : it.hasRemainder ? (
                         d.overG > 0 ? (
                           <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
-                            ⚠️ คงเหลือรวมเกินของที่มี (เกิน {d.overG} {su}){N > 0 ? ` ≈ ${(d.overG / N).toFixed(2)} แพ็ค` : ""}
+                            {t(lang, "stock.overWarning", {
+                              n: d.overG, unit: su,
+                              packSuffix: N > 0 ? t(lang, "stock.overWarningPackSuffix", { n: (d.overG / N).toFixed(2) }) : "",
+                            })}
                           </div>
                         ) : (filled || it.isCup) ? (
                           <div className={`mt-1.5 rounded-lg px-2 py-1 text-xs font-medium ${it.isCup ? "bg-brand-blue/20 text-sky-700" : "bg-ok/15 text-ok"}`}>
                             {it.isCup
-                              ? `📊 รวมทั้งหมด ${d.remainTotalG} ชิ้น (บันทึกวันนี้) · ใช้/ขาย ${d.usedTotalG} ชิ้น — กระทบยอดที่หน้า "ถ้วย"`
-                              : `✓ รวมใช้ไป ${d.usedTotalG} ${su} · คงเหลือรวม ${d.remainTotalG} ${su} (มี ${d.availTotalG} ${su})`}
+                              ? t(lang, "stock.cupSummaryLine", { remain: d.remainTotalG, used: d.usedTotalG })
+                              : t(lang, "stock.hasRemainderOkSummary", { used: d.usedTotalG, remain: d.remainTotalG, unit: su, avail: d.availTotalG })}
                           </div>
                         ) : null
                       ) : v !== 0 ? (
                         <div className="mt-1.5 rounded-lg bg-warn/15 px-2 py-1 text-xs font-medium text-warn">
-                          ⚠️ ยอดไม่ตรง (ต่าง {v > 0 ? "+" : ""}{v})
+                          {t(lang, "stock.varianceWarning", { sign: v > 0 ? "+" : "", n: v })}
                         </div>
                       ) : row.returned > 0 ? (
                         // แยก "ขาย" ออกจาก "ส่งคืน" ให้เห็นชัด ไม่รวมเป็นก้อนเดียว (แพรขอ 2026-08-04)
                         <div className="mt-1.5 rounded-lg bg-ok/15 px-2 py-1 text-xs font-medium text-ok">
-                          ✓ ขาย {row.used} · ส่งคืน {row.returned} {it.unit}
+                          {t(lang, "stock.soldReturnedSummary", { used: row.used, returned: row.returned, unit: it.unit })}
                         </div>
                       ) : null}
                     </div>
@@ -1048,15 +1061,15 @@ export default function StockPage() {
                       <div className="rounded-lg border border-brand-orange/30 bg-white/60 px-2.5 py-2">
                         <div className="mb-1.5 flex items-start justify-between gap-2">
                           <p className="text-[11px] font-medium text-brand-ink/70">
-                            ลูกค้าเอาแก้วมาเอง
-                            <span className="ml-1 font-normal text-brand-ink/45">— บิลที่ไม่ได้ใช้ถ้วยของร้าน</span>
+                            {t(lang, "stock.ownCupTitle")}
+                            <span className="ml-1 font-normal text-brand-ink/45">{t(lang, "stock.ownCupSubtitle")}</span>
                           </p>
                           <button
                             type="button"
                             onClick={() => setOwnCupOpen(false)}
                             className="shrink-0 text-[10.5px] font-medium text-brand-ink/45 underline underline-offset-2"
                           >
-                            ซ่อน
+                            {t(lang, "stock.hideAction")}
                           </button>
                         </div>
                         <div className="grid grid-cols-4 gap-1.5">
@@ -1082,7 +1095,7 @@ export default function StockPage() {
                         onClick={() => setOwnCupOpen(true)}
                         className="rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-1.5 text-left text-[11px] font-medium text-brand-ink/55"
                       >
-                        + ลูกค้าเอาแก้วมาเอง (กดถ้ามี)
+                        {t(lang, "stock.ownCupAddButton")}
                       </button>
                     )}
 
@@ -1095,9 +1108,9 @@ export default function StockPage() {
                       <div className="rounded-lg border border-brand-blue/40 bg-white/60 px-2.5 py-2">
                         <div className="mb-1.5 flex items-start justify-between gap-2">
                           <p className="text-[11px] font-medium text-sky-700">
-                            เปิดแพคแล้วนับได้ไม่ตรง
+                            {t(lang, "stock.packAdjustTitle")}
                             <span className="block text-[10px] font-normal text-brand-ink/45">
-                              ใส่ส่วนต่างเป็นชิ้น — เกินใส่ 2 · ขาดใส่ -1 · ระบบจะแจ้งแอดมินให้เอง
+                              {t(lang, "stock.packAdjustSub")}
                             </span>
                           </p>
                           <button
@@ -1105,7 +1118,7 @@ export default function StockPage() {
                             onClick={() => setPackAdjOpen(false)}
                             className="shrink-0 text-[10.5px] font-medium text-brand-ink/45 underline underline-offset-2"
                           >
-                            ซ่อน
+                            {t(lang, "stock.hideAction")}
                           </button>
                         </div>
                         <div className="grid grid-cols-4 gap-1.5">
@@ -1133,14 +1146,14 @@ export default function StockPage() {
                         onClick={() => setPackAdjOpen(true)}
                         className="rounded-lg border border-dashed border-black/15 bg-black/[.02] px-2.5 py-1.5 text-left text-[11px] font-medium text-brand-ink/55"
                       >
-                        + แพคถ้วยไม่ครบ/เกิน (กดเมื่อเจอ)
+                        {t(lang, "stock.packAdjustAddButton")}
                       </button>
                     )}
 
                     <div className="flex items-center justify-between gap-2 rounded-lg bg-brand-orange/20 px-2.5 py-2 text-orange-700">
-                      <span className="text-xs font-medium">🥤 รวมแก้วทุกขนาดที่ใช้ไปวันนี้</span>
+                      <span className="text-xs font-medium">{t(lang, "stock.cupTotalLabel")}</span>
                       <span className="text-xl font-bold tabular-nums">
-                        {cupSum.totalUsed} <span className="text-xs font-medium">ชิ้น</span>
+                        {cupSum.totalUsed} <span className="text-xs font-medium">{t(lang, "stock.cupTotalUnit")}</span>
                       </span>
                     </div>
                   </>
@@ -1158,12 +1171,12 @@ export default function StockPage() {
         {!loading && total > 0 && (
           <p className={`mb-2 text-center text-xs font-semibold ${unconfirmedCount > 0 ? "text-warn" : "text-ok"}`}>
             {unconfirmedCount > 0
-              ? `⚠️ ยังไม่ครบ — เหลือ ${unconfirmedCount} รายการที่ยังไม่ยืนยัน/กรอก`
-              : "✓ ครบทุกรายการแล้ว พร้อมบันทึก"}
+              ? t(lang, "stock.saveBarIncomplete", { n: unconfirmedCount })
+              : t(lang, "stock.saveBarComplete")}
           </p>
         )}
         <Button onClick={handleSave} disabled={saving || loading || unconfirmedCount > 0}>
-          {saving ? "กำลังบันทึก…" : "บันทึกสต็อกวันนี้"}
+          {saving ? t(lang, "common.saving") : t(lang, "stock.saveButton")}
         </Button>
       </SaveBar>
       )}
@@ -1179,8 +1192,8 @@ export default function StockPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-2.5 grid h-11 w-11 place-items-center rounded-full bg-ok/15 text-lg text-ok">✓</div>
-            <p className="text-center text-[16px] font-semibold text-ok">บันทึกสต็อกสำเร็จ</p>
-            <p className="mt-0.5 text-center text-[12px] text-brand-ink/55">สาขา {branch} · {thaiDate(date)}</p>
+            <p className="text-center text-[16px] font-semibold text-ok">{t(lang, "stock.savedTitle")}</p>
+            <p className="mt-0.5 text-center text-[12px] text-brand-ink/55">{t(lang, "stock.savedSubtitle", { branch, date: thaiDate(date) })}</p>
             {/* ลำดับงานหลังนับสต็อกคือไปรายงานยอดขายเสมอ (แพรยืนยัน 2026-07-29)
                 เคยให้ปุ่มนี้ชี้ "งานค้างอันแรก" แล้วมันไปโผล่เป็นยืนยันรับของ เพราะมักมีใบเก่าค้างอยู่
                 — ซึ่งไม่ใช่งานถัดไปของคนที่เพิ่งนับสต็อกเสร็จ */}
@@ -1188,7 +1201,7 @@ export default function StockPage() {
               href={`/sales?branch=${branch}&date=${date}`}
               className="mt-3 block rounded-xl bg-brand-red px-4 py-3 text-center text-[15px] font-semibold text-white"
             >
-              ไปบันทึกรายงานยอดขาย →
+              {t(lang, "stock.goToSalesButton")}
             </Link>
             {/* ใต้ปุ่ม บอกตามจริงว่าวันนี้ยังเหลืออะไรอีกไหม (v1.19) */}
             <TodayNextStep show={showSavePrompt} hideTask={["stock", "receipt"]} noPrimary />
@@ -1197,7 +1210,7 @@ export default function StockPage() {
               onClick={() => setShowSavePrompt(false)}
               className="mt-2 w-full rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55"
             >
-              ปิด
+              {t(lang, "stock.closeButton")}
             </button>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import type { StockRow, CupSize } from "@/lib/types";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,11 @@ function fail(e: unknown, msg: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch")));
     const date = searchParams.get("date");
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "stock.errDateRequired") }, { status: 400 });
     const rows = await db.getStock(branch, date);
     // savedAt = ลายเซ็นเวลาของข้อมูลชุดที่ส่งไป · หน้าจอต้องส่งกลับมาตอนบันทึก เพื่อให้เช็คได้ว่ามีคนแทรกไหม
     const { savedAt, savedBy } = await db.getStockSavedAt(branch, date);
@@ -32,15 +34,16 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as {
       branch?: string; date?: string; rows?: StockRow[]; baseSavedAt?: string | null; force?: boolean;
       ownCups?: { size: CupSize; ownCup: number }[];
     };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "stock.errDateRequired") }, { status: 400 });
     assertCanEditDate(s, date); // user ≤ 3 วัน · admin ไม่จำกัด
-    if (!Array.isArray(body.rows)) return NextResponse.json({ error: "rows จำเป็น" }, { status: 400 });
+    if (!Array.isArray(body.rows)) return NextResponse.json({ error: t(lang, "stock.errRowsRequired") }, { status: 400 });
 
     // กันบันทึกทับกัน (v1.14) — ถ้ามีคนบันทึกแทรกหลังจากที่หน้าจอนี้โหลดข้อมูลไป ให้หยุดไว้ก่อน
     // ไม่ปฏิเสธถาวร แค่ให้คนกดรู้ตัวแล้วเลือกเอง (โหลดใหม่ หรือยืนยันทับ) — เงียบ ๆ ทับคือสิ่งที่แย่ที่สุด
@@ -55,7 +58,7 @@ export async function POST(req: Request) {
           conflict: true,
           savedAt: current.savedAt,
           savedBy: current.savedBy,
-          error: `${current.savedBy ?? "คนอื่น"} บันทึกสต็อกของวันนี้ไปแล้วหลังจากที่คุณเปิดหน้านี้`,
+          error: t(lang, "stock.errConflictAfterOpen", { who: current.savedBy ?? t(lang, "stock.conflictOtherPerson") }),
         }, { status: 409 });
       }
     }
