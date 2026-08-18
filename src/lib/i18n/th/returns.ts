@@ -1,5 +1,6 @@
 // /returns — ประวัติส่งคืน/ของเสีย (read-only)
 export const th = {
+  errFromToRequired: "ต้องระบุ from และ to",
   itemCountSuffix: "{n} รายการ",
   infoBanner: "ข้อมูลมาจากช่อง “ส่งคืน/เสีย” ที่กรอกในหน้าสต็อก — หน้านี้ดูอย่างเดียว แก้ไขไม่ได้",
   infoBannerBranchSuffix: " · เห็นเฉพาะสาขาของคุณ",

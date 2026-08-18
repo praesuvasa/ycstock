@@ -1,6 +1,7 @@
 import type { th } from "../th/returns";
 
 export const en: typeof th = {
+  errFromToRequired: "from and to are required",
   itemCountSuffix: "{n} item(s)",
   infoBanner: "This data comes from the “Returns/Damaged” field entered on the stock page — view only, can't be edited here.",
   infoBannerBranchSuffix: " · Showing your branch only",

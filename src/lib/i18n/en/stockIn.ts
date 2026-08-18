@@ -1,6 +1,7 @@
 import type { th } from "../th/stockIn";
 
 export const en: typeof th = {
+  errDateRequired: "date is required",
   pageTitle: "Stock In",
   itemCountSuffix: "{n} item(s)",
   pickDateOwnLabel: "Or pick a date",

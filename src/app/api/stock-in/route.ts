@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch")));
     const date = searchParams.get("date");
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "stockIn.errDateRequired") }, { status: 400 });
     const rows = await db.getStockIn(branch, date);
     return NextResponse.json({ rows, branch });
   } catch (e: any) {

@@ -1,5 +1,6 @@
 // /stock-in — ประวัติสินค้าเข้า (read-only)
 export const th = {
+  errDateRequired: "ต้องระบุ date",
   pageTitle: "สินค้าเข้า",
   itemCountSuffix: "{n} รายการ",
   pickDateOwnLabel: "หรือเลือกวันที่เอง",

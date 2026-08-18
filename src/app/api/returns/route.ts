@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, authErrorResponse } from "@/lib/authz";
 import type { Branch } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,11 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const from = searchParams.get("from");
     const to = searchParams.get("to");
-    if (!from || !to) return NextResponse.json({ error: "from และ to จำเป็น" }, { status: 400 });
+    if (!from || !to) return NextResponse.json({ error: t(lang, "returns.errFromToRequired") }, { status: 400 });
 
     const canPickBranch = s.branchScope === "all";
     let branch: Branch | null;
