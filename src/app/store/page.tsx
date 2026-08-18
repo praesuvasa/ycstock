@@ -8,12 +8,14 @@
 // เนื้อหาหน้าเดียวกับ "/" เดิม — แอดมินเห็นแดชบอร์ดรวมทุกสาขา · พนักงานเห็นเช็คลิสต์งานวันนี้
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 import { AdminDashboard } from "../admin-dashboard-view";
 import { StaffHome } from "../staff-home-view";
 
 export default function StoreHomePage() {
   const me = useMe();
+  const lang = useLang();
   const router = useRouter();
 
   // ฝ่ายผลิตหลุดเข้ามา (เช่นกดลิงก์เก่า/บุ๊กมาร์กผิดหน่วย) → ส่งไปหน้าของหน่วยตัวเอง
@@ -21,6 +23,6 @@ export default function StoreHomePage() {
     if (me && me.workUnit === "production" && me.role !== "admin") router.replace("/yogi");
   }, [me, router]);
 
-  if (!me) return <p className="py-10 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
+  if (!me) return <p className="py-10 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>;
   return me.role === "admin" ? <AdminDashboard /> : <StaffHome />;
 }

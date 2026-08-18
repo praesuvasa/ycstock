@@ -4,6 +4,8 @@ import Link from "next/link";
 import { GlassCard, Badge, Stat, PageTitle } from "@/components/ui";
 import { baht, todayISO } from "@/lib/fmt";
 import { BRANCHES, type Branch } from "@/lib/types";
+import { useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 type Dashboard = {
   salesToday: { branch: Branch; total: number }[];
@@ -16,13 +18,14 @@ interface RequisitionPreview {
 }
 
 const LINKS = [
-  { href: "/stock", label: "กรอกสต็อก", icon: "📝" },
-  { href: "/restock", label: "ต้องเติม", icon: "📦" },
-  { href: "/sales", label: "ยอดขาย", icon: "💰" },
-  { href: "/cups", label: "ถ้วย", icon: "🥤" },
+  { href: "/stock", labelKey: "store.admin.linkStock", icon: "📝" },
+  { href: "/restock", labelKey: "store.admin.linkRestock", icon: "📦" },
+  { href: "/sales", labelKey: "store.admin.linkSales", icon: "💰" },
+  { href: "/cups", labelKey: "store.admin.linkCups", icon: "🥤" },
 ];
 
 export function AdminDashboard() {
+  const lang = useLang();
   const [date, setDate] = React.useState(todayISO());
   const [data, setData] = React.useState<Dashboard | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -39,7 +42,7 @@ export function AdminDashboard() {
         if (d?.error) setErr(d.error);
         else setData(d);
       })
-      .catch((e) => alive && setErr(e?.message ?? "โหลดไม่สำเร็จ"))
+      .catch((e) => alive && setErr(e?.message ?? t(lang, "errors.generic")))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -64,7 +67,7 @@ export function AdminDashboard() {
   return (
     <div>
       <PageTitle
-        title="ภาพรวมร้าน"
+        title={t(lang, "store.admin.title")}
         right={
           <input
             type="date"
@@ -77,27 +80,27 @@ export function AdminDashboard() {
 
       {err && (
         <GlassCard className="mb-3">
-          <div className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {err}</div>
+          <div className="text-sm text-warn">{t(lang, "store.admin.loadError", { msg: err })}</div>
         </GlassCard>
       )}
 
       {/* 1. ยอดขายวันนี้ — ยอดรวมเด่นกว่ายอดรายสาขา (สีแบรนด์ + ตัวใหญ่กว่า) */}
       <div className="mb-3">
-        <Stat label="ยอดขายวันนี้ (รวมทุกสาขา)" value={loading ? "…" : baht(totalSales)} tone="brand" size="lg" />
+        <Stat label={t(lang, "store.admin.salesTodayAll")} value={loading ? "…" : baht(totalSales)} tone="brand" size="lg" />
       </div>
       <div className="mb-3 grid grid-cols-3 gap-2.5">
         {BRANCHES.map((b) => (
-          <Stat key={b} label={`ยอดขาย ${b}`} value={loading ? "…" : baht(salesOf(b))} />
+          <Stat key={b} label={`${t(lang, "store.admin.salesTodayBranchPrefix")}${b}`} value={loading ? "…" : baht(salesOf(b))} />
         ))}
       </div>
 
       {/* 2. ยอดไม่ตรง (variance) */}
       <GlassCard className="mb-3">
         <div className="mb-2.5 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">⚠️ ยอดไม่ตรง (variance)</h2>
+          <h2 className="text-[15px] font-semibold">{t(lang, "store.admin.varianceTitle")}</h2>
         </div>
         {loading ? (
-          <div className="py-4 text-center text-sm text-brand-ink/40">กำลังโหลด…</div>
+          <div className="py-4 text-center text-sm text-brand-ink/40">{t(lang, "store.admin.loading")}</div>
         ) : (
           <div className="flex flex-col gap-2">
             {BRANCHES.map((b) => {
@@ -109,13 +112,13 @@ export function AdminDashboard() {
                 >
                   <span className="text-sm font-medium">{b}</span>
                   <Badge tone={c === 0 ? "ok" : "warn"}>
-                    {c === 0 ? "ตรงหมด" : `${c} รายการไม่ตรง`}
+                    {c === 0 ? t(lang, "store.admin.varianceOk") : t(lang, "store.admin.varianceCount", { n: c })}
                   </Badge>
                 </div>
               );
             })}
             <p className="px-0.5 pt-0.5 text-xs text-brand-ink/45">
-              นับจากรายการที่ยอดคงเหลือไม่ตรงกับที่ระบบคำนวณในวันนี้
+              {t(lang, "store.admin.varianceHint")}
             </p>
           </div>
         )}
@@ -124,15 +127,15 @@ export function AdminDashboard() {
       {/* 3. คำขอเบิกใหม่ */}
       <GlassCard className="mb-3">
         <div className="mb-2.5 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">🙋 คำขอเบิกใหม่</h2>
+          <h2 className="text-[15px] font-semibold">{t(lang, "store.admin.requisitionsTitle")}</h2>
           <Link href="/requisitions" className="text-xs font-medium text-sky-700 underline underline-offset-2">
-            ดูทั้งหมด →
+            {t(lang, "store.admin.viewAll")}
           </Link>
         </div>
         {reqLoading ? (
-          <div className="py-4 text-center text-sm text-brand-ink/40">กำลังโหลด…</div>
+          <div className="py-4 text-center text-sm text-brand-ink/40">{t(lang, "store.admin.loading")}</div>
         ) : unseenReq.length === 0 ? (
-          <div className="py-4 text-center text-sm text-ok">✓ ไม่มีคำขอค้าง</div>
+          <div className="py-4 text-center text-sm text-ok">{t(lang, "store.admin.noRequisitions")}</div>
         ) : (
           <div className="flex flex-col gap-1.5">
             {unseenReq.slice(0, 5).map((r) => (
@@ -145,11 +148,11 @@ export function AdminDashboard() {
                   {r.itemName}{r.unit ? ` (${r.unit})` : ""} × {r.qty}
                   <span className="ml-1.5 text-xs text-brand-ink/40">— {r.branch}</span>
                 </span>
-                <Badge tone="orange">ใหม่</Badge>
+                <Badge tone="orange">{t(lang, "store.admin.newBadge")}</Badge>
               </Link>
             ))}
             {unseenReq.length > 5 && (
-              <p className="px-0.5 pt-0.5 text-xs text-brand-ink/50">และอีก {unseenReq.length - 5} รายการ</p>
+              <p className="px-0.5 pt-0.5 text-xs text-brand-ink/50">{t(lang, "store.admin.moreCount", { n: unseenReq.length - 5 })}</p>
             )}
           </div>
         )}
@@ -164,7 +167,7 @@ export function AdminDashboard() {
             className="glass flex flex-col items-center gap-1 px-3 py-4 text-center transition active:scale-[.98]"
           >
             <span className="text-2xl leading-none">{l.icon}</span>
-            <span className="text-sm font-medium">{l.label}</span>
+            <span className="text-sm font-medium">{t(lang, l.labelKey)}</span>
           </Link>
         ))}
       </div>

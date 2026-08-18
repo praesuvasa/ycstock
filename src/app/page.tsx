@@ -6,7 +6,8 @@
 // ถ้ารวมไว้ไฟล์เดียว พนักงานจะยิง /api/dashboard (admin-only) แล้วได้ 403 ทุกครั้งที่เข้าหน้าแรก
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 import { AdminDashboard } from "./admin-dashboard-view";
 import { StaffHome } from "./staff-home-view";
 
@@ -15,6 +16,7 @@ import { StaffHome } from "./staff-home-view";
 // (ลิงก์เก่า/บุ๊กมาร์กที่ชี้ "/" จึงยังใช้ได้ ไม่พัง)
 export default function HomePage() {
   const me = useMe();
+  const lang = useLang();
   const router = useRouter();
   const isProduction = !!me && me.workUnit === "production" && me.role !== "admin";
 
@@ -23,7 +25,7 @@ export default function HomePage() {
     router.replace(isProduction ? "/yogi" : "/store");
   }, [me, isProduction, router]);
 
-  if (!me) return <p className="py-10 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
-  if (isProduction) return <p className="py-10 text-center text-sm text-brand-ink/50">กำลังเปิดหน้าฝ่ายผลิต…</p>;
+  if (!me) return <p className="py-10 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>;
+  if (isProduction) return <p className="py-10 text-center text-sm text-brand-ink/50">{t(lang, "common.openingProduction")}</p>;
   return me.role === "admin" ? <AdminDashboard /> : <StaffHome />;
 }

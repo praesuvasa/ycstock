@@ -12,13 +12,15 @@ import { th as thSetPin } from "./th/setPin";
 import { en as enSetPin } from "./en/setPin";
 import { th as thErrors } from "./th/errors";
 import { en as enErrors } from "./en/errors";
+import { th as thStore } from "./th/store";
+import { en as enStore } from "./en/store";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {

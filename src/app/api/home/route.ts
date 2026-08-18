@@ -4,6 +4,7 @@ import type { Branch } from "@/lib/types";
 import { requireSession, authErrorResponse } from "@/lib/authz";
 import { weekdayFromDate, isExpiryCheckDue } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -24,8 +25,9 @@ export interface HomeTask {
 export async function GET() {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     if (s.branchScope === "all") {
-      return NextResponse.json({ error: "หน้านี้สำหรับพนักงานที่ผูกสาขา" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "store.home.branchOnlyError") }, { status: 400 });
     }
     const branch = s.branchScope as Branch;
     const date = todayISO();
@@ -48,24 +50,24 @@ export async function GET() {
 
     const tasks: HomeTask[] = [
       {
-        key: "receipt", label: "ยืนยันรับของ", href: "/confirm-receipt",
+        key: "receipt", label: t(lang, "nav.user.confirmReceipt"), href: "/confirm-receipt",
         status: pendingReceipt > 0 ? "due" : "done",
-        hint: pendingReceipt > 0 ? `ค้าง ${pendingReceipt} รายการ` : "ไม่มีรายการค้าง",
+        hint: pendingReceipt > 0 ? t(lang, "store.home.pendingCount", { n: pendingReceipt }) : t(lang, "store.home.noPending"),
       },
       {
-        key: "stock", label: "เช็คสต็อก", href: "/stock",
+        key: "stock", label: t(lang, "nav.user.stock"), href: "/stock",
         status: stockDone ? "done" : "todo",
       },
       {
-        key: "sales", label: "รายงานยอดขาย", href: "/sales",
+        key: "sales", label: t(lang, "nav.user.sales"), href: "/sales",
         status: sum(salesToday) > 0 ? "done" : "todo",
       },
     ];
     if (expiryDue && expiryEnabled) {
       tasks.push({
-        key: "expiry", label: "ตรวจสอบวันหมดอายุ", href: "/expiry",
+        key: "expiry", label: t(lang, "nav.user.expiry"), href: "/expiry",
         status: expiryDone.includes(branch) ? "done" : "due",
-        hint: "วันนี้ถึงรอบตรวจ · ของส่งคืนขึ้นรถพรุ่งนี้",
+        hint: t(lang, "store.home.expiryHint"),
       });
     }
 

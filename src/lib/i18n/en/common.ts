@@ -6,4 +6,5 @@ export const en: typeof th = {
   cancel: "Cancel",
   confirm: "Confirm",
   loading: "Loading…",
+  openingProduction: "Opening the production page…",
 };

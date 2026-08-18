@@ -5,4 +5,5 @@ export const th = {
   cancel: "ยกเลิก",
   confirm: "ยืนยัน",
   loading: "กำลังโหลด…",
+  openingProduction: "กำลังเปิดหน้าฝ่ายผลิต…",
 };
