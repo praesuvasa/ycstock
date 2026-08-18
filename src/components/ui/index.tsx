@@ -2,7 +2,8 @@
 // Glass UI kit — ทุก module ใช้ร่วมกัน (อย่าแก้ signature)
 import React from "react";
 import { visibleBranches } from "@/lib/types";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 export function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={`glass p-4 sm:p-5 ${className}`}>{children}</div>;
@@ -50,13 +51,14 @@ export function BranchPicker<T extends string>({ value, onChange, locked, option
 }) {
   // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — filter ตรงนี้ที่เดียว ครอบคลุมทุกหน้าที่ใช้ BranchPicker
   const me = useMe();
-  const opts = options ?? visibleBranches(me?.role).map((b) => ({ value: b as unknown as T, label: `สาขา ${b}` }));
+  const lang = useLang();
+  const opts = options ?? visibleBranches(me?.role).map((b) => ({ value: b as unknown as T, label: `${t(lang, "common.branchLabel")}${b}` }));
   if (locked) {
     return (
       <div className="flex items-center gap-2.5 rounded-xl border border-black/5 bg-white/70 px-3 py-2">
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-ink text-[11px] font-bold text-white">{value}</span>
-        <span className="text-sm font-medium">สาขา {value}</span>
-        <span className="ml-auto text-[11px] text-brand-ink/40">🔒 สิทธิ์สาขานี้</span>
+        <span className="text-sm font-medium">{t(lang, "common.branchLabel")}{value}</span>
+        <span className="ml-auto text-[11px] text-brand-ink/40">🔒 {t(lang, "common.branchLockedNote")}</span>
       </div>
     );
   }
@@ -122,12 +124,13 @@ export function SaveBar({ children }: { children: React.ReactNode }) {
 // onAction = ให้ปุ่มหลักทำงานต่อได้เลย (เช่น "บันทึกยอดขายเลย") ไม่ใช่แค่ปิดหน้าต่าง
 // — ลดขั้นตอนที่คนลืมบ่อยที่สุด คือกดปิดแล้วเดินจากไปโดยยังไม่ได้กดบันทึก
 export function Dialog({
-  open, tone = "ok", icon, title, children, actionLabel = "ปิด", onAction, secondaryLabel, onClose,
+  open, tone = "ok", icon, title, children, actionLabel, onAction, secondaryLabel, onClose,
 }: {
   open: boolean; tone?: "ok" | "warn" | "info"; icon?: string; title: string;
   children?: React.ReactNode; actionLabel?: string; onAction?: () => void;
   secondaryLabel?: string; onClose: () => void;
 }) {
+  const lang = useLang();
   if (!open) return null;
   const ring = tone === "warn" ? "bg-warn/15 text-warn" : tone === "info" ? "bg-brand-blue/25 text-sky-700" : "bg-ok/15 text-ok";
   const btn = tone === "warn" ? "bg-warn text-white" : tone === "info" ? "bg-brand-ink text-white" : "bg-ok text-white";
@@ -146,7 +149,7 @@ export function Dialog({
           type="button" onClick={onAction ?? onClose}
           className={`mt-4 w-full rounded-xl px-4 py-3 text-[14.5px] font-semibold ${btn}`}
         >
-          {actionLabel}
+          {actionLabel ?? t(lang, "common.close")}
         </button>
         {secondaryLabel && (
           <button

@@ -8,6 +8,8 @@
 // แอดมิน/บัญชีที่ไม่ผูกสาขาจะได้ error จาก API → ไม่แสดงอะไรเลย (ไม่ใช่กลุ่มเป้าหมาย)
 import React from "react";
 import Link from "next/link";
+import { useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 interface HomeTask {
   key: string;
@@ -24,6 +26,7 @@ interface HomeTask {
 export function TodayNextStep({ show, hideTask, noPrimary }: {
   show: boolean; hideTask?: string | string[]; noPrimary?: boolean;
 }) {
+  const lang = useLang();
   const [data, setData] = React.useState<{ remaining: number; tasks: HomeTask[] } | null>(null);
 
   React.useEffect(() => {
@@ -41,8 +44,8 @@ export function TodayNextStep({ show, hideTask, noPrimary }: {
   // งานที่เพิ่งบันทึกอาจยังไม่ทันสะท้อนใน API (เช่นบันทึกยอดขายเป็น 0 บาทจริง ๆ)
   // จึงตัดตัวเองออกจากลิสต์ที่โชว์ ไม่งั้นจะขึ้นว่า "ยังไม่ได้ทำ" ทั้งที่เพิ่งกดไป
   const hidden = new Set(Array.isArray(hideTask) ? hideTask : hideTask ? [hideTask] : []);
-  const pending = data.tasks.filter((t) => t.status !== "done");
-  const left = pending.filter((t) => !hidden.has(t.key));
+  const pending = data.tasks.filter((task) => task.status !== "done");
+  const left = pending.filter((task) => !hidden.has(task.key));
 
   // ยังมีงานค้างจริง แต่เป็นงานที่หน้านี้ไม่ควรชวนให้ไปทำ → ไม่ต้องขึ้นอะไรเลย
   // (ห้ามตกไปที่ "งานวันนี้ครบแล้ว" เพราะนั่นจะเป็นการบอกข้อมูลผิด)
@@ -51,8 +54,8 @@ export function TodayNextStep({ show, hideTask, noPrimary }: {
   if (left.length === 0) {
     return (
       <div className="mt-3 rounded-2xl border border-ok/30 bg-ok/10 px-4 py-4 text-center">
-        <p className="text-[16px] font-semibold text-ok">งานวันนี้ครบแล้ว</p>
-        <p className="mt-0.5 text-[12px] text-brand-ink/55">ขอบคุณสำหรับวันนี้</p>
+        <p className="text-[16px] font-semibold text-ok">{t(lang, "todayNextStep.allDoneTitle")}</p>
+        <p className="mt-0.5 text-[12px] text-brand-ink/55">{t(lang, "todayNextStep.allDoneSubtitle")}</p>
       </div>
     );
   }
@@ -63,24 +66,24 @@ export function TodayNextStep({ show, hideTask, noPrimary }: {
   return (
     <div className="mt-3 rounded-2xl border border-black/10 bg-white/70 px-4 py-3.5">
       <p className="text-[13.5px] font-medium">
-        ยังเหลืออีก <span className="text-brand-red">{left.length}</span> อย่างที่ต้องทำวันนี้
+        {t(lang, "todayNextStep.remainingPrefix")}<span className="text-brand-red">{left.length}</span>{t(lang, "todayNextStep.remainingSuffix")}
       </p>
       <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-        {left.map((t) => t.label).join(" · ")}
+        {left.map((task) => task.label).join(" · ")}
       </p>
       {!noPrimary && (
         <Link
           href={next.href}
           className="mt-2.5 block rounded-xl bg-brand-red px-4 py-3 text-center text-[14px] font-semibold text-white"
         >
-          ไป{next.label} →
+          {t(lang, "todayNextStep.goToTask", { label: next.label })}
         </Link>
       )}
       <Link
         href="/"
         className="mt-1.5 block px-4 py-1.5 text-center text-[12px] font-medium text-brand-ink/55 underline underline-offset-2"
       >
-        กลับไปเช็คที่หน้าหลัก
+        {t(lang, "todayNextStep.backToHome")}
       </Link>
     </div>
   );

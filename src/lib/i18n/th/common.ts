@@ -6,4 +6,7 @@ export const th = {
   confirm: "ยืนยัน",
   loading: "กำลังโหลด…",
   openingProduction: "กำลังเปิดหน้าฝ่ายผลิต…",
+  close: "ปิด",
+  branchLabel: "สาขา ",
+  branchLockedNote: "สิทธิ์สาขานี้",
 };

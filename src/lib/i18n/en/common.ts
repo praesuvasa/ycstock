@@ -7,4 +7,7 @@ export const en: typeof th = {
   confirm: "Confirm",
   loading: "Loading…",
   openingProduction: "Opening the production page…",
+  close: "Close",
+  branchLabel: "Branch ",
+  branchLockedNote: "Locked to this branch",
 };

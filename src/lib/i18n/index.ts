@@ -40,13 +40,15 @@ import { th as thStock } from "./th/stock";
 import { en as enStock } from "./en/stock";
 import { th as thRestock } from "./th/restock";
 import { en as enRestock } from "./en/restock";
+import { th as thTodayNextStep } from "./th/todayNextStep";
+import { en as enTodayNextStep } from "./en/todayNextStep";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock, todayNextStep: thTodayNextStep },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock, todayNextStep: enTodayNextStep },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {

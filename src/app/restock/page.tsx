@@ -2061,7 +2061,7 @@ function ProductionOrder({
           </p>
         ) : lastSavedAt ? (
           <p className="mb-2 rounded-lg bg-ok/10 px-3 py-2 text-center text-xs font-medium text-ok">
-            {t(lang, "restock.production.savedOkNote", { time: formatTime(lastSavedAt), id: orderId })}
+            {t(lang, "restock.production.savedOkNote", { time: formatTime(lastSavedAt), id: orderId ?? "" })}
           </p>
         ) : null}
         <Button onClick={handleSave} disabled={saving}>
