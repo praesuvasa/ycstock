@@ -42,13 +42,17 @@ import { th as thRestock } from "./th/restock";
 import { en as enRestock } from "./en/restock";
 import { th as thTodayNextStep } from "./th/todayNextStep";
 import { en as enTodayNextStep } from "./en/todayNextStep";
+import { th as thReturns } from "./th/returns";
+import { en as enReturns } from "./en/returns";
+import { th as thStockIn } from "./th/stockIn";
+import { en as enStockIn } from "./en/stockIn";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock, todayNextStep: thTodayNextStep },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock, todayNextStep: enTodayNextStep },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock, todayNextStep: thTodayNextStep, returns: thReturns, stockIn: thStockIn },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock, todayNextStep: enTodayNextStep, returns: enReturns, stockIn: enStockIn },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {

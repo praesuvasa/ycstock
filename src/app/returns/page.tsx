@@ -4,9 +4,10 @@
 // สิทธิ์: พนักงานเห็นเฉพาะสาขาตัวเอง (บังคับที่ฝั่ง API ไม่ใช่แค่ซ่อนปุ่ม) · admin เลือกสาขาได้/ดูรวมทุกสาขาได้
 import React from "react";
 import type { Branch, ReturnHistoryRow } from "@/lib/types";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { GlassCard, PageTitle, Badge, Stat } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 // ย้อนหลัง N วันจากวันที่กำหนด — ใช้ตั้งค่าเริ่มต้นช่วงวันที่ (ค่าเริ่มต้น 30 วันล่าสุด)
 function daysAgoISO(days: number): string {
@@ -15,14 +16,15 @@ function daysAgoISO(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-const RANGE_PRESETS: { label: string; days: number }[] = [
-  { label: "7 วัน", days: 7 },
-  { label: "30 วัน", days: 30 },
-  { label: "90 วัน", days: 90 },
+const RANGE_PRESETS: { labelKey: string; days: number }[] = [
+  { labelKey: "returns.range7Days", days: 7 },
+  { labelKey: "returns.range30Days", days: 30 },
+  { labelKey: "returns.range90Days", days: 90 },
 ];
 
 export default function ReturnsPage() {
   const me = useMe();
+  const lang = useLang();
   const canPickBranch = !!me && me.branchScope === "all";
 
   const [branch, setBranch] = React.useState<Branch | "ALL">("ALL");
@@ -78,20 +80,20 @@ export default function ReturnsPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
       <PageTitle
-        title="ประวัติส่งคืน / ของเสีย"
-        right={<span className="text-xs text-brand-ink/50">{rows.length} รายการ</span>}
+        title={t(lang, "nav.user.returnsHistory")}
+        right={<span className="text-xs text-brand-ink/50">{t(lang, "returns.itemCountSuffix", { n: rows.length })}</span>}
       />
 
       <div className="mb-3 rounded-lg border border-black/10 bg-black/[.02] px-3 py-2.5 text-[12px] leading-relaxed text-brand-ink/60">
-        ข้อมูลมาจากช่อง &ldquo;ส่งคืน/เสีย&rdquo; ที่กรอกในหน้าสต็อก — หน้านี้ดูอย่างเดียว แก้ไขไม่ได้
-        {!canPickBranch && " · เห็นเฉพาะสาขาของคุณ"}
+        {t(lang, "returns.infoBanner")}
+        {!canPickBranch && t(lang, "returns.infoBannerBranchSuffix")}
       </div>
 
       <GlassCard className="mb-3">
         <div className="grid gap-3">
           {canPickBranch && (
             <div>
-              <p className="mb-1 text-[11px] text-brand-ink/50">สาขา</p>
+              <p className="mb-1 text-[11px] text-brand-ink/50">{t(lang, "returns.branchLabel")}</p>
               <div className="flex gap-1.5">
                 {(["ALL", "SND", "NVP", "KCN"] as const).map((b) => (
                   <button
@@ -102,7 +104,7 @@ export default function ReturnsPage() {
                       branch === b ? "bg-brand-red text-white" : "border border-black/10 bg-white/60 text-brand-ink"
                     }`}
                   >
-                    {b === "ALL" ? "ทุกสาขา" : b}
+                    {b === "ALL" ? t(lang, "returns.allBranches") : b}
                   </button>
                 ))}
               </div>
@@ -117,18 +119,18 @@ export default function ReturnsPage() {
                 onClick={() => { setFrom(daysAgoISO(p.days)); setTo(todayISO()); }}
                 className="flex-1 rounded-lg border border-black/10 bg-white/60 px-2 py-1.5 text-[12px] font-medium text-brand-ink"
               >
-                {p.label}
+                {t(lang, p.labelKey)}
               </button>
             ))}
           </div>
 
           <div className="flex gap-2">
             <label className="flex flex-1 flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">ตั้งแต่</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "returns.fromLabel")}</span>
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="field" />
             </label>
             <label className="flex flex-1 flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">ถึง</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "returns.toLabel")}</span>
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="field" />
             </label>
           </div>
@@ -138,12 +140,12 @@ export default function ReturnsPage() {
       {!loading && !error && rows.length > 0 && (
         <>
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <Stat label="รวมส่งคืน (แพ็ค)" value={`${summary.totalPack}`} tone={summary.totalPack > 0 ? "warn" : "default"} />
-            <Stat label="จำนวนครั้ง" value={`${rows.length}`} />
+            <Stat label={t(lang, "returns.totalReturnedPack")} value={`${summary.totalPack}`} tone={summary.totalPack > 0 ? "warn" : "default"} />
+            <Stat label={t(lang, "returns.totalCount")} value={`${rows.length}`} />
           </div>
 
           <GlassCard className="mb-3">
-            <p className="mb-2 text-[13px] font-semibold">ส่งคืนมากที่สุด</p>
+            <p className="mb-2 text-[13px] font-semibold">{t(lang, "returns.topReturnedTitle")}</p>
             <div className="grid gap-1">
               {summary.topItems.map(([name, qty]) => (
                 <div key={name} className="flex items-center justify-between gap-2 rounded-lg bg-black/[.02] px-2.5 py-1.5">
@@ -154,7 +156,7 @@ export default function ReturnsPage() {
             </div>
             {canPickBranch && branch === "ALL" && summary.topBranches.length > 1 && (
               <>
-                <p className="mb-2 mt-3 text-[13px] font-semibold">แยกตามสาขา</p>
+                <p className="mb-2 mt-3 text-[13px] font-semibold">{t(lang, "returns.byBranchTitle")}</p>
                 <div className="flex gap-2">
                   {summary.topBranches.map(([b, qty]) => (
                     <div key={b} className="flex-1 rounded-lg bg-black/[.02] px-2.5 py-2 text-center">
@@ -170,13 +172,13 @@ export default function ReturnsPage() {
       )}
 
       {loading ? (
-        <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+        <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "returns.loading")}</p>
       ) : error ? (
         <GlassCard><p className="py-6 text-center text-sm text-warn">{error}</p></GlassCard>
       ) : rows.length === 0 ? (
         <GlassCard>
           <p className="py-8 text-center text-sm text-brand-ink/50">
-            ไม่มีรายการส่งคืน/ของเสียในช่วงนี้ ✓
+            {t(lang, "returns.emptyState")}
           </p>
         </GlassCard>
       ) : (
@@ -185,7 +187,7 @@ export default function ReturnsPage() {
             <GlassCard key={date}>
               <div className="mb-1.5 flex items-center justify-between gap-2">
                 <span className="text-[13px] font-semibold">{thaiDate(date)}</span>
-                <span className="text-[11px] text-brand-ink/45">{items.length} รายการ</span>
+                <span className="text-[11px] text-brand-ink/45">{t(lang, "returns.itemCountSuffix", { n: items.length })}</span>
               </div>
               <div className="grid gap-1">
                 {items.map((r, i) => (
