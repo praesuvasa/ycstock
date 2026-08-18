@@ -9,7 +9,7 @@
 //       เพราะคนละสาขา/อุปกรณ์/เวลากันได้ — ดู supabase/migrations/0017_restock_selections.sql + spec restock-phase1-spec.md
 import React from "react";
 import { GlassCard, Segmented, BranchPicker, Badge, Button, SaveBar, PageTitle, Accordion } from "@/components/ui";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import type {
   Branch, Weekday, RestockRow, RestockSelectionEntry, RestockExtraItem, Meta, Item,
   ProdBranchKey, ProductionOrderItemInput, ProductionOrderSummary,
@@ -19,17 +19,16 @@ import type {
 import { BRANCH_LABEL_TH, PROD_ORDER_BRANCHES } from "@/lib/types";
 import { specialDayLabel, weekdayFromDate, isSpecialActive } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
-
-const WEEKDAY_LABEL_TH: Record<Weekday, string> = {
-  sun: "อาทิตย์", mon: "จันทร์", tue: "อังคาร", wed: "พุธ", thu: "พฤหัสบดี", fri: "ศุกร์", sat: "เสาร์",
-};
+import { t, type Lang } from "@/lib/i18n";
 
 type Mode = "byBranch" | "production" | "productionHistory";
-const MODE_OPTS = [
-  { value: "byBranch" as Mode, label: "📦 ต้องเติมรายสาขา" },
-  { value: "production" as Mode, label: "🏭 สั่งผลิต" },
-  { value: "productionHistory" as Mode, label: "🗂️ ประวัติสั่งผลิต" },
-];
+function getModeOptions(lang: Lang) {
+  return [
+    { value: "byBranch" as Mode, label: t(lang, "restock.mode.byBranch") },
+    { value: "production" as Mode, label: t(lang, "restock.mode.production") },
+    { value: "productionHistory" as Mode, label: t(lang, "restock.mode.productionHistory") },
+  ];
+}
 
 // ── โหมด B: รายชื่อไอเทม "สั่งผลิต" hardcode (ยืนยันแล้วว่าไม่ต้องการ config ต่อไอเทมใน Settings) ──
 const PRODUCTION_ITEMS_MAIN = [
@@ -163,11 +162,13 @@ function formatOrderQty(pack: number, g: number, hasG: boolean, gUnit: string): 
   return "0";
 }
 // ท้ายเอกสาร export ทั้ง 2 หน้า (เติมของ + สั่งผลิต) — ช่องเซ็นชื่อยืนยันรับ-ส่งของจริง
-const SIGNATURE_FOOTER_LINES = [
-  "",
-  "ผู้จัดสินค้า,____________________,วันที่,____________________",
-  "ผู้รับสินค้า,____________________,วันที่,____________________",
-];
+function signatureFooterLines(lang: Lang): string[] {
+  return [
+    "",
+    t(lang, "restock.csvSignaturePreparer"),
+    t(lang, "restock.csvSignatureReceiver"),
+  ];
+}
 
 function downloadCsv(content: string, filename: string) {
   // ใส่ BOM กันตัวอักษรไทยเพี้ยนตอนเปิดด้วย Excel
@@ -222,6 +223,7 @@ function SelectableAccordion({
   title: string; total: number; selectedCount: number; defaultOpen?: boolean;
   onToggleAll: () => void; children: React.ReactNode;
 }) {
+  const lang = useLang();
   const [open, setOpen] = React.useState(!!defaultOpen);
   const checkboxRef = React.useRef<HTMLInputElement>(null);
   const indeterminate = selectedCount > 0 && selectedCount < total;
@@ -238,7 +240,7 @@ function SelectableAccordion({
           checked={total > 0 && selectedCount === total}
           onChange={onToggleAll}
           className="h-4 w-4 flex-shrink-0 rounded border-black/20"
-          aria-label={`เลือกทั้งหมดในหมวด ${title}`}
+          aria-label={t(lang, "restock.selectAllInCategoryAria", { title })}
         />
         <button
           type="button"
@@ -276,6 +278,7 @@ function PrintSheet({
   printGroups: { category: string; items: PrintRow[] }[]; totalCount: number; note?: string;
   extras?: RestockExtraItem[];
 }) {
+  const lang = useLang();
   const byCategory = new Map(printGroups.map((g) => [g.category, g]));
   const col1 = PRINT_LEFT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
   const col2 = PRINT_RIGHT_CATEGORIES.map((c) => byCategory.get(c)).filter((g): g is (typeof printGroups)[number] => !!g);
@@ -288,12 +291,12 @@ function PrintSheet({
             {/* ช่องติ๊กอยู่ "หลัง" ตัวเลขจำนวน (แพรสั่ง 2026-07-30) — คนหยิบของอ่านชื่อ → เห็นจำนวน → ค่อยติ๊ก
                 เรียงตามลำดับที่มือทำงานจริง ไม่ต้องกวาดสายตากลับไปซ้ายสุด */}
             <tr className="border-b-2 border-black">
-              <th className="py-0.5 text-left text-[9px] uppercase tracking-wide text-neutral-500">รายการ</th>
+              <th className="py-0.5 text-left text-[9px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.printSheet.colItem")}</th>
               {/* ช่องจำนวนกว้างขึ้น (w-8 → w-16) — ยอดที่มีเศษ เช่น "1 + 2300g" เคยตกบรรทัดจนแถวสูงเป็น 2-3 เท่า
                   และหัวคอลัมน์ "จำนวน" ล้นไปทับช่องติ๊ก · ตัด uppercase/tracking ของ 2 หัวนี้ออกด้วย */}
-              <th className="w-16 py-0.5 text-center text-[9px] text-neutral-500">จำนวน</th>
-              <th className="w-5 py-0.5 text-center text-[9px] text-neutral-500">รับ</th>
-              <th className="w-11 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+              <th className="w-16 py-0.5 text-center text-[9px] text-neutral-500">{t(lang, "restock.printSheet.colQty")}</th>
+              <th className="w-5 py-0.5 text-center text-[9px] text-neutral-500">{t(lang, "restock.printSheet.colReceived")}</th>
+              <th className="w-11 py-0.5 text-center text-[9px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.printSheet.colNote")}</th>
             </tr>
           </thead>
           <tbody>
@@ -324,7 +327,7 @@ function PrintSheet({
         </table>
         {withExtra && (
           <div className="mt-3">
-            <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ</div>
+            <div className="mb-1 text-[9px] font-bold uppercase tracking-wide text-neutral-500">{t(lang, "restock.printSheet.otherItemsHeading")}</div>
             {/* รายการที่กรอกไว้ในระบบ (ข้อ 16) พิมพ์ออกมาเลย — ที่เหลือเว้นบรรทัดว่างให้เขียนเพิ่มหน้างาน */}
             {(extras ?? []).map((e, i) => (
               <div key={`x${i}`} className="mb-1 flex items-baseline gap-1.5 border-b border-neutral-400 pb-[2px]">
@@ -355,7 +358,7 @@ function PrintSheet({
       <style>{"@page { size: A4; margin: 8mm; }"}</style>
       <div className="mb-1.5 flex items-end justify-between border-b-[3px] border-black pb-1.5">
         <div>
-          <div className="text-[22px] font-bold leading-tight text-black">ใบส่งของเข้าสาขา</div>
+          <div className="text-[22px] font-bold leading-tight text-black">{t(lang, "restock.printSheet.title")}</div>
           <div className="mt-0.5 flex items-baseline gap-2.5">
             <span className="text-[28px] font-bold leading-none text-black">{branch}</span>
             <span className="text-[21px] font-bold leading-none text-black">{BRANCH_LABEL_TH[branch]}</span>
@@ -374,8 +377,8 @@ function PrintSheet({
       )}
 
       <div className="mb-2 flex justify-between text-[11px] text-neutral-600">
-        <span>รวม {totalCount} รายการ</span>
-        <span>ผู้จัดเตรียม: ____________________</span>
+        <span>{t(lang, "restock.printSheet.totalLine", { n: totalCount })}</span>
+        <span>{t(lang, "restock.printSheet.preparedByLine")}</span>
       </div>
 
       <div className="flex gap-3.5">
@@ -385,17 +388,17 @@ function PrintSheet({
 
       <div className="mt-2 flex gap-6 border-t-[1.3px] border-black pt-2">
         <div className="flex-1">
-          <div className="mb-3 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้ส่ง)</div>
+          <div className="mb-3 text-[8.5px] text-neutral-600">{t(lang, "restock.printSheet.senderLabel")}</div>
           <div className="mb-2 border-b border-black" />
           <div className="flex justify-between text-[11px] text-neutral-700">
-            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+            <span>{t(lang, "restock.printSheet.signatureLabel")}</span><span>{t(lang, "restock.printSheet.dateLine")}</span>
           </div>
         </div>
         <div className="flex-1">
-          <div className="mb-3 text-[8.5px] text-neutral-600">ผู้รับสินค้า (สาขา)</div>
+          <div className="mb-3 text-[8.5px] text-neutral-600">{t(lang, "restock.printSheet.receiverLabel")}</div>
           <div className="mb-2 border-b border-black" />
           <div className="flex justify-between text-[11px] text-neutral-700">
-            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+            <span>{t(lang, "restock.printSheet.signatureLabel")}</span><span>{t(lang, "restock.printSheet.dateLine")}</span>
           </div>
         </div>
       </div>
@@ -404,6 +407,7 @@ function PrintSheet({
 }
 
 export default function RestockPage() {
+  const lang = useLang();
   const [mode, setMode] = React.useState<Mode>("byBranch");
   // ใบที่กำลังแก้ย้อนหลัง (ตั้งจากปุ่ม "แก้ไขใบนี้" ในหน้าประวัติเท่านั้น) — สลับแท็บมือ (Segmented) ล้างค่านี้เสมอ
   // กันเคส: เคยแก้ใบเก่าค้างไว้ แล้วสลับไปแท็บอื่นแล้วกลับมา "สั่งผลิต" มือ คาดหวังใบใหม่ ไม่ใช่ใบเดิมที่เพิ่งแก้
@@ -418,7 +422,7 @@ export default function RestockPage() {
     setMode("production");
   }
 
-  const title = mode === "byBranch" ? "รายการสินค้าเข้า" : mode === "production" ? "สั่งผลิต" : "ประวัติสั่งผลิต";
+  const title = mode === "byBranch" ? t(lang, "restock.pageTitle.byBranch") : mode === "production" ? t(lang, "restock.pageTitle.production") : t(lang, "restock.pageTitle.productionHistory");
 
   return (
     <div>
@@ -426,7 +430,7 @@ export default function RestockPage() {
         <PageTitle title={title} />
 
         <div className="mb-3">
-          <Segmented options={MODE_OPTS} value={mode} onChange={changeMode} />
+          <Segmented options={getModeOptions(lang)} value={mode} onChange={changeMode} />
         </div>
       </div>
 
@@ -446,6 +450,7 @@ export default function RestockPage() {
 // ══════════════════════════════════════════════════════════════════════
 function RestockByBranch() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
@@ -493,12 +498,12 @@ function RestockByBranch() {
     Promise.all([
       fetch(`/api/restock?branch=${branch}&day=${weekday}`).then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
+        if (!r.ok) throw new Error(data?.error ?? t(lang, "restock.errLoadFailed"));
         return data as { rows: RestockRow[]; specialActive: boolean };
       }),
       fetch(`/api/restock/selections?branch=${branch}&date=${date}`).then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error(data?.error ?? "โหลดตัวเลือกที่บันทึกไว้ไม่สำเร็จ");
+        if (!r.ok) throw new Error(data?.error ?? t(lang, "restock.byBranch.errLoadSelectionsFailed"));
         return data as {
           entries: Record<string, { selected: boolean; qty: number; qtyG: number; qtyG2?: number }>;
           note?: string; extras?: RestockExtraItem[]; received?: string[];
@@ -531,7 +536,7 @@ function RestockByBranch() {
       })
       .catch((e) => {
         if (!alive) return;
-        setError(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
+        setError(e?.message ?? t(lang, "restock.errLoadFailed"));
         setRows([]);
         setSpecialActive(false);
         setSelEntries({});
@@ -543,7 +548,7 @@ function RestockByBranch() {
     };
   }, [branch, weekday, date, confirmed]);
 
-  const dayLabel = "วัน" + WEEKDAY_LABEL_TH[weekday];
+  const dayLabel = t(lang, `restock.weekday.${weekday}`);
   const ownSpecialDay = specialDayLabel(branch); // string | null — null = สาขานี้ยังไม่มีรอบ special
 
   function updateEntry(itemId: string, patch: Partial<RestockSelectionEntry>) {
@@ -586,14 +591,14 @@ function RestockByBranch() {
         body: JSON.stringify({ branch, date, entries, note: printNote, extras: extraItems }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "restock.errSaveFailed"));
       setLastSavedAt(new Date());
       // อัปเดต snapshot "บันทึกแล้ว" ทันที — ทุกแถวที่เพิ่ง POST ไปกลายเป็นสีเขียวพร้อมกัน ไม่ต้องรอโหลดใหม่
       const nextSaved: Record<string, { selected: boolean; qty: number; qtyG: number }> = {};
       for (const e of entries) nextSaved[e.itemId] = { selected: e.selected, qty: e.qty, qtyG: e.qtyG };
       setSavedEntries(nextSaved);
     } catch (e: any) {
-      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "restock.errSaveFailedWithMsg", { msg: e?.message ?? e }));
     } finally {
       setSaving(false);
     }
@@ -668,16 +673,16 @@ function RestockByBranch() {
         <span className="flex min-w-0 flex-1 items-center gap-1 text-[11.5px] font-medium">
           <span className="truncate">{r.name}</span>
           {r.isSpecial && <Badge tone="orange">special</Badge>}
-          {inProduction && <Badge tone="blue">← สั่งผลิต</Badge>}
+          {inProduction && <Badge tone="blue">{t(lang, "restock.byBranch.productionBadge")}</Badge>}
         </span>
         <span className="w-8 shrink-0 text-right text-[10.5px] tabular-nums text-brand-ink/60">
           {r.par ?? "—"}
         </span>
         {r.remainG !== undefined ? (
           <span className="w-11 shrink-0 text-right leading-tight">
-            <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} แพ็ค</span>
+            <span className="block text-[10.5px] tabular-nums text-brand-ink/60">{r.remain} {t(lang, "restock.packUnit")}</span>
             <span className="block text-[9px] tabular-nums text-brand-ink/40">
-              +{r.remainG}{r.isCup ? " ชิ้น" : "g"}
+              +{r.remainG}{r.isCup ? t(lang, "restock.pieceUnit") : "g"}
             </span>
           </span>
         ) : (
@@ -686,7 +691,7 @@ function RestockByBranch() {
           </span>
         )}
         {isSel && status === "dirty" && (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title="แก้ไขแล้ว ยังไม่บันทึก" />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warn" title={t(lang, "restock.byBranch.statusDirtyTooltip")} />
         )}
         <input
           inputMode="numeric"
@@ -695,9 +700,9 @@ function RestockByBranch() {
           onChange={(e) => updateEntry(r.itemId, { qty: Number(e.target.value) || 0 })}
           title={
             !isSel ? undefined
-              : status === "saved" ? "บันทึกลง DB แล้ว"
-              : status === "dirty" ? "แก้ไขแล้ว ยังไม่บันทึก"
-              : "ค่าที่ระบบแนะนำ (Par − คงเหลือ) — ยังไม่ได้ยืนยัน"
+              : status === "saved" ? t(lang, "restock.byBranch.statusSavedTooltip")
+              : status === "dirty" ? t(lang, "restock.byBranch.statusDirtyTooltip")
+              : t(lang, "restock.byBranch.statusSuggestedTooltip")
           }
           className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[11px] ${qtyFieldClass(isSel, status)}`}
         />
@@ -709,8 +714,8 @@ function RestockByBranch() {
               value={entry?.qtyG ?? ""}
               disabled={!isSel}
               onChange={(e) => updateEntry(r.itemId, { qtyG: Number(e.target.value) || 0 })}
-              title={`เศษ${r.isCup ? " (ชิ้น)" : " (g)"} ที่ไม่เต็มแพ็ค — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง กรอกเฉพาะรอบที่มีจริง`}
-              placeholder={r.isCup ? "ชิ้น" : "g"}
+              title={`${t(lang, "restock.byBranch.remainderTooltipPrefix")}${r.isCup ? ` (${t(lang, "restock.pieceUnit")})` : " (g)"}${t(lang, "restock.byBranch.remainderTooltipSuffix")}`}
+              placeholder={r.isCup ? t(lang, "restock.pieceUnit") : "g"}
               className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
             />
             {/* ถุงเศษที่ 2 — ซ่อนไว้เป็นค่าเริ่มต้น (แพรสั่ง) เพราะเป็นเคสนาน ๆ ที
@@ -724,8 +729,8 @@ function RestockByBranch() {
                   value={entry?.qtyG2 ?? ""}
                   disabled={!isSel}
                   onChange={(e) => updateEntry(r.itemId, { qtyG2: Number(e.target.value) || 0 })}
-                  title="ถุงเศษถุงที่ 2 — ใช้เมื่อของรอบนั้นมาเป็นถุงเศษ 2 ถุงแยกกัน (เช่น 300g กับ 500g) ใบส่งของจะพิมพ์แยกถุงให้"
-                  placeholder={r.isCup ? "ชิ้น" : "g"}
+                  title={t(lang, "restock.byBranch.secondBagTooltip")}
+                  placeholder={r.isCup ? t(lang, "restock.pieceUnit") : "g"}
                   className={`field w-[34px] shrink-0 px-1 py-0.5 text-center text-[10px] ${qtyFieldClass(isSel, status)}`}
                 />
               </>
@@ -734,7 +739,7 @@ function RestockByBranch() {
                 <button
                   type="button"
                   onClick={() => setShowG2((m) => ({ ...m, [r.itemId]: true }))}
-                  title="เพิ่มถุงเศษถุงที่ 2 (ของมาเป็น 2 ถุงแยกกัน)"
+                  title={t(lang, "restock.byBranch.addSecondBagTooltip")}
                   className="shrink-0 rounded border border-black/10 px-1 text-[10px] leading-[18px] text-brand-ink/35"
                 >
                   +g
@@ -759,7 +764,7 @@ function RestockByBranch() {
 
   function exportCsv() {
     const selectedRows = rows.filter((r) => selEntries[r.itemId]?.selected);
-    const lines = ["หมวด,รายการ,จำนวนสั่ง (แพ็ค),เศษ,เศษถุงที่ 2"];
+    const lines = [t(lang, "restock.byBranch.csvHeader")];
     for (const r of selectedRows) {
       const entry = selEntries[r.itemId];
       const q = entry?.qty ?? 0;
@@ -767,7 +772,7 @@ function RestockByBranch() {
       const qG2 = r.hasVariableYield && (entry?.qtyG2 ?? 0) > 0 ? entry?.qtyG2 ?? 0 : "";
       lines.push([csvEscape(r.category), csvEscape(r.name), String(q), String(qG), String(qG2)].join(","));
     }
-    lines.push(...SIGNATURE_FOOTER_LINES);
+    lines.push(...signatureFooterLines(lang));
     downloadCsv(lines.join("\n"), `restock_${branch}_${date}.csv`);
     logExport("export_restock_csv", branch, date, `export CSV ${selectedRows.length} รายการ`);
   }
@@ -786,7 +791,7 @@ function RestockByBranch() {
       // ข้อ 15: ตัดของที่ส่งไปแล้ว+สาขายืนยันรับแล้วออก เวลาพิมพ์ใบรอบถัดไปของวันเดียวกัน
       // (ไม่ตัดตัวที่ติ๊ก "ไม่ได้รับ" เพราะของยังไม่ถึงสาขา ต้องพิมพ์ไปส่งใหม่)
       if (printOnlyNew && receivedIds.has(r.itemId)) continue;
-      const qtyText = formatOrderQty2(entry.qty ?? 0, entry.qtyG ?? 0, entry.qtyG2 ?? 0, r.hasVariableYield ?? false, r.isCup ? "ชิ้น" : "g");
+      const qtyText = formatOrderQty2(entry.qty ?? 0, entry.qtyG ?? 0, entry.qtyG2 ?? 0, r.hasVariableYield ?? false, r.isCup ? t(lang, "restock.pieceUnit") : "g");
       const arr = byCategory.get(r.category) ?? [];
       arr.push({ ...r, qty: qtyText });
       byCategory.set(r.category, arr);
@@ -800,13 +805,11 @@ function RestockByBranch() {
 
   function printSlip() {
     if (printTotal === 0) {
-      window.alert("ยังไม่ได้เลือกรายการ — เลือกรายการที่จะเติมก่อนพิมพ์");
+      window.alert(t(lang, "restock.byBranch.alertNoSelection"));
       return;
     }
     if (printTotal > PRINT_OVERFLOW_THRESHOLD) {
-      const ok = window.confirm(
-        `รายการที่เลือก ${printTotal} รายการ อาจล้นหน้า A4 ใบเดียว\nต้องการพิมพ์ต่อไหม?`
-      );
+      const ok = window.confirm(t(lang, "restock.byBranch.confirmOverflowPrint", { n: printTotal }));
       if (!ok) return;
     }
     logExport("print_restock_slip", branch, date, `พิมพ์ใบส่งของ ${printTotal} รายการ`);
@@ -819,41 +822,41 @@ function RestockByBranch() {
       <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-brand-ink/50">วันที่จัดส่งสินค้าเข้าสาขา</span>
+          <span className="text-[11px] text-brand-ink/50">{t(lang, "restock.byBranch.deliveryDateLabel")}</span>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value || todayISO())} className="field" />
         </label>
       </div>
       <p className="mb-3 px-1 text-[11px] text-brand-ink/50">
-        ตรงกับ{dayLabel}
-        {isSpecialActive(branch, weekday) ? " — มีรอบ special ที่สาขานี้" : " — ไม่มีรอบ special วันนี้"}
+        {t(lang, "restock.byBranch.matchesDayPrefix")}{dayLabel}
+        {isSpecialActive(branch, weekday) ? t(lang, "restock.byBranch.specialActiveNote") : t(lang, "restock.byBranch.specialInactiveNote")}
       </p>
 
       {!confirmed ? (
         // ข้อ 3: gate inline (ไม่ใช่ modal) — กันกรอกผิดสาขา/วันที่ แต่ไม่รำคาญถ้ากลับมาที่คู่เดิมซ้ำ
         <GlassCard>
-          <h2 className="mb-2 text-[15px] font-semibold">ยืนยันสาขา + วันที่ก่อนเริ่มกรอก</h2>
+          <h2 className="mb-2 text-[15px] font-semibold">{t(lang, "restock.byBranch.confirmGateTitle")}</h2>
           <p className="mb-4 text-sm leading-relaxed text-brand-ink/60">
-            กำลังจะกรอกรายการเติมของของ <b className="text-brand-ink">สาขา {branch}</b> ({BRANCH_LABEL_TH[branch]})
+            {t(lang, "restock.byBranch.confirmGateIntro")} <b className="text-brand-ink">{t(lang, "restock.byBranch.confirmGateBranchWord")} {branch}</b> ({BRANCH_LABEL_TH[branch]})
             <br />
-            วันที่ <b className="text-brand-ink">{thaiDateSlash(date)}</b> ({dayLabel})
+            {t(lang, "restock.byBranch.confirmGateDateWord")} <b className="text-brand-ink">{thaiDateSlash(date)}</b> ({dayLabel})
           </p>
-          <Button onClick={confirm}>✅ ยืนยัน เริ่มกรอกรายการ</Button>
+          <Button onClick={confirm}>{t(lang, "restock.confirmStartButton")}</Button>
         </GlassCard>
       ) : (
         <GlassCard>
           <div className="mb-3 flex items-baseline justify-between gap-3">
             <h2 className="text-[15px] font-semibold">
-              รอบเติม · {dayLabel} · {branch}
+              {t(lang, "restock.byBranch.roundHeading", { day: dayLabel, branch })}
             </h2>
-            <span className="shrink-0 text-xs text-brand-ink/50">{regularRows.length} รายการ</span>
+            <span className="shrink-0 text-xs text-brand-ink/50">{t(lang, "restock.itemCountSuffix", { n: regularRows.length })}</span>
           </div>
 
           {loading ? (
-            <div className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</div>
+            <div className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</div>
           ) : error ? (
             <div className="py-8 text-center text-sm text-warn">{error}</div>
           ) : rows.length === 0 ? (
-            <div className="py-8 text-center text-sm text-brand-ink/50">ไม่มีรายการในรอบนี้</div>
+            <div className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "restock.byBranch.emptyRound")}</div>
           ) : (
             <>
               {/* global toolbar */}
@@ -865,10 +868,10 @@ function RestockByBranch() {
                     onChange={toggleAllGlobal}
                     className="h-4 w-4 rounded border-black/20"
                   />
-                  เลือกทั้งหมด
+                  {t(lang, "restock.selectAllLabel")}
                 </label>
                 <span className="text-xs font-semibold text-brand-ink/60">
-                  {selectedTotal}/{regularRows.length} รายการที่เลือก
+                  {t(lang, "restock.byBranch.selectedCountLabel", { selected: selectedTotal, total: regularRows.length })}
                 </span>
               </div>
 
@@ -891,10 +894,10 @@ function RestockByBranch() {
               {emergencySpecialItems.length > 0 && (
                 <div className="mt-3 rounded-xl border border-brand-orange/40 bg-brand-orange/[.06] p-2.5">
                   <p className="mb-2 px-0.5 text-[11px] leading-relaxed text-orange-700">
-                    7 รายการ special ไม่ถึงรอบเข้าวันนี้ ({branch} เข้าเฉพาะวัน{ownSpecialDay ?? "—"}) — ติ๊กเลือกเองเฉพาะรายการที่ต้องการเพิ่มจริง
+                    {t(lang, "restock.byBranch.emergencyNote", { branch, day: ownSpecialDay ?? "—" })}
                   </p>
                   <SelectableAccordion
-                    title="รายการเพิ่มเติม"
+                    title={t(lang, "restock.byBranch.emergencyAccordionTitle")}
                     total={emergencySpecialItems.length}
                     selectedCount={emergencySpecialItems.filter((r) => selEntries[r.itemId]?.selected).length}
                     onToggleAll={() => toggleCategoryAll(emergencySpecialItems)}
@@ -909,10 +912,10 @@ function RestockByBranch() {
           {!loading && !error && rows.length > 0 && (
             <p className="mt-3 text-xs leading-relaxed text-brand-ink/60">
               {specialActive
-                ? `รอบนี้รวม 7 รายการ special (${branch} เข้า${dayLabel})`
+                ? t(lang, "restock.byBranch.specialActiveSummary", { branch, day: dayLabel })
                 : ownSpecialDay
-                  ? `รอบนี้ไม่มี 7 รายการ special — ${branch} รับ special เฉพาะวัน${ownSpecialDay}`
-                  : `สาขา ${branch} ยังไม่เปิดรับ 7 รายการ special (รอกำหนดรอบเติมของ)`}
+                  ? t(lang, "restock.byBranch.specialInactiveSummary", { branch, day: ownSpecialDay })
+                  : t(lang, "restock.byBranch.specialNoneSummary", { branch })}
             </p>
           )}
         </GlassCard>
@@ -922,10 +925,9 @@ function RestockByBranch() {
         <>
           {/* ข้อ 16: รายการที่ไม่มีให้เลือกในระบบ — ขึ้นใบปริ้น + เก็บประวัติ แต่ไม่ auto-fill รับเข้า */}
           <GlassCard className="mt-3">
-            <p className="text-[13px] font-semibold">รายการอื่นๆ ที่ไม่มีในระบบ</p>
+            <p className="text-[13px] font-semibold">{t(lang, "restock.byBranch.extraSectionTitle")}</p>
             <p className="mt-0.5 text-[11px] leading-relaxed text-brand-ink/50">
-              ของใหม่/ของเฉพาะกิจที่ยังไม่ได้ตั้งเป็นสินค้า — จะขึ้นในใบส่งของและเก็บเป็นประวัติไว้
-              แต่ระบบจะไม่เติมยอด &ldquo;รับเข้า&rdquo; ให้อัตโนมัติ ต้องกรอกที่หน้าสต็อกเอง
+              {t(lang, "restock.byBranch.extraSectionBody")}
             </p>
             <div className="mt-2 grid gap-2">
               {extraItems.map((it, i) => (
@@ -934,13 +936,13 @@ function RestockByBranch() {
                     <input
                       value={it.name}
                       onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                      placeholder="ชื่อของที่ต้องการ"
+                      placeholder={t(lang, "restock.byBranch.extraNamePlaceholder")}
                       className="field min-w-0 flex-1 text-left"
                     />
                     <input
                       inputMode="numeric" value={it.qty || ""}
                       onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) || 0 } : x)))}
-                      placeholder="จำนวน"
+                      placeholder={t(lang, "restock.qtyLabel")}
                       className="field w-16 shrink-0"
                     />
                     <button
@@ -948,13 +950,13 @@ function RestockByBranch() {
                       onClick={() => setExtraItems((prev) => prev.filter((_, j) => j !== i))}
                       className="shrink-0 rounded-lg px-2 text-[11px] font-medium text-warn underline underline-offset-2"
                     >
-                      ลบ
+                      {t(lang, "restock.removeLabel")}
                     </button>
                   </div>
                   <input
                     value={it.note}
                     onChange={(e) => setExtraItems((prev) => prev.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
-                    placeholder="หมายเหตุ (ไม่บังคับ)"
+                    placeholder={t(lang, "restock.byBranch.extraNotePlaceholder")}
                     className="field text-left text-[12px]"
                   />
                 </div>
@@ -965,15 +967,15 @@ function RestockByBranch() {
               onClick={() => setExtraItems((prev) => [...prev, { name: "", qty: 0, note: "" }])}
               className="mt-2 w-full rounded-lg border border-dashed border-black/20 px-3 py-2.5 text-[13px] font-medium text-brand-red"
             >
-              + เพิ่มรายการ
+              {t(lang, "restock.byBranch.addExtraItemButton")}
             </button>
           </GlassCard>
 
           <label className="mt-3 flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">โน้ตถึงพนักงาน (แสดงในใบส่งของที่พิมพ์ ไม่บังคับ — กดบันทึกตัวเลือกแล้วจะจำไว้)</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "restock.byBranch.printNoteLabel")}</span>
             <textarea
               value={printNote} onChange={(e) => setPrintNote(e.target.value)}
-              rows={2} placeholder="เช่น เช็คน้ำหนักก่อนเซ็นรับ / ระวังกล่องแตก"
+              rows={2} placeholder={t(lang, "restock.byBranch.printNotePlaceholder")}
               className="field text-left"
             />
           </label>
@@ -988,9 +990,9 @@ function RestockByBranch() {
                   className="mt-0.5 h-4 w-4 shrink-0 accent-ok"
                 />
                 <span className="text-[12px] leading-relaxed text-brand-ink/75">
-                  พิมพ์เฉพาะรายการที่ยังไม่ได้ส่ง
+                  {t(lang, "restock.byBranch.printOnlyNewLabel")}
                   <span className="block text-[11px] text-brand-ink/50">
-                    ใบนี้มี {receivedIds.size} รายการที่สาขายืนยันรับไปแล้ว — ติ๊กไว้จะไม่พิมพ์ซ้ำ กันจัดของซ้ำรอบสอง
+                    {t(lang, "restock.byBranch.printOnlyNewSub", { n: receivedIds.size })}
                   </span>
                 </span>
               </label>
@@ -1010,31 +1012,31 @@ function RestockByBranch() {
               onClick={printSlip}
               className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
             >
-              🖨️ พิมพ์ใบส่งของ
+              {t(lang, "restock.byBranch.printSlipButton")}
             </button>
           </div>
           <SaveBar>
             {dirtyCount > 0 ? (
               <p className="mb-2 rounded-lg bg-warn/10 px-3 py-2 text-center text-xs font-medium text-warn">
-                ⚠️ มีการแก้ไข {dirtyCount} รายการที่ยังไม่บันทึก — หน้าสั่งผลิตจะยังไม่เห็นค่านี้
+                {t(lang, "restock.byBranch.dirtyWarning", { n: dirtyCount })}
               </p>
             ) : lastSavedAt ? (
               <p className="mb-2 rounded-lg bg-ok/10 px-3 py-2 text-center text-xs font-medium text-ok">
-                ✓ บันทึกล่าสุด {formatTime(lastSavedAt)} น. — ไม่มีการแก้ไขค้าง
+                {t(lang, "restock.byBranch.savedOkNote", { time: formatTime(lastSavedAt) })}
               </p>
             ) : null}
             <Button onClick={handleSave} disabled={saving || loading}>
-              {saving ? "กำลังบันทึก…" : "💾 บันทึกตัวเลือก"}
+              {saving ? t(lang, "common.saving") : t(lang, "restock.byBranch.saveSelectionsButton")}
             </Button>
           </SaveBar>
         </>
       )}
 
-      <p className="mt-3 px-1 text-xs text-brand-ink/45">ต้องเติม = MAX(Par − คงเหลือ, 0) · แถบฟ้า "← สั่งผลิต" = ไอเทมนี้จะไปโผล่ในหน้าสั่งผลิตอัตโนมัติ · ใบส่งของไว้พิมพ์แนบของจริง ให้สาขาติ๊กรับ+เซ็นชื่อ</p>
+      <p className="mt-3 px-1 text-xs text-brand-ink/45">{t(lang, "restock.byBranch.footerLegend")}</p>
       {confirmed && !loading && !error && rows.length > 0 && (
         <p className="mt-1.5 px-1 text-[11px] leading-relaxed text-brand-ink/40">
-          สีช่องจำนวน: <i className="not-italic text-brand-ink/45">เอียง+เส้นประ</i> = ค่าที่ระบบแนะนำ ยังไม่ยืนยัน ·{" "}
-          <i className="not-italic text-sky-700">ฟ้า</i> = แก้ไขแล้วยังไม่บันทึก · <i className="not-italic text-ok">เขียว</i> = บันทึกลง DB แล้ว
+          {t(lang, "restock.byBranch.colorLegendPrefix")}<i className="not-italic text-brand-ink/45">{t(lang, "restock.byBranch.colorLegendItalic1")}</i>{t(lang, "restock.byBranch.colorLegendMid1")}{" "}
+          <i className="not-italic text-sky-700">{t(lang, "restock.byBranch.colorLegendItalic2")}</i>{t(lang, "restock.byBranch.colorLegendMid2")}<i className="not-italic text-ok">{t(lang, "restock.byBranch.colorLegendItalic3")}</i>{t(lang, "restock.byBranch.colorLegendSuffix")}
         </p>
       )}
     </div>
@@ -1051,8 +1053,12 @@ const PROD_FIELDS: { key: ProdField; label: string }[] = [
   { key: "SND", label: "SND" },
   { key: "NVP", label: "NVP" },
   { key: "KCN", label: "KCN" },
-  { key: "other", label: "อื่นๆ" },
+  { key: "other", label: "อื่นๆ" }, // label ตัวนี้ไม่ถูกใช้แสดงผลตรงๆ — จุดที่ render ใช้ prodFieldLabel(lang, f) แทนเพื่อแปล "อื่นๆ"
 ];
+// "SND"/"NVP"/"KCN" เป็นรหัสสาขา ไม่แปล — เฉพาะ "other" ที่ต้องแปลเป็น UI chrome ผ่าน key restock.otherBranchLabel
+function prodFieldLabel(lang: Lang, f: { key: ProdField; label: string }): string {
+  return f.key === "other" ? t(lang, "restock.otherBranchLabel") : f.label;
+}
 
 interface ExtraRow { id: string; name: string; qty: string; unit: string; note: string }
 interface HaveStock { qty: string; qtyG: string }
@@ -1086,9 +1092,9 @@ function haveTextOf(pack: number, gText: string | undefined, unit: string): stri
 }
 
 function needToProduce(
-  item: Item, packSum: number, gSum: number, havePack: number, haveG: number
+  lang: Lang, item: Item, packSum: number, gSum: number, havePack: number, haveG: number
 ): { none: boolean; text: string; pack: number; g: number } {
-  const gUnit = item.isCup ? "ชิ้น" : "g";
+  const gUnit = item.isCup ? t(lang, "restock.pieceUnit") : "g";
   if (!item.variableYield) {
     const pack = Math.max(packSum - havePack, 0);
     return { none: pack <= 0, text: String(pack), pack, g: 0 };
@@ -1127,8 +1133,9 @@ function ProductionRow({
   have?: HaveStock;
   onChangeHave?: (v: HaveStock) => void;
 }) {
+  const lang = useLang();
   const hasG = item.variableYield; // เศษไม่เต็มแพ็ค (Yuzu ฯลฯ) — ผลผลิตบางรอบไม่ออกมาเต็มกล่อง
-  const gUnit = item.isCup ? "ชิ้น" : "g";
+  const gUnit = item.isCup ? t(lang, "restock.pieceUnit") : "g";
   const packSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(values[f.key] ?? "") || 0), 0);
   const gSum = PROD_FIELDS.reduce((s, f) => s + (parseFloat(gValues[f.key] ?? "") || 0), 0);
   const isOrange = tone === "orange";
@@ -1136,23 +1143,23 @@ function ProductionRow({
   // ต้องการ 3 + 250g มีของเก่า 1 + 250g → ผลิต 2 · ไม่ใช่แค่ "มี/ไม่มี" เหมือนช่องติ๊กเดิม
   const havePack = parseFloat(have?.qty ?? "") || 0;
   const haveG = sumGrams(have?.qtyG);
-  const need = needToProduce(item, packSum, gSum, havePack, haveG);
+  const need = needToProduce(lang, item, packSum, gSum, havePack, haveG);
   const hasHave = havePack > 0 || haveG > 0;
   return (
     <div className={`px-3 py-2.5 ${isOrange ? "rounded-xl border border-brand-orange/40 bg-brand-orange/10" : "glass-soft"}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className={`text-sm font-medium ${isOrange ? "text-orange-700" : ""}`}>{item.name}</span>
         <div className="flex shrink-0 items-center gap-1">
-          {reflected && <Badge tone="blue">จาก Restock</Badge>}
-          {isNew && <Badge tone="ok">ไอเทมใหม่</Badge>}
-          {hasHave && <Badge tone="orange">{need.none ? "ไม่ต้องผลิต" : "ใช้ของเก่าบางส่วน"}</Badge>}
+          {reflected && <Badge tone="blue">{t(lang, "restock.production.fromRestockBadge")}</Badge>}
+          {isNew && <Badge tone="ok">{t(lang, "restock.production.newItemBadge")}</Badge>}
+          {hasHave && <Badge tone="orange">{need.none ? t(lang, "restock.production.noNeedBadge") : t(lang, "restock.production.partialOldStockBadge")}</Badge>}
         </div>
       </div>
       {/* ของเก่าที่มีในสต็อกอยู่แล้ว — กรอกจำนวน ไม่ใช่ติ๊กมี/ไม่มี เพราะของจริงมักมีไม่ครบ
           ช่องรายสาขาข้างล่างยังเป็น "ยอดที่ต้องส่ง" เหมือนเดิม ไม่ต้องหักเอง ระบบหักให้ตอนสรุป */}
       {onChangeHave && (
         <div className="mb-2 rounded-lg border border-brand-orange/30 bg-brand-orange/[.06] px-2 py-1.5">
-          <div className="mb-1 text-[10.5px] font-medium text-orange-700">มีของเก่าในสต็อก (หยิบไปส่งได้เลย)</div>
+          <div className="mb-1 text-[10.5px] font-medium text-orange-700">{t(lang, "restock.production.haveStockHeading")}</div>
           <div className="flex items-center gap-1.5">
             <input
               inputMode="numeric"
@@ -1161,14 +1168,14 @@ function ProductionRow({
               onChange={(e) => onChangeHave({ qty: e.target.value, qtyG: have?.qtyG ?? "" })}
               className="field w-12 bg-white/80 px-1 py-1 text-center text-xs"
             />
-            <span className="text-[10px] text-brand-ink/45">แพ็ค</span>
+            <span className="text-[10px] text-brand-ink/45">{t(lang, "restock.packUnit")}</span>
             {hasG && (
               <>
                 <input
                   inputMode="text"
                   value={have?.qtyG ?? ""}
                   placeholder="700+200"
-                  title="ของเก่าเป็นถุงเศษหลายถุง พิมพ์คั่นด้วย + ได้ เช่น 700+200 — ใบพิมพ์จะแยกถุงให้"
+                  title={t(lang, "restock.production.haveStockGTooltip")}
                   onChange={(e) => onChangeHave({ qty: have?.qty ?? "", qtyG: e.target.value })}
                   className="field w-20 bg-white/80 px-1 py-1 text-center text-xs"
                 />
@@ -1180,7 +1187,7 @@ function ProductionRow({
               onClick={() => onChangeHave({ qty: String(packSum), qtyG: hasG ? String(gSum) : "" })}
               className="ml-auto rounded-lg border border-brand-orange/40 px-2 py-1 text-[10.5px] font-medium text-orange-700"
             >
-              มีครบ ไม่ต้องผลิต
+              {t(lang, "restock.production.haveEnoughButton")}
             </button>
           </div>
         </div>
@@ -1192,7 +1199,7 @@ function ProductionRow({
           return (
             <label key={f.key} className="flex flex-col gap-0.5">
               <span className={`text-[8.5px] leading-tight ${isOrange ? "text-orange-700/70" : "text-brand-ink/50"}`}>
-                {f.label}
+                {prodFieldLabel(lang, f)}
               </span>
               {f.key !== "other" && (
                 <span className={`text-[7.5px] leading-none ${isOrange ? "text-orange-700/50" : "text-brand-ink/35"}`}>
@@ -1214,7 +1221,7 @@ function ProductionRow({
                   value={gValues[f.key] ?? ""}
                   disabled={disabled}
                   placeholder={`+${gUnit}`}
-                  title={`เศษ (${gUnit}) ที่ไม่เต็มแพ็ค — กรอกเฉพาะรอบที่มีจริง`}
+                  title={t(lang, "restock.production.gramTooltip", { unit: gUnit })}
                   onChange={(e) => onChangeG(f.key, e.target.value)}
                   className={`field px-1.5 py-1 text-center text-[10px] ${disabled ? "opacity-40" : ""} ${
                     isOrange ? "bg-white/80" : ""
@@ -1231,16 +1238,16 @@ function ProductionRow({
         {hasHave ? (
           <>
             <div className="text-[10.5px] font-normal text-brand-ink/50">
-              ต้องการ {hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}
-              {" · มีของเก่า "}
+              {t(lang, "restock.production.neededLabel")} {hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}
+              {t(lang, "restock.production.haveOldStockInline")}
               {hasG ? haveTextOf(havePack, have?.qtyG, gUnit) : havePack}
             </div>
             <div className={need.none ? "text-orange-700" : ""}>
-              {need.none ? "ไม่ต้องผลิต — หยิบจากสต็อกเดิม" : `ต้องผลิต: ${need.text}`}
+              {need.none ? t(lang, "restock.production.noNeedPullFromStock") : `${t(lang, "restock.production.mustProducePrefix")}${need.text}`}
             </div>
           </>
         ) : (
-          `รวมสั่งผลิต: ${hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}`
+          `${t(lang, "restock.production.totalOrderedPrefix")}${hasG ? formatOrderQty(packSum, gSum, true, gUnit) : packSum}`
         )}
       </div>
     </div>
@@ -1257,9 +1264,13 @@ const PRODUCTION_PRINT_OVERFLOW_THRESHOLD = 30;
 // ที่อื่นยังใช้ชื่อเต็มจาก BRANCH_LABEL_TH เหมือนเดิม
 // NCD ยังไม่รองรับในระบบสั่งผลิต (branch_key คอลัมน์จริงมี CHECK จำกัดแค่ SND/NVP/KCN/OTHER)
 // ใส่ไว้ให้ type ผ่านเฉยๆ ไม่มีที่ไหนอ่านค่านี้จริง (คอลัมน์ใบสั่งผลิตยัง hardcode แค่ 3 สาขาบน)
-const PROD_BRANCH_SHORT: Record<Branch, string> = { SND: "สินธร", NVP: "เนอวาน่า", KCN: "กาญจนา", NCD: "นิชดา" };
+// label ข้อความไทยเดิมย้ายไปที่ restock.prodBranchShort ใน dictionary — resolve ผ่าน prodBranchShort(lang, key) แทนอ่าน object ตรงๆ
+function prodBranchShort(lang: Lang, key: Branch): string {
+  return t(lang, `restock.prodBranchShort.${key}`);
+}
 // ข้อ 17: หมวดพิเศษบนใบสั่งผลิต — ของที่มีอยู่แล้ว ไม่ต้องผลิตใหม่ แค่หยิบจากสต็อกเดิมไปส่ง
-const IN_STOCK_CATEGORY = "✅ มีของแล้ว — ไม่ต้องผลิต (หยิบจากสต็อกเดิม)";
+// ข้อความไทยเดิมย้ายไปที่ restock.inStockCategory ใน dictionary — resolve ผ่าน t(lang, IN_STOCK_CATEGORY_KEY) ในจุดที่ใช้ (มี lang)
+const IN_STOCK_CATEGORY_KEY = "restock.inStockCategory";
 
 function ProductionPrintSheet({
   orderDate, deliveryDate, printGroups, totalCount, note,
@@ -1267,36 +1278,37 @@ function ProductionPrintSheet({
   orderDate: string; deliveryDate: string;
   printGroups: { category: string; items: ProdPrintRow[] }[]; totalCount: number; note: string;
 }) {
+  const lang = useLang();
   return (
     <div className="print-sheet hidden print:block">
       <style>{"@page { size: A4; margin: 10mm; }"}</style>
       <div className="mb-2.5 flex items-end justify-between border-b-[3px] border-black pb-2.5">
         <div>
-          <div className="text-[15px] font-bold uppercase tracking-widest text-neutral-500">ใบสั่งผลิต</div>
-          <div className="text-[30px] font-bold leading-tight text-black">สั่งผลิต {thaiDateSlash(orderDate)}</div>
+          <div className="text-[15px] font-bold uppercase tracking-widest text-neutral-500">{t(lang, "restock.productionPrintSheet.title")}</div>
+          <div className="text-[30px] font-bold leading-tight text-black">{t(lang, "restock.productionPrintSheet.headerDate", { date: thaiDateSlash(orderDate) })}</div>
         </div>
         <div className="text-right">
-          <div className="text-[11px] uppercase tracking-widest text-neutral-500">จัดส่งเข้าสาขา</div>
+          <div className="text-[11px] uppercase tracking-widest text-neutral-500">{t(lang, "restock.productionPrintSheet.deliverToLabel")}</div>
           <div className="text-[26px] font-bold leading-none text-black">{thaiDateSlash(deliveryDate)}</div>
         </div>
       </div>
       <div className="mb-1.5 flex justify-between text-[11px] text-neutral-600">
-        <span>รวม {totalCount} รายการ</span>
-        <span>ผู้สั่งผลิต: ____________________</span>
+        <span>{t(lang, "restock.printSheet.totalLine", { n: totalCount })}</span>
+        <span>{t(lang, "restock.productionPrintSheet.orderedByLine")}</span>
       </div>
 
       <table className="w-full border-collapse text-[13px] leading-tight">
         <thead>
           <tr className="border-b-2 border-black">
             <th className="w-4 py-1 align-top"></th>
-            <th className="py-1 align-top text-left text-[10px] uppercase tracking-wide text-neutral-500">รายการ</th>
+            <th className="py-1 align-top text-left text-[10px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.printSheet.colItem")}</th>
             {/* ชื่อสาขาแบบสั้นเฉพาะใบนี้ (แพรสั่ง) — ชื่อเต็มตัดบรรทัดเป็น 3 บรรทัด ดันหัวตารางสูงเกินจำเป็น */}
-            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.SND}</span></th>
-            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.NVP}</span></th>
-            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{PROD_BRANCH_SHORT.KCN}</span></th>
-            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">อื่นๆ</th>
-            <th className="w-16 border-l-2 border-black py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">ต้องผลิต</th>
-            <th className="w-20 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">หมายเหตุ</th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">SND<br /><span className="normal-case text-neutral-700">{prodBranchShort(lang, "SND")}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">NVP<br /><span className="normal-case text-neutral-700">{prodBranchShort(lang, "NVP")}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">KCN<br /><span className="normal-case text-neutral-700">{prodBranchShort(lang, "KCN")}</span></th>
+            <th className="w-14 border-l border-neutral-400 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.otherBranchLabel")}</th>
+            <th className="w-16 border-l-2 border-black py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.productionPrintSheet.colToProduce")}</th>
+            <th className="w-20 py-1 align-top text-center text-[10px] uppercase tracking-wide text-neutral-500">{t(lang, "restock.printSheet.colNote")}</th>
           </tr>
         </thead>
         <tbody>
@@ -1332,12 +1344,12 @@ function ProductionPrintSheet({
 
       {note.trim() && (
         <div className="mt-2 text-[12px] text-black">
-          <span className="font-bold">หมายเหตุรวม: </span>{note.trim()}
+          <span className="font-bold">{t(lang, "restock.productionPrintSheet.combinedNoteLabel")}</span>{note.trim()}
         </div>
       )}
 
       <div className="mt-2">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">รายการอื่นๆ (เขียนเพิ่มเอง)</div>
+        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-500">{t(lang, "restock.productionPrintSheet.writeInHeading")}</div>
         {[0, 1, 2].map((i) => (
           <div key={i} className="mb-1 h-[17px] border-b border-dotted border-neutral-400" />
         ))}
@@ -1345,17 +1357,17 @@ function ProductionPrintSheet({
 
       <div className="mt-3 flex gap-6 border-t-[1.3px] border-black pt-2.5">
         <div className="flex-1">
-          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้จัดสินค้า (ผู้สั่ง)</div>
+          <div className="mb-4 text-[8.5px] text-neutral-600">{t(lang, "restock.productionPrintSheet.ordererLabel")}</div>
           <div className="mb-2 border-b border-black" />
           <div className="flex justify-between text-[11px] text-neutral-700">
-            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+            <span>{t(lang, "restock.printSheet.signatureLabel")}</span><span>{t(lang, "restock.printSheet.dateLine")}</span>
           </div>
         </div>
         <div className="flex-1">
-          <div className="mb-4 text-[8.5px] text-neutral-600">ผู้ผลิต</div>
+          <div className="mb-4 text-[8.5px] text-neutral-600">{t(lang, "restock.productionPrintSheet.producerLabel")}</div>
           <div className="mb-2 border-b border-black" />
           <div className="flex justify-between text-[11px] text-neutral-700">
-            <span>ลายเซ็น</span><span>วันที่ ____/____/____</span>
+            <span>{t(lang, "restock.printSheet.signatureLabel")}</span><span>{t(lang, "restock.printSheet.dateLine")}</span>
           </div>
         </div>
       </div>
@@ -1380,6 +1392,7 @@ function ProductionOrder({
   editOrderId: number | null;
   onSaved: (id: number) => void;
 }) {
+  const lang = useLang();
   const [meta, setMeta] = React.useState<Meta | null>(null);
   const [metaError, setMetaError] = React.useState<string | null>(null);
   const [metaLoading, setMetaLoading] = React.useState(true);
@@ -1404,7 +1417,7 @@ function ProductionOrder({
     fetch("/api/meta")
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลด meta ไม่สำเร็จ");
+        if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.production.errLoadMetaFailed"));
         return data as Meta;
       })
       .then((m) => { if (alive) setMeta(m); })
@@ -1451,7 +1464,7 @@ function ProductionOrder({
       PROD_ORDER_BRANCHES.map((b) =>
         fetch(`/api/restock/selections?branch=${b}&date=${deliveryDate}`).then(async (r) => {
           const data = await r.json();
-          if (!r.ok) throw new Error((data as any)?.error ?? `โหลดตัวเลือกสาขา ${b} ไม่สำเร็จ`);
+          if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.production.errLoadBranchSelectionsFailed", { branch: b }));
           return { branch: b, entries: (data as { entries: Record<string, { selected: boolean; qty: number; qtyG: number }> }).entries };
         })
       )
@@ -1516,7 +1529,7 @@ function ProductionOrder({
     fetch(`/api/production-orders?id=${editOrderId}`)
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดใบสั่งผลิตไม่สำเร็จ");
+        if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.production.errLoadOrderFailed"));
         return data as { order: ProductionOrderRecord };
       })
       .then(({ order }) => {
@@ -1637,7 +1650,7 @@ function ProductionOrder({
     // raw ยังคิดเป็นกรัมรวม (ใช้เช็คแค่ว่ามีของให้โชว์ไหม) แต่ text โชว์ตามที่กรอกจริง ไม่แปลงเศษเป็นแพ็ค
     // เดิมแปลงให้ (1 แพ็ค + 2,300g → "2 แพ็ค + 300g") ซึ่งถูกทางเลข แต่คนอ่านใบต้องมานั่งไล่ว่าเลขมาจากไหน
     const totalG = packSum * it.gramsPerUOM + gSum;
-    return { raw: totalG, text: formatOrderQty(packSum, gSum, true, it.isCup ? "ชิ้น" : "g") };
+    return { raw: totalG, text: formatOrderQty(packSum, gSum, true, it.isCup ? t(lang, "restock.pieceUnit") : "g") };
   }
   // ยอดที่ต้องผลิตจริงของรายการ (หักของเก่าแล้ว) — ใช้ร่วมกันทั้งใบพิมพ์ CSV และตอนบันทึก
   function produceFor(it: Item) {
@@ -1648,9 +1661,9 @@ function ProductionOrder({
     const h = haveFor(it.id);
     const havePack = parseFloat(h.qty) || 0;
     const haveG = sumGrams(h.qtyG);
-    const gUnit = it.isCup ? "ชิ้น" : "g";
+    const gUnit = it.isCup ? t(lang, "restock.pieceUnit") : "g";
     return {
-      ...needToProduce(it, packSum, gSum, havePack, haveG),
+      ...needToProduce(lang, it, packSum, gSum, havePack, haveG),
       hasHave: havePack > 0 || haveG > 0,
       haveText: it.variableYield ? haveTextOf(havePack, h.qtyG, gUnit) : String(havePack),
     };
@@ -1670,7 +1683,7 @@ function ProductionOrder({
     if (!it.variableYield) return valuesFor(it.id)[field] ?? "";
     const g = parseFloat(gValuesFor(it.id)[field] ?? "") || 0;
     if (pack === 0 && g === 0) return "";
-    return formatOrderQty(pack, g, true, it.isCup ? "ชิ้น" : "g");
+    return formatOrderQty(pack, g, true, it.isCup ? t(lang, "restock.pieceUnit") : "g");
   }
 
   // ── v1.5: รวม prodQty/prodQtyG (กริดหลัก) + extraRows → payload ส่งขึ้น POST/PATCH /api/production-orders ──
@@ -1735,7 +1748,7 @@ function ProductionOrder({
           body: JSON.stringify({ orderDate, deliveryDate, note, items }),
         });
         const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+        if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "restock.errSaveFailed"));
         setOrderId(data.order.id);
         syncSavedItemIds(data.order.items);
         onSaved(data.order.id);
@@ -1745,14 +1758,14 @@ function ProductionOrder({
           body: JSON.stringify({ id: orderId, orderDate, deliveryDate, note, items, removedItemIds: removedExtraIds }),
         });
         const data = await res.json();
-        if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+        if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "restock.errSaveFailed"));
         syncSavedItemIds(data.order.items);
         setRemovedExtraIds([]);
       }
       setDirty(false);
       setLastSavedAt(new Date());
     } catch (e: any) {
-      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "restock.errSaveFailedWithMsg", { msg: e?.message ?? e }));
     } finally {
       setSaving(false);
     }
@@ -1760,10 +1773,10 @@ function ProductionOrder({
 
   function exportCsv() {
     const lines = [
-      `วันที่สั่งผลิต,${orderDate}`,
-      `วันที่จัดส่งเข้าสาขา,${deliveryDate}`,
+      t(lang, "restock.production.csvOrderDateLine", { date: orderDate }),
+      t(lang, "restock.production.csvDeliveryDateLine", { date: deliveryDate }),
       "",
-      "หมวด,รายการ,SND,NVP,KCN,อื่นๆ,รวมที่ต้องส่ง,มีของเก่า,ต้องผลิต",
+      t(lang, "restock.production.csvHeader"),
     ];
     for (const g of mainGroups) {
       for (const it of g.items) {
@@ -1773,38 +1786,39 @@ function ProductionOrder({
           csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
           csvEscape(totalFor(it).text),
           csvEscape(produceFor(it).hasHave ? produceFor(it).haveText : ""),
-          csvEscape(produceFor(it).none ? "ไม่ต้องผลิต" : produceFor(it).text),
+          csvEscape(produceFor(it).none ? t(lang, "restock.production.noNeedBadge") : produceFor(it).text),
         ].join(","));
       }
     }
     for (const it of dept2Items) {
       lines.push([
-        csvEscape("แผนกอื่น"), csvEscape(it.name),
+        csvEscape(t(lang, "restock.production.dept2CategoryLabel")), csvEscape(it.name),
         csvEscape(fieldTextFor(it, "SND")), csvEscape(fieldTextFor(it, "NVP")),
         csvEscape(fieldTextFor(it, "KCN")), csvEscape(fieldTextFor(it, "other")),
         csvEscape(totalFor(it).text),
         csvEscape(produceFor(it).hasHave ? produceFor(it).haveText : ""),
-        csvEscape(produceFor(it).none ? "ไม่ต้องผลิต" : produceFor(it).text),
+        csvEscape(produceFor(it).none ? t(lang, "restock.production.noNeedBadge") : produceFor(it).text),
       ].join(","));
     }
     for (const r of extraRows) {
       lines.push([
-        csvEscape("รายการพิเศษ (ครั้งเดียว)"), csvEscape(r.name),
+        csvEscape(t(lang, "restock.production.csvExtraCategoryLabel")), csvEscape(r.name),
         "", "", "", csvEscape(r.qty || "0") + (r.unit ? " " + csvEscape(r.unit) : ""),
         r.qty || "0", "", r.qty || "0",
       ].join(","));
-      if (r.note.trim()) lines.push(",หมายเหตุ: " + csvEscape(r.note.trim()) + ",,,,,,,");
+      if (r.note.trim()) lines.push("," + t(lang, "restock.production.csvNotePrefix") + csvEscape(r.note.trim()) + ",,,,,,,");
     }
     if (note.trim()) {
       lines.push("");
-      lines.push(`หมายเหตุรวม,${csvEscape(note.trim())}`);
+      lines.push(t(lang, "restock.production.csvOverallNoteLine", { note: csvEscape(note.trim()) }));
     }
-    lines.push(...SIGNATURE_FOOTER_LINES);
+    lines.push(...signatureFooterLines(lang));
     downloadCsv(lines.join("\n"), `production_order_${orderDate}.csv`);
     logExport("export_production_csv", "all", orderDate, `export CSV สั่งผลิต`);
   }
 
   // ── ใบสั่งผลิตพิมพ์ A4 — เอาเฉพาะรายการที่มีจำนวนจริง (รวม > 0) กันโชว์แถว 0 รก ──
+  const inStockCategoryLabel = t(lang, IN_STOCK_CATEGORY_KEY);
   const printGroups = React.useMemo(() => {
     const out: { category: string; items: ProdPrintRow[] }[] = [];
     function pushRow(category: string, row: ProdPrintRow) {
@@ -1819,11 +1833,11 @@ function ProductionOrder({
         // คอลัมน์ "รวม" บนใบพิมพ์ = ยอดที่ครัวต้องผลิตจริง (หักของเก่าแล้ว)
         // ของเก่าไปอยู่ในหมายเหตุ ให้คนแพ็คของรู้ว่าต้องไปหยิบมากี่ชิ้น
         const p = produceFor(it);
-        pushRow(p.hasHave && p.none ? IN_STOCK_CATEGORY : g.category, {
+        pushRow(p.hasHave && p.none ? inStockCategoryLabel : g.category, {
           id: it.id, name: it.name,
           snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
           total: p.none ? "—" : p.text,
-          note: p.hasHave ? `หยิบของเก่า ${p.haveText}` : "",
+          note: p.hasHave ? t(lang, "restock.production.pullOldStockNote", { text: p.haveText }) : "",
         });
       }
     }
@@ -1831,32 +1845,30 @@ function ProductionOrder({
       const total = totalFor(it);
       if (total.raw <= 0) continue;
       const p = produceFor(it);
-      pushRow(p.hasHave && p.none ? IN_STOCK_CATEGORY : "แผนกอื่น", {
+      pushRow(p.hasHave && p.none ? inStockCategoryLabel : t(lang, "restock.production.dept2CategoryLabel"), {
         id: it.id, name: it.name,
         snd: fieldTextFor(it, "SND"), nvp: fieldTextFor(it, "NVP"), kcn: fieldTextFor(it, "KCN"), other: fieldTextFor(it, "other"),
         total: p.none ? "—" : p.text,
-        note: p.hasHave ? `หยิบของเก่า ${p.haveText}` : "",
+        note: p.hasHave ? t(lang, "restock.production.pullOldStockNote", { text: p.haveText }) : "",
       });
     }
     for (const r of extraRows) {
-      pushRow("รายการพิเศษ", { id: r.id, name: r.name, snd: "", nvp: "", kcn: "", other: r.unit || "", total: r.qty || "0", note: r.note });
+      pushRow(t(lang, "restock.production.extraCategoryLabel"), { id: r.id, name: r.name, snd: "", nvp: "", kcn: "", other: r.unit || "", total: r.qty || "0", note: r.note });
     }
     // ข้อ 17: ดันกลุ่ม "มีของแล้ว" ไปท้ายใบเสมอ ไม่ว่าจะเจอรายการแรกตอนไหน
     return out.sort((a, b) =>
-      (a.category === IN_STOCK_CATEGORY ? 1 : 0) - (b.category === IN_STOCK_CATEGORY ? 1 : 0)
+      (a.category === inStockCategoryLabel ? 1 : 0) - (b.category === inStockCategoryLabel ? 1 : 0)
     );
-  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG, haveStock]);
+  }, [mainGroups, dept2Items, extraRows, reflected, reflectedG, prodQty, prodQtyG, haveStock, lang, inStockCategoryLabel]);
   const printTotal = React.useMemo(() => printGroups.reduce((s, g) => s + g.items.length, 0), [printGroups]);
 
   function printSlip() {
     if (printTotal === 0) {
-      window.alert("ยังไม่มีรายการที่จะสั่งผลิต (ทุกช่องยังเป็น 0)");
+      window.alert(t(lang, "restock.production.alertNoItemsToOrder"));
       return;
     }
     if (printTotal > PRODUCTION_PRINT_OVERFLOW_THRESHOLD) {
-      const ok = window.confirm(
-        `รายการที่จะสั่งผลิต ${printTotal} รายการ อาจล้นหน้า A4 ใบเดียว\nต้องการพิมพ์ต่อไหม?`
-      );
+      const ok = window.confirm(t(lang, "restock.production.confirmOverflowPrint", { n: printTotal }));
       if (!ok) return;
     }
     logExport("print_production_slip", "all", orderDate, `พิมพ์ใบสั่งผลิต ${printTotal} รายการ`);
@@ -1864,10 +1876,10 @@ function ProductionOrder({
   }
 
   if (loading) {
-    return <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>;
+    return <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>;
   }
   if (error) {
-    return <GlassCard><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {error}</p></GlassCard>;
+    return <GlassCard><p className="text-sm text-warn">{t(lang, "restock.errLoadFailedWithMsg", { err: error })}</p></GlassCard>;
   }
 
   return (
@@ -1876,11 +1888,11 @@ function ProductionOrder({
       <GlassCard className="mb-3">
         <div className="grid grid-cols-2 gap-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่สั่งผลิต</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "restock.production.orderDateLabel")}</span>
             <input type="date" value={orderDate} onChange={(e) => { setOrderDate(e.target.value || todayISO()); setDirty(true); }} className="field" />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่จัดส่งเข้าสาขา</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "restock.production.deliveryDateLabel")}</span>
             <input type="date" value={deliveryDate} onChange={(e) => { setDeliveryDate(e.target.value || todayISO()); setDirty(true); }} className="field" />
           </label>
         </div>
@@ -1889,26 +1901,26 @@ function ProductionOrder({
       {/* บอกให้รู้ว่ากำลังแก้ใบเดิม ไม่ใช่เปิดใบใหม่ — ไม่งั้นจะงงว่าทำไมมีตัวเลข/ของเก่าขึ้นมาเอง */}
       {attachedOrder != null && orderId === attachedOrder && (
         <div className="mb-3 rounded-xl border border-brand-blue/40 bg-brand-blue/15 px-3.5 py-2.5 text-[12px] leading-relaxed text-sky-800">
-          รอบส่งนี้มีใบสั่งผลิตอยู่แล้ว (ใบ #{attachedOrder}) — เปิดใบเดิมมาแก้ต่อให้ ไม่ได้สร้างใบใหม่
-          <span className="block text-sky-800/70">ของเก่าในสต็อก · รายการพิเศษ · หมายเหตุ ที่เคยกรอกไว้กลับมาครบ</span>
+          {t(lang, "restock.production.attachedOrderNote", { id: attachedOrder })}
+          <span className="block text-sky-800/70">{t(lang, "restock.production.attachedOrderSubNote")}</span>
         </div>
       )}
 
       {!confirmed ? (
         // ข้อ 3: gate inline แทนกริดรายการทั้งหมด — date picker ด้านบนยังแก้ได้ก่อนยืนยัน
         <GlassCard className="mb-3">
-          <h2 className="mb-2 text-[15px] font-semibold">ยืนยันวันที่ก่อนเริ่มกรอก</h2>
+          <h2 className="mb-2 text-[15px] font-semibold">{t(lang, "restock.production.confirmGateTitle")}</h2>
           <p className="mb-4 text-sm leading-relaxed text-brand-ink/60">
-            สั่งผลิตวันที่ <b className="text-brand-ink">{thaiDateSlash(orderDate)}</b>
+            {t(lang, "restock.production.confirmGateOrderDateWord")} <b className="text-brand-ink">{thaiDateSlash(orderDate)}</b>
             <br />
-            จัดส่งเข้าสาขาวันที่ <b className="text-brand-ink">{thaiDateSlash(deliveryDate)}</b>
+            {t(lang, "restock.production.confirmGateDeliveryDateWord")} <b className="text-brand-ink">{thaiDateSlash(deliveryDate)}</b>
           </p>
-          <Button onClick={confirm}>✅ ยืนยัน เริ่มกรอกรายการ</Button>
+          <Button onClick={confirm}>{t(lang, "restock.confirmStartButton")}</Button>
         </GlassCard>
       ) : (
         <>
           {mainGroups.map((g, gi) => (
-            <Accordion key={g.category} title={g.category} count={`${g.items.length} รายการ`} defaultOpen={gi === 0}>
+            <Accordion key={g.category} title={g.category} count={t(lang, "restock.itemCountSuffix", { n: g.items.length })} defaultOpen={gi === 0}>
               <div className="grid gap-2 py-1">
                 {g.items.map((it) => (
                   <ProductionRow
@@ -1929,10 +1941,10 @@ function ProductionOrder({
           ))}
 
           <p className="my-3 text-center text-xs text-brand-ink/40">
-            ── 🍪 แผนกอื่น (แยกจากไลน์ผลิตหลัก — ใส่ชื่อแผนกจริงแทนได้) ──
+            {t(lang, "restock.production.dept2DividerLabel")}
           </p>
 
-          <Accordion title="🍪 แผนกอื่น" count={`${dept2Items.length} รายการ`} defaultOpen={false}>
+          <Accordion title={t(lang, "restock.production.dept2AccordionTitle")} count={t(lang, "restock.itemCountSuffix", { n: dept2Items.length })} defaultOpen={false}>
             <div className="grid gap-2 py-1">
               {dept2Items.map((it) => (
                 <ProductionRow
@@ -1956,13 +1968,13 @@ function ProductionOrder({
       )}
 
       <GlassCard className="mt-3">
-        <h3 className="mb-2.5 text-[15px] font-semibold">➕ เพิ่มรายการสั่งผลิตพิเศษ</h3>
+        <h3 className="mb-2.5 text-[15px] font-semibold">{t(lang, "restock.production.extraSectionTitle")}</h3>
         <div className="mb-3 flex gap-2">
           <input
             value={extraName}
             onChange={(e) => setExtraName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") addExtraRow(); }}
-            placeholder="ชื่อรายการ"
+            placeholder={t(lang, "restock.production.extraNamePlaceholder")}
             className="field flex-1"
           />
           <button
@@ -1970,7 +1982,7 @@ function ProductionOrder({
             onClick={addExtraRow}
             className="shrink-0 rounded-xl bg-brand-ink px-4 py-2.5 text-sm font-semibold text-white active:scale-[.98]"
           >
-            เพิ่ม
+            {t(lang, "restock.production.addButton")}
           </button>
         </div>
         {extraRows.length > 0 && (
@@ -1983,20 +1995,20 @@ function ProductionOrder({
                     inputMode="numeric"
                     value={r.qty}
                     onChange={(e) => patchExtraRow(r.id, { qty: e.target.value })}
-                    placeholder="จำนวน"
+                    placeholder={t(lang, "restock.qtyLabel")}
                     className="field w-16 px-1.5 py-1 text-right text-xs"
                   />
                   <input
                     value={r.unit}
                     onChange={(e) => patchExtraRow(r.id, { unit: e.target.value })}
-                    placeholder="หน่วย"
+                    placeholder={t(lang, "restock.production.unitPlaceholder")}
                     className="field w-16 px-1.5 py-1 text-center text-xs"
                   />
                   <button
                     type="button"
                     onClick={() => removeExtraRow(r.id)}
                     className="shrink-0 text-brand-ink/40"
-                    aria-label={`ลบ ${r.name}`}
+                    aria-label={t(lang, "restock.production.removeAriaLabel", { name: r.name })}
                   >
                     ✕
                   </button>
@@ -2004,7 +2016,7 @@ function ProductionOrder({
                 <input
                   value={r.note}
                   onChange={(e) => patchExtraRow(r.id, { note: e.target.value })}
-                  placeholder="หมายเหตุ (ถ้ามี)"
+                  placeholder={t(lang, "restock.production.extraNotePlaceholder")}
                   className="field mt-1.5 w-full px-2 py-1 text-left text-xs"
                 />
               </div>
@@ -2014,12 +2026,12 @@ function ProductionOrder({
       </GlassCard>
 
       <GlassCard className="mt-3">
-        <h3 className="mb-2 text-[15px] font-semibold">📝 หมายเหตุ</h3>
+        <h3 className="mb-2 text-[15px] font-semibold">{t(lang, "restock.production.noteSectionTitle")}</h3>
         <textarea
           value={note}
           onChange={(e) => { setNote(e.target.value); setDirty(true); }}
           rows={3}
-          placeholder="พิมพ์หมายเหตุ (ถ้ามี)"
+          placeholder={t(lang, "restock.production.notePlaceholder")}
           className="field w-full resize-none"
         />
       </GlassCard>
@@ -2037,7 +2049,7 @@ function ProductionOrder({
           onClick={printSlip}
           className="rounded-xl bg-brand-ink px-4 py-3 text-[14px] font-semibold text-white active:scale-[.98]"
         >
-          🖨️ พิมพ์ใบสั่งผลิต
+          {t(lang, "restock.production.printSlipButton")}
         </button>
       </div>
 
@@ -2045,15 +2057,15 @@ function ProductionOrder({
       <SaveBar>
         {dirty ? (
           <p className="mb-2 rounded-lg bg-warn/10 px-3 py-2 text-center text-xs font-medium text-warn">
-            ⚠️ มีการแก้ไขยังไม่บันทึก
+            {t(lang, "restock.production.dirtyWarning")}
           </p>
         ) : lastSavedAt ? (
           <p className="mb-2 rounded-lg bg-ok/10 px-3 py-2 text-center text-xs font-medium text-ok">
-            ✓ บันทึกล่าสุด {formatTime(lastSavedAt)} น. — ใบ #{orderId}
+            {t(lang, "restock.production.savedOkNote", { time: formatTime(lastSavedAt), id: orderId })}
           </p>
         ) : null}
         <Button onClick={handleSave} disabled={saving}>
-          {saving ? "กำลังบันทึก…" : orderId == null ? "💾 บันทึกคำสั่งผลิต" : "💾 บันทึกการแก้ไข"}
+          {saving ? t(lang, "common.saving") : orderId == null ? t(lang, "restock.production.saveNewButton") : t(lang, "restock.production.saveEditButton")}
         </Button>
       </SaveBar>
     </div>
@@ -2070,6 +2082,7 @@ function ProductionOrder({
 // ══════════════════════════════════════════════════════════════════════
 function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
   const me = useMe();
+  const lang = useLang();
   const isAdmin = me?.role === "admin";
   const [selectedOrderId, setSelectedOrderId] = React.useState<number | null>(null);
   const [deleting, setDeleting] = React.useState(false);
@@ -2086,7 +2099,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
     fetch("/api/production-orders")
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดประวัติสั่งผลิตไม่สำเร็จ");
+        if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.history.errLoadHistoryFailed"));
         return data as { orders: ProductionOrderSummary[] };
       })
       .then((data) => { if (alive) setOrders(data.orders); })
@@ -2103,7 +2116,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
     fetch("/api/meta")
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลด meta ไม่สำเร็จ");
+        if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.production.errLoadMetaFailed"));
         return data as Meta;
       })
       .then((m) => { if (alive) setMeta(m); })
@@ -2123,7 +2136,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
     fetch(`/api/production-orders?id=${selectedOrderId}`)
       .then(async (r) => {
         const data = await r.json();
-        if (!r.ok) throw new Error((data as any)?.error ?? "โหลดใบสั่งผลิตไม่สำเร็จ");
+        if (!r.ok) throw new Error((data as any)?.error ?? t(lang, "restock.production.errLoadOrderFailed"));
         return data as { order: ProductionOrderRecord };
       })
       .then((data) => { if (alive) setOrder(data.order); })
@@ -2169,11 +2182,11 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
         body: JSON.stringify({ id: itemRowId, confirmed: next }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "restock.errSaveFailed"));
       setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? data.item : it)) });
     } catch (e: any) {
       setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? { ...it, confirmed: !next } : it)) });
-      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "restock.errSaveFailedWithMsg", { msg: e?.message ?? e }));
     }
   }
 
@@ -2186,25 +2199,25 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
         body: JSON.stringify({ id: itemRowId, confirmedQty, confirmedQtyG }),
       });
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "restock.errSaveFailed"));
       setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? data.item : it)) });
     } catch (e: any) {
       if (prevItem) setOrder((prev) => prev && { ...prev, items: prev.items.map((it) => (it.id === itemRowId ? prevItem : it)) });
-      window.alert(`บันทึกไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "restock.errSaveFailedWithMsg", { msg: e?.message ?? e }));
     }
   }
 
   async function handleDeleteOrder() {
     if (!order) return;
-    if (!window.confirm(`ลบใบสั่งผลิต ${thaiDateSlash(order.orderDate)} นี้? ลบแล้วกู้คืนไม่ได้`)) return;
+    if (!window.confirm(t(lang, "restock.history.confirmDeleteOrder", { date: thaiDateSlash(order.orderDate) }))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/production-orders?id=${order.id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "ลบไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "restock.errDeleteFailed"));
       setSelectedOrderId(null);
     } catch (e: any) {
-      window.alert(`ลบไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(t(lang, "restock.errDeleteFailedWithMsg", { msg: e?.message ?? e }));
     } finally {
       setDeleting(false);
     }
@@ -2222,11 +2235,11 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
     return (
       <div className="print:hidden">
         {listLoading ? (
-          <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+          <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
         ) : listError ? (
-          <GlassCard><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {listError}</p></GlassCard>
+          <GlassCard><p className="text-sm text-warn">{t(lang, "restock.errLoadFailedWithMsg", { err: listError })}</p></GlassCard>
         ) : orders.length === 0 ? (
-          <GlassCard><p className="text-sm text-brand-ink/50">ยังไม่มีใบสั่งผลิต</p></GlassCard>
+          <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "restock.history.emptyList")}</p></GlassCard>
         ) : (
           orders.map((o) => (
             <button
@@ -2237,12 +2250,12 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
             >
               <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="text-[14px] font-medium">
-                  <span className="text-brand-ink/45">ใบ #{o.id}</span> · สั่งผลิต {thaiDateSlash(o.orderDate)} → ส่ง {thaiDateSlash(o.deliveryDate)}
+                  <span className="text-brand-ink/45">{t(lang, "restock.history.listRowIdLabel", { id: o.id })}</span>{t(lang, "restock.history.listRowDatesLabel", { orderDate: thaiDateSlash(o.orderDate), deliveryDate: thaiDateSlash(o.deliveryDate) })}
                 </span>
                 <Badge tone={badgeToneFor(o)}>{o.confirmedCount}/{o.itemCount}</Badge>
               </div>
               <p className="text-xs text-brand-ink/50">
-                {o.itemCount} รายการ · คอนเฟิร์มแล้ว {o.confirmedCount}/{o.itemCount} · โดย {o.createdByName}
+                {t(lang, "restock.history.listRowSubtitle", { count: o.itemCount, confirmed: o.confirmedCount, by: o.createdByName })}
               </p>
             </button>
           ))
@@ -2260,23 +2273,23 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
         onClick={() => setSelectedOrderId(null)}
         className="mb-3 text-sm font-medium text-brand-ink/60"
       >
-        ← กลับ
+        {t(lang, "restock.history.backButton")}
       </button>
 
       {!detailReady ? (
         detailError ? (
-          <GlassCard><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {detailError}</p></GlassCard>
+          <GlassCard><p className="text-sm text-warn">{t(lang, "restock.errLoadFailedWithMsg", { err: detailError })}</p></GlassCard>
         ) : (
-          <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+          <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
         )
       ) : (
         <>
           <GlassCard className="mb-3">
             <div className="mb-2 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-[15px] font-semibold">ใบ #{order!.id} · สั่งผลิต {thaiDateSlash(order!.orderDate)}</h2>
+                <h2 className="text-[15px] font-semibold">{t(lang, "restock.history.detailTitle", { id: order!.id, date: thaiDateSlash(order!.orderDate) })}</h2>
                 <p className="text-xs text-brand-ink/50">
-                  ส่งเข้าสาขา {thaiDateSlash(order!.deliveryDate)} · โดย {order!.createdByName}
+                  {t(lang, "restock.history.detailSubtitle", { date: thaiDateSlash(order!.deliveryDate), by: order!.createdByName })}
                 </p>
               </div>
               <div className="flex shrink-0 gap-1.5">
@@ -2285,7 +2298,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                   onClick={() => onEdit(order!.id)}
                   className="rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink active:scale-[.98]"
                 >
-                  ✏️ แก้ไขใบนี้
+                  {t(lang, "restock.history.editButton")}
                 </button>
                 {isAdmin && (
                   <button
@@ -2294,7 +2307,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                     disabled={deleting}
                     className="rounded-lg border border-brand-red/25 bg-brand-red/5 px-3 py-1.5 text-xs font-semibold text-brand-red active:scale-[.98] disabled:opacity-50"
                   >
-                    {deleting ? "กำลังลบ…" : "🗑️ ลบใบนี้"}
+                    {deleting ? t(lang, "restock.deletingLabel") : t(lang, "restock.history.deleteButton")}
                   </button>
                 )}
               </div>
@@ -2303,7 +2316,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
           </GlassCard>
 
           {groupedCategories.map(([category, rows], gi) => (
-            <Accordion key={category} title={category} count={`${rows.length} รายการ`} defaultOpen={gi === 0}>
+            <Accordion key={category} title={category} count={t(lang, "restock.itemCountSuffix", { n: rows.length })} defaultOpen={gi === 0}>
               <div className="grid gap-2 py-1">
                 {rows.map(({ item, cells }) => {
                   // ของเก่าเก็บซ้ำทุกแถวสาขาของรายการนั้น — อ่านช่องไหนก็ได้
@@ -2313,7 +2326,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                       key={item.id}
                       name={item.name}
                       hasG={item.variableYield}
-                      gUnit={item.isCup ? "ชิ้น" : "g"}
+                      gUnit={item.isCup ? t(lang, "restock.pieceUnit") : "g"}
                       cells={cells}
                       noProduce={!!anyCell?.inStockNoProduce}
                       haveText={
@@ -2321,7 +2334,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                           ? haveTextOf(
                               anyCell?.haveStockQty ?? 0,
                               anyCell?.haveStockGText || String(anyCell?.haveStockG ?? 0),
-                              item.isCup ? "ชิ้น" : "g"
+                              item.isCup ? t(lang, "restock.pieceUnit") : "g"
                             )
                           : ""
                       }
@@ -2335,7 +2348,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
           ))}
 
           {extraItems.length > 0 && (
-            <Accordion title="รายการพิเศษ" count={`${extraItems.length} รายการ`} defaultOpen>
+            <Accordion title={t(lang, "restock.production.extraCategoryLabel")} count={t(lang, "restock.itemCountSuffix", { n: extraItems.length })} defaultOpen>
               <div className="grid gap-2 py-1">
                 {extraItems.map((it) => (
                   <div key={it.id} className="glass-soft px-3 py-2.5">
@@ -2347,7 +2360,7 @@ function ProductionHistory({ onEdit }: { onEdit: (id: number) => void }) {
                     </div>
                     {it.extraNote && <p className="mb-1.5 text-xs text-brand-ink/45">{it.extraNote}</p>}
                     <ConfirmCell
-                      label="รับแล้ว"
+                      label={t(lang, "restock.confirmCell.receivedLabel")}
                       item={it}
                       hasG={false}
                       gUnit=""
@@ -2380,14 +2393,15 @@ function ConfirmRow({
   onToggleConfirm: (id: number, next: boolean) => void;
   onEditConfirmedQty: (id: number, confirmedQty: number, confirmedQtyG: number) => void;
 }) {
+  const lang = useLang();
   return (
     <div className={`px-3 py-2.5 ${noProduce ? "rounded-xl border border-brand-orange/40 bg-brand-orange/[.07]" : "glass-soft"}`}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-medium">{name}</span>
         {noProduce ? (
-          <Badge tone="orange">ไม่ได้ผลิต · หยิบของเก่า {haveText}</Badge>
+          <Badge tone="orange">{t(lang, "restock.confirmRow.noProduceBadge", { text: haveText })}</Badge>
         ) : haveText ? (
-          <Badge tone="orange">ผลิตบางส่วน · ของเก่า {haveText}</Badge>
+          <Badge tone="orange">{t(lang, "restock.confirmRow.partialProduceBadge", { text: haveText })}</Badge>
         ) : null}
       </div>
       <div className="grid grid-cols-4 gap-1.5">
@@ -2396,7 +2410,7 @@ function ConfirmRow({
           if (!cell || (cell.qty <= 0 && cell.qtyG <= 0)) {
             return (
               <div key={f.key} className="flex flex-col items-center gap-0.5 pt-3 opacity-30">
-                <span className="text-[8.5px] leading-tight text-brand-ink/50">{f.label}</span>
+                <span className="text-[8.5px] leading-tight text-brand-ink/50">{prodFieldLabel(lang, f)}</span>
                 <span className="text-xs">—</span>
               </div>
             );
@@ -2404,7 +2418,7 @@ function ConfirmRow({
           return (
             <ConfirmCell
               key={f.key}
-              label={f.label}
+              label={prodFieldLabel(lang, f)}
               item={cell}
               hasG={hasG}
               gUnit={gUnit}
@@ -2429,6 +2443,7 @@ function ConfirmCell({
   onToggleConfirm: (id: number, next: boolean) => void;
   onEditConfirmedQty: (id: number, confirmedQty: number, confirmedQtyG: number) => void;
 }) {
+  const lang = useLang();
   const [editing, setEditing] = React.useState(false);
   const [cq, setCq] = React.useState(String(item.confirmedQty ?? item.qty));
   const [cqG, setCqG] = React.useState(String(item.confirmedQtyG ?? item.qtyG));
@@ -2446,18 +2461,18 @@ function ConfirmCell({
         checked={item.confirmed}
         onChange={(e) => onToggleConfirm(item.id, e.target.checked)}
         className="h-4 w-4 rounded border-black/20"
-        aria-label={`รับแล้ว ${label}`}
+        aria-label={t(lang, "restock.confirmCell.receivedAriaLabel", { label })}
       />
       {item.confirmed && (
         <Badge tone={mismatch ? "warn" : "ok"}>
           {mismatch
-            ? `ได้จริง ${formatOrderQty(item.confirmedQty ?? item.qty, item.confirmedQtyG ?? item.qtyG, hasG, gUnit)}`
-            : "รับแล้ว"}
+            ? `${t(lang, "restock.confirmCell.actualQtyPrefix")}${formatOrderQty(item.confirmedQty ?? item.qty, item.confirmedQtyG ?? item.qtyG, hasG, gUnit)}`
+            : t(lang, "restock.confirmCell.receivedLabel")}
         </Badge>
       )}
       {!editing ? (
         <button type="button" onClick={() => setEditing(true)} className="text-[9px] text-brand-ink/40 underline">
-          แก้จำนวนจริง
+          {t(lang, "restock.confirmCell.editActualButton")}
         </button>
       ) : (
         <div className="flex flex-col items-center gap-1">
@@ -2481,7 +2496,7 @@ function ConfirmCell({
             onClick={() => { onEditConfirmedQty(item.id, Number(cq) || 0, Number(cqG) || 0); setEditing(false); }}
             className="text-[9px] font-semibold text-brand-blue"
           >
-            ✓ บันทึก
+            {t(lang, "restock.confirmCell.saveButton")}
           </button>
         </div>
       )}

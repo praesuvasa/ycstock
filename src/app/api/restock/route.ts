@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireAdminOrRestock, authErrorResponse } from "@/lib/authz";
 import { BRANCHES, type Weekday } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +13,19 @@ const VALID_DAYS: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 export async function GET(req: NextRequest) {
   try {
     const s = await requireAdminOrRestock();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
-      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchInvalid", { branches: BRANCHES.join(lang === "en" ? " or " : " หรือ ") }) }, { status: 400 });
     }
     // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — เหมือน /api/restock/selections
     if (branch === "NCD" && s.role !== "admin") {
-      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchForbidden") }, { status: 403 });
     }
     const day = searchParams.get("day") as Weekday | null;
     if (!day || !VALID_DAYS.includes(day)) {
-      return NextResponse.json({ error: `day ต้องเป็นหนึ่งใน ${VALID_DAYS.join("|")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "restock.errDayInvalid", { days: VALID_DAYS.join("|") }) }, { status: 400 });
     }
 
     const { rows, specialActive } = await db.getRestock(branch, day);

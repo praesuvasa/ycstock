@@ -4,6 +4,7 @@ import { requireAdminOrRestock, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { BRANCHES } from "@/lib/types";
 import type { RestockSelectionEntry, RestockExtraItem } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -18,18 +19,19 @@ function fail(e: unknown, msg: string) {
 export async function GET(req: NextRequest) {
   try {
     const s = await requireAdminOrRestock();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
-      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchInvalid", { branches: BRANCHES.join(lang === "en" ? " or " : " หรือ ") }) }, { status: 400 });
     }
     // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — route นี้ไม่ผ่าน resolveBranch เพราะ restock
     // ต้องข้ามสาขาได้ปกติ จึงต้องกันเฉพาะ NCD ตรงนี้แทน ไม่ให้ restock role ยิง ?branch=NCD ตรงๆ ได้
     if (branch === "NCD" && s.role !== "admin") {
-      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchForbidden") }, { status: 403 });
     }
     const date = searchParams.get("date");
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "restock.errDateRequired") }, { status: 400 });
 
     const [entries, note, extras, received] = await Promise.all([
       db.getRestockSelections(branch, date),
@@ -48,19 +50,20 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const s = await requireAdminOrRestock();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as {
       branch?: string; date?: string; entries?: RestockSelectionEntry[]; note?: string; extras?: RestockExtraItem[];
     };
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
-      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchInvalid", { branches: BRANCHES.join(lang === "en" ? " or " : " หรือ ") }) }, { status: 400 });
     }
     if (branch === "NCD" && s.role !== "admin") {
-      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
+      return NextResponse.json({ error: t(lang, "restock.errBranchForbidden") }, { status: 403 });
     }
     const date = body.date;
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
-    if (!Array.isArray(body.entries)) return NextResponse.json({ error: "entries จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "restock.errDateRequired") }, { status: 400 });
+    if (!Array.isArray(body.entries)) return NextResponse.json({ error: t(lang, "restock.errEntriesRequired") }, { status: 400 });
 
     // รายการนอกระบบ: กรองชื่อว่างทิ้ง + ตัดช่องว่างหัวท้าย กันแถวเปล่าหลุดลง DB
     const extras: RestockExtraItem[] = (body.extras ?? [])
