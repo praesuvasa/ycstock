@@ -3,6 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { readEvidenceImage, computeMatchStatus, describeMismatch, checkFlags } from "@/lib/ocr";
 import type { EvidenceType, MatchStatus } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,11 @@ function fail(e: unknown, msg: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch")));
     const date = searchParams.get("date");
-    if (!isDate(date)) return NextResponse.json({ error: "date ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    if (!isDate(date)) return NextResponse.json({ error: t(lang, "sales.errInvalidDate") }, { status: 400 });
 
     const rows = await db.listSalesEvidence(branch, date);
     const withUrls = await Promise.all(rows.map(async (r) => ({ ...r, imageUrl: (await db.getEvidenceSignedUrl(r.imagePath)) ?? undefined })));
@@ -39,16 +41,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { branch?: string; date?: string; type?: string; imageBase64?: string; mediaType?: string; enteredAmount?: number };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date ?? null;
-    if (!isDate(date)) return NextResponse.json({ error: "date ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    if (!isDate(date)) return NextResponse.json({ error: t(lang, "sales.errInvalidDate") }, { status: 400 });
     assertCanEditDate(s, date);
     const type = body.type as EvidenceType;
-    if (!TYPES.includes(type)) return NextResponse.json({ error: `type ไม่ถูกต้อง (${TYPES.join("|")})` }, { status: 400 });
+    if (!TYPES.includes(type)) return NextResponse.json({ error: t(lang, "sales.errInvalidType", { types: TYPES.join("|") }) }, { status: 400 });
     const mediaType = body.mediaType ?? "";
-    if (!EXT[mediaType]) return NextResponse.json({ error: "รองรับเฉพาะ JPEG/PNG/WebP" }, { status: 400 });
-    if (!body.imageBase64) return NextResponse.json({ error: "ไม่มีรูปแนบ" }, { status: 400 });
+    if (!EXT[mediaType]) return NextResponse.json({ error: t(lang, "sales.errUnsupportedImageType") }, { status: 400 });
+    if (!body.imageBase64) return NextResponse.json({ error: t(lang, "sales.errNoImageAttached") }, { status: 400 });
     const enteredAmount = Number.isFinite(Number(body.enteredAmount)) ? Number(body.enteredAmount) : 0;
 
     const bytes = Buffer.from(body.imageBase64, "base64");

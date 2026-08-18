@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,11 @@ function fail(e: unknown, msg: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = resolveBranch(s, parseBranch(searchParams.get("branch")));
     const date = searchParams.get("date");
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "confirmReceipt.errDateRequired") }, { status: 400 });
     const items = await db.getRestockReceiptStatus(branch, date);
     return NextResponse.json({ items, branch });
   } catch (e) {
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as {
       branch?: string; date?: string; itemId?: string;
       receivedQty?: number; receivedQtyG?: number; isExtra?: boolean; note?: string; notReceived?: boolean;
@@ -38,8 +41,8 @@ export async function POST(req: Request) {
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
     const itemId = body.itemId;
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
-    if (!itemId) return NextResponse.json({ error: "itemId จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "confirmReceipt.errDateRequired") }, { status: 400 });
+    if (!itemId) return NextResponse.json({ error: t(lang, "confirmReceipt.errItemIdRequired") }, { status: 400 });
     const receivedQty = Number(body.receivedQty ?? 0);
     const receivedQtyG = Number(body.receivedQtyG ?? 0);
     const isExtra = !!body.isExtra;
@@ -61,12 +64,13 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { branch?: string; date?: string; itemId?: string };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
     const itemId = body.itemId;
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
-    if (!itemId) return NextResponse.json({ error: "itemId จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "confirmReceipt.errDateRequired") }, { status: 400 });
+    if (!itemId) return NextResponse.json({ error: t(lang, "confirmReceipt.errItemIdRequired") }, { status: 400 });
 
     await db.unconfirmRestockReceipt(branch, date, itemId);
     await writeAudit(s, "unconfirm_restock_receipt", { branch, date, entity: itemId, detail: `ยกเลิกยืนยันรับ ${itemId}` });

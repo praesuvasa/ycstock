@@ -32,13 +32,17 @@ import { th as thTimeClock } from "./th/timeClock";
 import { en as enTimeClock } from "./en/timeClock";
 import { th as thSchedule } from "./th/schedule";
 import { en as enSchedule } from "./en/schedule";
+import { th as thConfirmReceipt } from "./th/confirmReceipt";
+import { en as enConfirmReceipt } from "./en/confirmReceipt";
+import { th as thSales } from "./th/sales";
+import { en as enSales } from "./en/sales";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {

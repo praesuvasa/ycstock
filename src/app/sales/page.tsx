@@ -5,15 +5,17 @@ import { incidentAdjustment, sumIncidentAdjustments } from "@/lib/calc";
 import { baht, todayISO, thaiDate } from "@/lib/fmt";
 import { GlassCard, BranchPicker, NumberField, Stat, Button, SaveBar, PageTitle, Badge, Dialog } from "@/components/ui";
 import { TodayNextStep } from "@/components/today-next-step";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { resizeImageToBase64 } from "@/lib/image-client";
+import { t } from "@/lib/i18n";
 
-const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "neutral" }> = {
-  ok: { text: "✅ ยอดถูกต้อง", tone: "ok" },
-  mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
-  unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
-  duplicate: { text: "🚫 รูปนี้ถูกใช้ไปแล้ว", tone: "warn" },
-  pending: { text: "⏳ กำลังตรวจสอบ", tone: "neutral" },
+// labelKey แทนข้อความตรง ๆ เพราะ record นี้อยู่ที่ module scope ไม่มี lang — แปลตอนใช้งานผ่าน t(lang, ...)
+const MATCH_LABEL: Record<MatchStatus, { labelKey: string; tone: "ok" | "warn" | "neutral" }> = {
+  ok: { labelKey: "sales.matchOk", tone: "ok" },
+  mismatch: { labelKey: "sales.matchMismatch", tone: "warn" },
+  unclear: { labelKey: "sales.matchUnclear", tone: "warn" },
+  duplicate: { labelKey: "sales.matchDuplicate", tone: "warn" },
+  pending: { labelKey: "sales.matchPending", tone: "neutral" },
 };
 
 // ช่องแนบรูปหลักฐาน (QR/Grab/Lineman) — อัปโหลดแล้วให้ Claude อ่านยอด+เทียบกับที่กรอกทันที
@@ -21,6 +23,7 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
   branch: Branch; date: string; type: EvidenceType; label: string; enteredAmount: number;
   row?: SalesEvidence; onUploaded: (row: SalesEvidence) => void;
 }) {
+  const lang = useLang();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -36,10 +39,10 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
         body: JSON.stringify({ branch, date, type, imageBase64: base64, mediaType, enteredAmount }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "อัปโหลดไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "sales.evidenceUploadFailed"));
       onUploaded(data.evidence as SalesEvidence);
     } catch (e: any) {
-      setErr(e?.message ?? "อัปโหลดไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "sales.evidenceUploadFailed"));
     } finally {
       setBusy(false);
     }
@@ -54,14 +57,14 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
           <img src={row.imageUrl} alt={label} className="h-10 w-10 rounded-lg object-cover" />
         </a>
       ) : (
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/5 text-[9px] text-brand-ink/35">ไม่มีรูป</div>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-black/5 text-[9px] text-brand-ink/35">{t(lang, "sales.evidenceNoImage")}</div>
       )}
       <div className="min-w-0 flex-1">
-        <div className="text-[11px] text-brand-ink/50">หลักฐาน{label}</div>
-        <div className="text-[11.5px] font-semibold text-sky-800">ต้องตรงกับ {baht(enteredAmount)}</div>
+        <div className="text-[11px] text-brand-ink/50">{t(lang, "sales.evidenceLabelPrefix", { label })}</div>
+        <div className="text-[11.5px] font-semibold text-sky-800">{t(lang, "sales.evidenceMustMatch", { amount: baht(enteredAmount) })}</div>
         {m ? (
           <>
-            <Badge tone={m.tone}>{m.text}</Badge>
+            <Badge tone={m.tone}>{t(lang, m.labelKey)}</Badge>
             {row?.matchStatus === "mismatch" && row.mismatchNote && (
               <div className="mt-0.5 text-[10px] text-warn">{row.mismatchNote}</div>
             )}
@@ -70,7 +73,7 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
             )}
           </>
         ) : (
-          <span className="text-[11px] text-brand-ink/35">ยังไม่แนบ</span>
+          <span className="text-[11px] text-brand-ink/35">{t(lang, "sales.evidenceNotAttached")}</span>
         )}
         {err && <div className="mt-0.5 text-[10px] text-warn">{err}</div>}
       </div>
@@ -78,7 +81,7 @@ function EvidenceSlot({ branch, date, type, label, enteredAmount, row, onUploade
         type="button" onClick={() => inputRef.current?.click()} disabled={busy}
         className="shrink-0 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[11px] font-medium disabled:opacity-50"
       >
-        {busy ? "กำลังส่ง…" : row ? "เปลี่ยนรูป" : "แนบรูป"}
+        {busy ? t(lang, "sales.evidenceSending") : row ? t(lang, "sales.evidenceChangeImage") : t(lang, "sales.evidenceAttachImage")}
       </button>
       <input
         ref={inputRef} type="file" accept="image/*" className="hidden"
@@ -102,6 +105,7 @@ function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, 
   row?: SalesEvidence; reading: PosReading | null;
   onDone: (row: SalesEvidence, reading: PosReading | null) => void;
 }) {
+  const lang = useLang();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -117,10 +121,10 @@ function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, 
         body: JSON.stringify({ branch, date, imageBase64: base64, mediaType, enteredTotal, enteredCash }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "แนบรูปไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "sales.posAttachFailed"));
       onDone(data.evidence as SalesEvidence, (data.reading ?? null) as PosReading | null);
     } catch (e: any) {
-      setErr(e?.message ?? "แนบรูปไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "sales.posAttachFailed"));
     } finally {
       setBusy(false);
     }
@@ -133,14 +137,14 @@ function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, 
     <div>
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[13px] font-semibold">ตรวจกับรายงานใน POS iPad</p>
+          <p className="text-[13px] font-semibold">{t(lang, "sales.posCheckTitle")}</p>
           <p className="text-[11.5px] leading-relaxed text-brand-ink/55">
-            เปิดหน้า &ldquo;รายงาน&rdquo; ของวันนี้บน POS แล้วถ่ายรูปมาแนบ — ระบบอ่านยอดกับวันที่ในรูปให้เอง
+            {t(lang, "sales.posCheckBody")}
           </p>
         </div>
         {row?.imageUrl && (
           <a href={row.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-            <img src={row.imageUrl} alt="รายงาน POS" className="h-12 w-12 rounded-lg border border-black/10 object-cover" />
+            <img src={row.imageUrl} alt={t(lang, "sales.posImageAlt")} className="h-12 w-12 rounded-lg border border-black/10 object-cover" />
           </a>
         )}
       </div>
@@ -149,7 +153,7 @@ function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, 
         type="button" onClick={() => inputRef.current?.click()} disabled={busy}
         className="mt-2 w-full rounded-xl border border-black/10 bg-white px-4 py-2.5 text-[13px] font-semibold text-brand-ink disabled:opacity-50"
       >
-        {busy ? "กำลังอ่านรูป…" : row ? "แนบรูปใหม่" : "📷 แนบรูปหน้ารายงาน POS"}
+        {busy ? t(lang, "sales.posReadingImage") : row ? t(lang, "sales.posReattachButton") : t(lang, "sales.posAttachButton")}
       </button>
       <input
         ref={inputRef} type="file" accept="image/*" className="hidden"
@@ -161,27 +165,27 @@ function PosReportSlot({ branch, date, enteredTotal, enteredCash, row, reading, 
       {row && (
         stale ? (
           <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
-            <p className="text-[13px] font-semibold text-warn">ยอดที่กรอกเปลี่ยนหลังแนบรูป</p>
+            <p className="text-[13px] font-semibold text-warn">{t(lang, "sales.posStaleTitle")}</p>
             <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
-              ตอนแนบตรวจกับยอด {baht(row.enteredAmount)} แต่ตอนนี้กรอกรวม {baht(enteredTotal)} — แนบรูปใหม่เพื่อตรวจอีกครั้ง
+              {t(lang, "sales.posStaleBody", { before: baht(row.enteredAmount), after: baht(enteredTotal) })}
             </p>
           </div>
         ) : row.matchStatus === "ok" ? (
           <div className="mt-2 rounded-xl border border-ok/40 bg-ok/10 px-3 py-2.5">
-            <p className="text-[14px] font-semibold text-ok">ข้อมูลถูกต้อง ✓</p>
+            <p className="text-[14px] font-semibold text-ok">{t(lang, "sales.posMatchOkTitle")}</p>
             <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
-              ตรงกับรายงาน POS ทั้งยอดรวมและเงินสด
-              {reading?.total != null && <> · ยอดในรูป {baht(reading.total)}</>}
-              {reading?.billCount != null && <> · {reading.billCount} บิล</>}
+              {t(lang, "sales.posMatchOkBody")}
+              {reading?.total != null && <>{t(lang, "sales.posMatchOkImageAmount", { amount: baht(reading.total) })}</>}
+              {reading?.billCount != null && <>{t(lang, "sales.posMatchOkBillCount", { n: reading.billCount })}</>}
             </p>
           </div>
         ) : (
           <div className="mt-2 rounded-xl border border-warn/40 bg-warn/[.08] px-3 py-2.5">
             <p className="text-[13px] font-semibold text-warn">
-              {row.matchStatus === "unclear" ? "อ่านรูปไม่ชัด" : "ไม่ตรงกับรายงาน POS"}
+              {row.matchStatus === "unclear" ? t(lang, "sales.posUnclearTitle") : t(lang, "sales.posMismatchTitle")}
             </p>
             <p className="text-[11.5px] leading-relaxed text-brand-ink/60">
-              {row.mismatchNote ?? "ตรวจสอบตัวเลขที่กรอกอีกครั้ง"}
+              {row.mismatchNote ?? t(lang, "sales.posRecheckDefault")}
             </p>
           </div>
         )
@@ -213,27 +217,27 @@ const fromRow = (row: SalesRow): Form => ({
 // ทุกเคสคำนวณจาก "ผลต่าง" อย่างเดียว (ดู incidentAdjustment) — เลยถามช่องเดียวพอ
 // เดิมให้กรอกยอดบิล + ยอดโอน 2 ช่อง ซึ่งพนักงานงงว่าอันไหนใส่ตรงไหน (แพรทัก 2026-07-30)
 // amountLabel = คำถามที่พนักงานตอบได้ทันทีหน้างาน · negative = เงินสดเข้าลิ้นชักแทนที่จะออก
+// labelKey แทนข้อความตรง ๆ เพราะ record นี้อยู่ที่ module scope ไม่มี lang — แปลตอนใช้งานผ่าน t(lang, ...)
 const AMOUNT_LABEL: Record<PaymentIncidentKind, string> = {
-  over_no_change: "ลูกค้าโอนเกินกี่บาท (ไม่ได้ทอนคืน)",
-  over_cash_change: "คืนเงินสดให้ลูกค้ากี่บาท",
-  under_cash_topup: "ลูกค้าจ่ายสดเพิ่มกี่บาท",
-  menu_change_refund: "คืนเงินสดให้ลูกค้ากี่บาท",
-  void_full_refund: "คืนเงินสดให้ลูกค้ากี่บาท (เท่ากับยอดที่โอนมา)",
+  over_no_change: "sales.amountLabelOverNoChange",
+  over_cash_change: "sales.amountLabelOverCashChange",
+  under_cash_topup: "sales.amountLabelUnderCashTopup",
+  menu_change_refund: "sales.amountLabelMenuChangeRefund",
+  void_full_refund: "sales.amountLabelVoidFullRefund",
 };
 const NEGATIVE_KINDS: PaymentIncidentKind[] = ["under_cash_topup"];
 
-const INCIDENT_KINDS: { kind: PaymentIncidentKind; label: string; hint: string }[] = [
-  { kind: "over_no_change", label: "โอนเกิน · ไม่ได้ทอนคืน", hint: "ส่วนเกินนับเป็นรายได้ของร้าน" },
-  { kind: "over_cash_change", label: "โอนเกิน · ทอนเป็นเงินสด", hint: "หยิบเงินสดในลิ้นชักคืนลูกค้า" },
-  { kind: "under_cash_topup", label: "โอนขาด · จ่ายสดเพิ่ม", hint: "โอนไม่ครบ แล้วจ่ายส่วนต่างเป็นเงินสด" },
+// labelKey/hintKey แทนข้อความตรง ๆ ด้วยเหตุผลเดียวกับ AMOUNT_LABEL ข้างบน
+const INCIDENT_KINDS: { kind: PaymentIncidentKind; labelKey: string; hintKey: string }[] = [
+  { kind: "over_no_change", labelKey: "sales.incidentOverNoChangeLabel", hintKey: "sales.incidentOverNoChangeHint" },
+  { kind: "over_cash_change", labelKey: "sales.incidentOverCashChangeLabel", hintKey: "sales.incidentOverCashChangeHint" },
+  { kind: "under_cash_topup", labelKey: "sales.incidentUnderCashTopupLabel", hintKey: "sales.incidentUnderCashTopupHint" },
   // เคสจริงจากแพร: ลูกค้าโอน 200 → void บิล → คีย์บิลใหม่ 190 → คืนสด 10
   // POS จะเห็น QR แค่ 190 (บิลใหม่) แต่เงินเข้าบัญชีจริง 200 และเงินสดหายไป 10
   // ครอบเคสยกเลิกทั้งบิลด้วย — ใส่ยอดบิลใหม่ = 0
   // เคสจริง 2026-07-30: ลูกค้าโอนแล้วไม่เอาเลย void ทั้งบิล คืนสดเต็มจำนวน
-  { kind: "void_full_refund", label: "ลูกค้ายกเลิกทั้งบิล · คืนสดเต็มจำนวน",
-    hint: "โอนมาแล้วไม่เอาเลย — void บิลออกจาก POS แล้วคืนเงินสดทั้งก้อน กรอกแค่ยอดที่โอนมา" },
-  { kind: "menu_change_refund", label: "void บิล/เปลี่ยนเมนู · คืนสดจากลิ้นชัก",
-    hint: "โอนมาแล้ว void บิลเก่า คีย์บิลใหม่ที่ถูกลง แล้วคืนส่วนต่างเป็นเงินสด · ยกเลิกทั้งบิลใส่ยอดบิลใหม่ = 0" },
+  { kind: "void_full_refund", labelKey: "sales.incidentVoidFullRefundLabel", hintKey: "sales.incidentVoidFullRefundHint" },
+  { kind: "menu_change_refund", labelKey: "sales.incidentMenuChangeRefundLabel", hintKey: "sales.incidentMenuChangeRefundHint" },
 ];
 
 // อ่านสาขา/วันที่จาก query string ถ้ามี (เช่น มาจาก prompt "ไปกรอกยอดขาย" หลังบันทึกสต็อก)
@@ -246,6 +250,7 @@ function fromQuery<T extends string>(key: string, valid: readonly T[], fallback:
 
 export default function SalesPage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>(() => fromQuery("branch", ["SND", "NVP", "KCN"] as const, "NVP"));
   const [date, setDate] = React.useState<string>(() => {
@@ -292,14 +297,14 @@ export default function SalesPage() {
     try {
       const res = await fetch(`/api/sales?branch=${branch}&date=${date}`, { cache: "no-store" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "โหลดข้อมูลไม่สำเร็จ");
+      if (!res.ok) throw new Error(data?.error ?? t(lang, "sales.loadFailed"));
       setForm(fromRow(data.row as SalesRow));
       const loaded = (data.incidents ?? []) as PaymentIncident[];
       setIncidents(loaded);
       setSavedIncidents(loaded);
       setIncidentOpen(loaded.length > 0); // วันนั้นมีเคสอยู่แล้ว → กางให้เลย ไม่ต้องไล่กดหา
     } catch (e: any) {
-      setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "sales.loadFailed"));
       setForm(EMPTY);
       setIncidents([]);
       setSavedIncidents([]);
@@ -307,7 +312,7 @@ export default function SalesPage() {
     } finally {
       setLoading(false);
     }
-  }, [branch, date]);
+  }, [branch, date, lang]);
 
   React.useEffect(() => {
     load();
@@ -367,13 +372,13 @@ export default function SalesPage() {
         body: JSON.stringify({ branch, date, incidents }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกเคสไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "sales.saveIncidentsFailed"));
       const saved = (data.incidents ?? []) as PaymentIncident[]; // ใช้ชุดที่ผ่านการกรองจาก server
       setIncidents(saved);
       setSavedIncidents(saved);
     } catch (e: any) {
-      setErr(e?.message ?? "บันทึกเคสไม่สำเร็จ");
-      setDialog({ tone: "warn", title: "บันทึกเคสไม่สำเร็จ", body: e?.message ?? "ลองใหม่อีกครั้ง" });
+      setErr(e?.message ?? t(lang, "sales.saveIncidentsFailed"));
+      setDialog({ tone: "warn", title: t(lang, "sales.saveIncidentsFailed"), body: e?.message ?? t(lang, "sales.tryAgain") });
     } finally {
       setSavingIncidents(false);
     }
@@ -390,10 +395,10 @@ export default function SalesPage() {
   const EVIDENCE_REQUIRED_FROM = "2026-08-05";
   const missingEvidence: string[] = [];
   if (date >= EVIDENCE_REQUIRED_FROM) {
-    if (toNum(form.qr) > 0 && !evidence.qr) missingEvidence.push("สรุปยอด QR");
-    if (toNum(form.grab) > 0 && !evidence.grab) missingEvidence.push("สรุปยอด Grab");
-    if (toNum(form.lineman) > 0 && !evidence.lineman) missingEvidence.push("สรุปยอด Lineman");
-    if (total > 0 && !evidence.pos) missingEvidence.push("รายงานยอดขาย POS");
+    if (toNum(form.qr) > 0 && !evidence.qr) missingEvidence.push(t(lang, "sales.missingEvidenceQr"));
+    if (toNum(form.grab) > 0 && !evidence.grab) missingEvidence.push(t(lang, "sales.evidenceLabelGrab"));
+    if (toNum(form.lineman) > 0 && !evidence.lineman) missingEvidence.push(t(lang, "sales.evidenceLabelLineman"));
+    if (total > 0 && !evidence.pos) missingEvidence.push(t(lang, "sales.missingEvidencePos"));
   }
 
   const save = async () => {
@@ -401,7 +406,7 @@ export default function SalesPage() {
     // เช็คซ้ำในนี้ด้วย ไม่ใช่แค่ disabled ของปุ่มด้านล่าง — ป๊อปอัพ "ตรวจ POS แล้วถูกต้อง ✓ บันทึกยอดขายเลย"
     // เรียก save() ตรงๆ อีกทาง ถ้าไม่เช็คในนี้ด้วยจะหลุดผ่านได้ทั้งที่ยังไม่ได้แนบหลักฐานช่องอื่น (เจอเคสจริง SND 05/08 — แนบ QR+POS แล้วกดจากป๊อปอัพ หลุด Grab ไปได้)
     if (missingEvidence.length > 0) {
-      window.alert(`ยังไม่ได้แนบหลักฐาน: ${missingEvidence.join(" · ")}`);
+      window.alert(t(lang, "sales.missingEvidenceAlert", { list: missingEvidence.join(" · ") }));
       return;
     }
     setSaving(true);
@@ -421,13 +426,16 @@ export default function SalesPage() {
         body: JSON.stringify({ branch, date, row, incidents }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "sales.saveFailedGeneric"));
       setSavedIncidents(incidents); // ปุ่มนี้บันทึกเคสให้ด้วย — sync สถานะ ไม่ให้ค้างว่า "ยังไม่บันทึก"
       setSavedOnce(true);
-      setDialog({ tone: "ok", title: "บันทึกยอดขายสำเร็จ", body: `สาขา ${branch} · ${thaiDate(date)} · รวมทั้งวัน ${baht(total)}` });
+      setDialog({
+        tone: "ok", title: t(lang, "sales.savedSuccessTitle"),
+        body: t(lang, "sales.savedSuccessBody", { branch, date: thaiDate(date), amount: baht(total) }),
+      });
     } catch (e: any) {
-      setErr(e?.message ?? "บันทึกไม่สำเร็จ");
-      setDialog({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดบันทึกอีกครั้ง" });
+      setErr(e?.message ?? t(lang, "sales.saveFailedGeneric"));
+      setDialog({ tone: "warn", title: t(lang, "sales.saveStillFailedTitle"), body: e?.message ?? t(lang, "sales.saveAgainPrompt") });
     } finally {
       setSaving(false);
     }
@@ -436,8 +444,8 @@ export default function SalesPage() {
   return (
     <div>
       <PageTitle
-        title="ยอดขาย"
-        right={loading ? <Badge tone="blue">กำลังโหลด…</Badge> : <Badge tone="ok">{baht(total)}</Badge>}
+        title={t(lang, "nav.admin.sales")}
+        right={loading ? <Badge tone="blue">{t(lang, "common.loading")}</Badge> : <Badge tone="ok">{baht(total)}</Badge>}
       />
 
       {/* สาขา + วันที่ */}
@@ -445,7 +453,7 @@ export default function SalesPage() {
         <div className="flex flex-col gap-3">
           <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "sales.dateLabel")}</span>
             <input
               type="date"
               value={date}
@@ -465,19 +473,19 @@ export default function SalesPage() {
       {/* In-store */}
       <GlassCard className="mb-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">In-store (หน้าร้าน)</h2>
-          <Badge tone="neutral">รวม {baht(inStore)}</Badge>
+          <h2 className="text-[15px] font-semibold">{t(lang, "sales.inStoreTitle")}</h2>
+          <Badge tone="neutral">{t(lang, "sales.totalBadge", { amount: baht(inStore) })}</Badge>
         </div>
         <div className="grid grid-cols-3 gap-2.5">
-          <NumberField label="เงินสด" value={form.cash} onChange={set("cash")} />
+          <NumberField label={t(lang, "sales.cashLabel")} value={form.cash} onChange={set("cash")} />
           <NumberField label="PromptPay / QR" value={form.qr} onChange={set("qr")} />
-          <NumberField label="EDC บัตร" value={form.edc} onChange={set("edc")} />
+          <NumberField label={t(lang, "sales.edcLabel")} value={form.edc} onChange={set("edc")} />
         </div>
         {/* แพรถามเอง: พนักงานจะรู้ได้ยังไงว่าต้องใส่ยอด POS ไม่ใช่ยอดในแอปธนาคาร (2026-07-28)
             ทั้งสองเลขมีอยู่จริงตรงหน้าและต่างกันได้ ถ้าไม่เขียนบอก จะเดาเอาเอง แล้วยอดจะเพี้ยนแบบเงียบ ๆ */}
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-brand-ink/50">
-          ทุกช่องกรอกตามที่ <b className="font-semibold text-brand-ink/70">POS iPad</b> สรุปเท่านั้น
-          <span className="block">หากมีเคสโอนขาด/โอนเกิน/คืนเงินสด ระบบจะคำนวณให้อัตโนมัติ กดเพิ่มเคสด้านล่างได้เลย</span>
+          {t(lang, "sales.posHintPrefix")}<b className="font-semibold text-brand-ink/70">POS iPad</b>{t(lang, "sales.posHintSuffix")}
+          <span className="block">{t(lang, "sales.posHintSub")}</span>
         </p>
         {/* v1.11: เคสรับเงินไม่ตรงบิล (QR ↔ เงินสด) — ยุบไว้เป็นดีฟอลต์ (แพรขอ 2026-07-27)
             เพราะเป็นเคสนาน ๆ ที กางค้างไว้ทุกวันทำให้หน้าจอรก และพนักงานสับสนว่าต้องกรอกด้วยไหม */}
@@ -490,7 +498,7 @@ export default function SalesPage() {
           >
             <span className="min-w-0">
               <span className="block text-[12.5px] font-medium">
-                รับเงินไม่ตรงบิล
+                {t(lang, "sales.incidentSectionTitle")}
                 {incidents.length > 0 && (
                   <span className="ml-1.5 rounded-full bg-brand-red px-1.5 text-[10px] font-semibold text-white">
                     {incidents.length}
@@ -499,7 +507,7 @@ export default function SalesPage() {
               </span>
               {!incidentOpen && (
                 <span className="block text-[11px] leading-relaxed text-brand-ink/45">
-                  กดเมื่อมีเคสลูกค้าโอนเกิน/ขาด
+                  {t(lang, "sales.incidentSectionSubtitle")}
                 </span>
               )}
             </span>
@@ -516,7 +524,7 @@ export default function SalesPage() {
           <>
           <div className="mt-2 flex items-center justify-between gap-2">
             <p className="min-w-0 text-[11px] leading-relaxed text-brand-ink/50">
-              ทุกเคสที่โอนขาด/เกิน คำนวณจากยอด QR — ถ้าช่อง QR ว่าง ค่าจะเพี้ยน
+              {t(lang, "sales.incidentBaseHint")}
             </p>
             <button
               type="button"
@@ -524,14 +532,14 @@ export default function SalesPage() {
               onClick={() => editIncidents((p) => [...p, { kind: "over_no_change", billAmount: 0, actualAmount: 0, note: "" }])}
               className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11.5px] font-medium text-brand-red disabled:opacity-40"
             >
-              + เพิ่มเคส
+              {t(lang, "sales.incidentAddButton")}
             </button>
           </div>
 
           {!posReady && (
             <div className="mt-2 rounded-lg border border-warn/30 bg-warn/[.07] px-2.5 py-2 text-[11.5px] leading-relaxed text-warn">
-              กรอกยอด <b>PromptPay / QR</b> ด้านบนตาม POS ก่อน ถึงจะเพิ่มเคสได้
-              <span className="block text-brand-ink/50">เพราะเคสทุกแบบคิดจากยอด QR เป็นฐาน — ถ้าฐานยังว่าง ยอดเงินเข้าจริงจะเพี้ยน</span>
+              {t(lang, "sales.incidentNeedQrPrefix")}<b>PromptPay / QR</b>{t(lang, "sales.incidentNeedQrSuffix")}
+              <span className="block text-brand-ink/50">{t(lang, "sales.incidentNeedQrSub")}</span>
             </div>
           )}
 
@@ -554,7 +562,7 @@ export default function SalesPage() {
                         className="field min-w-0 flex-1 py-1 text-left text-[12px]"
                       >
                         {INCIDENT_KINDS.map((k) => (
-                          <option key={k.kind} value={k.kind}>{k.label}</option>
+                          <option key={k.kind} value={k.kind}>{t(lang, k.labelKey)}</option>
                         ))}
                       </select>
                       <button
@@ -562,12 +570,12 @@ export default function SalesPage() {
                         onClick={() => editIncidents((prev) => prev.filter((_, j) => j !== i))}
                         className="shrink-0 pt-1 text-[11px] font-medium text-warn underline underline-offset-2"
                       >
-                        ลบ
+                        {t(lang, "sales.incidentRemoveButton")}
                       </button>
                     </div>
                     {/* ช่องเดียว = จำนวนเงินที่ต่างจากบิล · ระบบแปลงเป็นยอด QR/เงินสดให้เอง */}
                     <label className="flex flex-col gap-0.5">
-                      <span className="text-[10.5px] font-medium text-brand-ink/60">{AMOUNT_LABEL[it.kind]}</span>
+                      <span className="text-[10.5px] font-medium text-brand-ink/60">{t(lang, AMOUNT_LABEL[it.kind])}</span>
                       <input
                         inputMode="decimal"
                         value={Math.abs(it.actualAmount) || ""}
@@ -575,15 +583,15 @@ export default function SalesPage() {
                           const v = Math.abs(toNum(e.target.value));
                           patch({ billAmount: 0, actualAmount: NEGATIVE_KINDS.includes(it.kind) ? -v : v });
                         }}
-                        placeholder="เช่น 129"
+                        placeholder={t(lang, "sales.incidentAmountPlaceholder")}
                         className="field py-1.5 text-center text-[15px] font-semibold"
                       />
                     </label>
                     {it.actualAmount !== 0 && (
                       <p className="mt-1.5 text-[11px] leading-relaxed text-sky-700">
-                        ระบบจะปรับให้: ยอด QR {a.qr >= 0 ? "+" : ""}{a.qr}
-                        {a.cash !== 0 && <> · เงินสดในลิ้นชัก {a.cash >= 0 ? "+" : ""}{a.cash}</>}
-                        {a.overBill !== 0 && <> · เกินบิล {a.overBill} (นับเป็นรายได้ร้าน)</>}
+                        {t(lang, "sales.incidentAdjustQr", { amount: `${a.qr >= 0 ? "+" : ""}${a.qr}` })}
+                        {a.cash !== 0 && <>{t(lang, "sales.incidentAdjustCash", { amount: `${a.cash >= 0 ? "+" : ""}${a.cash}` })}</>}
+                        {a.overBill !== 0 && <>{t(lang, "sales.incidentAdjustOverBill", { amount: `${a.overBill}` })}</>}
                       </p>
                     )}
                   </div>
@@ -595,23 +603,23 @@ export default function SalesPage() {
           {hasAdjustment && (
             <div className="mt-2.5 rounded-xl border-2 border-brand-blue/50 bg-brand-blue/15 px-3 py-2.5">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-700">
-                ยอดเงินเข้าจริง — ต้องตรงกับแอปธนาคาร
+                {t(lang, "sales.actualAmountTitle")}
               </p>
               <div className="mt-1.5 flex items-baseline gap-2">
-                <span className="text-[12px] text-sky-700">QR</span>
+                <span className="text-[12px] text-sky-700">{t(lang, "sales.actualQrLabel")}</span>
                 <span className="text-[18px] font-bold leading-none tabular-nums text-sky-900">{baht(actualQr)}</span>
-                <span className="text-[11px] text-sky-700/70">(POS {baht(toNum(form.qr))})</span>
+                <span className="text-[11px] text-sky-700/70">{t(lang, "sales.actualQrPosNote", { amount: baht(toNum(form.qr)) })}</span>
               </div>
               <div className="mt-1.5 flex items-baseline gap-2 border-t border-sky-700/15 pt-1.5">
-                <span className="text-[12px] text-sky-700">เงินสดในลิ้นชัก</span>
+                <span className="text-[12px] text-sky-700">{t(lang, "sales.actualCashLabel")}</span>
                 <span className="text-[16px] font-semibold leading-none tabular-nums text-sky-900">{baht(actualCash)}</span>
               </div>
               {adj.overBill !== 0 && (
-                <p className="mt-1.5 text-[11.5px] text-sky-700">เกินบิลรวม {baht(adj.overBill)} (นับเป็นรายได้ร้าน)</p>
+                <p className="mt-1.5 text-[11.5px] text-sky-700">{t(lang, "sales.overBillTotal", { amount: baht(adj.overBill) })}</p>
               )}
               {/* เลขในแอปธนาคารกลายเป็น "ตัวตรวจ" ไม่ใช่ "ตัวกรอก" — ถ้าไม่ตรงแปลว่ายังมีเคสตกหล่น */}
               <p className="mt-1.5 border-t border-sky-700/15 pt-1.5 text-[11px] leading-relaxed text-sky-700/80">
-                เอาเลขนี้ไปเทียบกับยอดในแอปธนาคาร ถ้าไม่ตรง แปลว่ายังมีเคสที่ยังไม่ได้บันทึก
+                {t(lang, "sales.actualAmountFooter")}
               </p>
             </div>
           )}
@@ -628,11 +636,11 @@ export default function SalesPage() {
                   incidentsDirty ? "bg-brand-red text-white" : "border border-ok/40 bg-ok/10 text-ok"
                 }`}
               >
-                {savingIncidents ? "กำลังบันทึก…" : incidentsDirty ? "บันทึกเคส (ทำก่อนแนบหลักฐาน)" : "✓ บันทึกเคสแล้ว"}
+                {savingIncidents ? t(lang, "common.saving") : incidentsDirty ? t(lang, "sales.saveIncidentsButton") : t(lang, "sales.incidentsSavedButton")}
               </button>
               {incidentsDirty && (
                 <p className="mt-1 text-center text-[11px] text-warn">
-                  ยังไม่ได้บันทึกเคส — แนบหลักฐานตอนนี้ยอดอาจไม่ตรง
+                  {t(lang, "sales.incidentsDirtyWarning")}
                 </p>
               )}
             </div>
@@ -645,12 +653,12 @@ export default function SalesPage() {
           <div className="mt-2.5">
             {incidentsDirty ? (
               <div className="rounded-xl border border-warn/30 bg-warn/[.07] px-2.5 py-2.5 text-[11.5px] leading-relaxed text-warn">
-                กดปุ่ม &ldquo;บันทึกเคส&rdquo; ด้านบนก่อน แล้วช่องแนบหลักฐาน QR จะเปิดให้ใช้
-                <span className="block text-brand-ink/50">เพราะยอดที่ใช้เทียบสลิปต้องรวมผลของเคสแล้ว</span>
+                {t(lang, "sales.incidentsDirtyEvidenceLock")}
+                <span className="block text-brand-ink/50">{t(lang, "sales.incidentsDirtyEvidenceLockSub")}</span>
               </div>
             ) : (
             <EvidenceSlot
-              branch={branch} date={date} type="qr" label="สรุปยอด QR เข้าบัญชี" enteredAmount={actualQr}
+              branch={branch} date={date} type="qr" label={t(lang, "sales.evidenceLabelQr")} enteredAmount={actualQr}
               row={evidence.qr} onUploaded={(row) => setEvidence((p) => ({ ...p, qr: row }))}
             />
             )}
@@ -662,8 +670,8 @@ export default function SalesPage() {
       {/* Delivery */}
       <GlassCard className="mb-3">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-[15px] font-semibold">Delivery</h2>
-          <Badge tone="orange">รวม {baht(delivery)}</Badge>
+          <h2 className="text-[15px] font-semibold">{t(lang, "sales.deliveryTitle")}</h2>
+          <Badge tone="orange">{t(lang, "sales.totalBadge", { amount: baht(delivery) })}</Badge>
         </div>
         <div className="grid grid-cols-2 gap-2.5">
           <NumberField label="Grab" value={form.grab} onChange={set("grab")} />
@@ -672,13 +680,13 @@ export default function SalesPage() {
         <div className="mt-2.5 grid gap-2">
           {toNum(form.grab) > 0 && (
             <EvidenceSlot
-              branch={branch} date={date} type="grab" label="สรุปยอด Grab" enteredAmount={toNum(form.grab)}
+              branch={branch} date={date} type="grab" label={t(lang, "sales.evidenceLabelGrab")} enteredAmount={toNum(form.grab)}
               row={evidence.grab} onUploaded={(row) => setEvidence((p) => ({ ...p, grab: row }))}
             />
           )}
           {toNum(form.lineman) > 0 && (
             <EvidenceSlot
-              branch={branch} date={date} type="lineman" label="สรุปยอด Lineman" enteredAmount={toNum(form.lineman)}
+              branch={branch} date={date} type="lineman" label={t(lang, "sales.evidenceLabelLineman")} enteredAmount={toNum(form.lineman)}
               row={evidence.lineman} onUploaded={(row) => setEvidence((p) => ({ ...p, lineman: row }))}
             />
           )}
@@ -693,7 +701,7 @@ export default function SalesPage() {
         <div className="grid grid-cols-3 gap-2.5">
           <Stat label="In-store" value={baht(inStore)} />
           <Stat label="Delivery" value={baht(delivery)} />
-          <Stat label="รวมทั้งวัน" value={baht(total)} tone="ok" />
+          <Stat label={t(lang, "sales.statTotalToday")} value={baht(total)} tone="ok" />
         </div>
 
         <div className="mt-3 border-t border-black/[.06] pt-3">
@@ -712,18 +720,18 @@ export default function SalesPage() {
               if (row.matchStatus === "ok") {
                 setDialog({
                   tone: "ok",
-                  title: "ตรวจแล้ว ข้อมูลถูกต้อง ✓",
-                  body: "เหลืออีกขั้นเดียว — ยังไม่ได้บันทึกยอดขายของวันนี้",
-                  actionLabel: "บันทึกยอดขายเลย",
+                  title: t(lang, "sales.posMatchOkDialogTitle"),
+                  body: t(lang, "sales.posMatchOkDialogBody"),
+                  actionLabel: t(lang, "sales.posMatchOkDialogAction"),
                   onAction: () => { setDialog(null); save(); },
-                  secondaryLabel: "ไว้ก่อน",
+                  secondaryLabel: t(lang, "sales.posMatchOkDialogSecondary"),
                 });
               } else {
                 setDialog({
                   tone: "warn",
-                  title: row.matchStatus === "unclear" ? "อ่านรูปไม่ชัด" : "ยอดยังไม่ตรงกับรายงาน POS",
-                  body: row.mismatchNote ?? "ตรวจตัวเลขที่กรอกอีกครั้ง แล้วแนบรูปใหม่",
-                  actionLabel: "กลับไปแก้ตัวเลข",
+                  title: row.matchStatus === "unclear" ? t(lang, "sales.posUnclearTitle") : t(lang, "sales.posMismatchDialogTitle"),
+                  body: row.mismatchNote ?? t(lang, "sales.posMismatchDialogBody"),
+                  actionLabel: t(lang, "sales.posMismatchDialogAction"),
                 });
               }
             }}
@@ -736,7 +744,7 @@ export default function SalesPage() {
       {dialog && (
         <Dialog
           open tone={dialog.tone} title={dialog.title}
-          actionLabel={dialog.actionLabel ?? (dialog.tone === "ok" ? "เรียบร้อย" : "ปิด")}
+          actionLabel={dialog.actionLabel ?? (dialog.tone === "ok" ? t(lang, "sales.dialogOkClose") : t(lang, "sales.dialogWarnClose"))}
           onAction={dialog.onAction}
           secondaryLabel={dialog.secondaryLabel}
           onClose={() => setDialog(null)}
@@ -748,11 +756,11 @@ export default function SalesPage() {
       <SaveBar>
         {missingEvidence.length > 0 && (
           <p className="mb-2 text-center text-[12px] font-medium text-warn">
-            ยังไม่ได้แนบหลักฐาน: {missingEvidence.join(" · ")}
+            {t(lang, "sales.missingEvidenceAlert", { list: missingEvidence.join(" · ") })}
           </p>
         )}
         <Button onClick={save} disabled={saving || loading || missingEvidence.length > 0}>
-          {saving ? "กำลังบันทึก…" : "บันทึกยอดขาย"}
+          {saving ? t(lang, "common.saving") : t(lang, "sales.saveSalesButton")}
         </Button>
       </SaveBar>
     </div>

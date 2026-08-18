@@ -3,6 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import type { RestockReceiptBatchEntry } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,13 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { branch?: string; date?: string; entries?: RestockReceiptBatchEntry[] };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
-    if (!date) return NextResponse.json({ error: "date จำเป็น" }, { status: 400 });
+    if (!date) return NextResponse.json({ error: t(lang, "confirmReceipt.errDateRequired") }, { status: 400 });
     if (!Array.isArray(body.entries) || body.entries.length === 0) {
-      return NextResponse.json({ error: "entries จำเป็น" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "confirmReceipt.errEntriesRequired") }, { status: 400 });
     }
     const entries = body.entries.map((e) => ({
       itemId: e.itemId,

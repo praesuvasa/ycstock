@@ -4,6 +4,7 @@ import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } f
 import { readPosReportImage, checkPosReport } from "@/lib/ocr";
 import type { PosReportReading } from "@/lib/ocr";
 import type { MatchStatus } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -24,17 +25,18 @@ function fail(e: unknown, msg: string) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as {
       branch?: string; date?: string; imageBase64?: string; mediaType?: string;
       enteredTotal?: number; enteredCash?: number;
     };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const date = body.date;
-    if (!isDate(date)) return NextResponse.json({ error: "date ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    if (!isDate(date)) return NextResponse.json({ error: t(lang, "sales.errInvalidDate") }, { status: 400 });
     assertCanEditDate(s, date);
     const mediaType = body.mediaType ?? "";
-    if (!EXT[mediaType]) return NextResponse.json({ error: "รองรับเฉพาะ JPEG/PNG/WebP" }, { status: 400 });
-    if (!body.imageBase64) return NextResponse.json({ error: "ไม่มีรูปแนบ" }, { status: 400 });
+    if (!EXT[mediaType]) return NextResponse.json({ error: t(lang, "sales.errUnsupportedImageType") }, { status: 400 });
+    if (!body.imageBase64) return NextResponse.json({ error: t(lang, "sales.errNoImageAttached") }, { status: 400 });
 
     const enteredTotal = Number(body.enteredTotal) || 0;
     const enteredCash = Number(body.enteredCash) || 0;

@@ -7,13 +7,15 @@
 import React from "react";
 import Link from "next/link";
 import type { Branch, Item, Meta, RestockSheetSummary, RestockReceiptStatus, RestockReceiptBatchEntry } from "@/lib/types";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Badge, Dialog } from "@/components/ui";
 import { TodayNextStep } from "@/components/today-next-step";
 import { thaiDate, todayISO } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 export default function ConfirmReceiptPage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   React.useEffect(() => {
@@ -52,11 +54,7 @@ export default function ConfirmReceiptPage() {
   // ปิดใบเก่าทั้งใบว่า "ไม่ได้รับ" — ใช้ endpoint batch เดิม ระบบจะยิงแจ้งแอดมินให้ทุกรายการ
   // ต้องถามยืนยันก่อน เพราะปิดแล้วใบหายจากลิสต์ ถ้าที่จริงของมาแล้วต้องไปแก้ที่หน้าสต็อกเอง
   async function clearSheetNotReceived(date: string) {
-    const ok = window.confirm(
-      `ปิดใบ ${thaiDate(date)} ทั้งใบว่า "ไม่ได้รับของ"?\n\n` +
-      `ใบนี้จะหายจากรายการ และแอดมินจะได้รับแจ้งทุกรายการ\n` +
-      `ถ้าที่จริงของมาแล้ว อย่ากดปุ่มนี้ — ให้ติ๊กรับทีละรายการแทน`
-    );
+    const ok = window.confirm(t(lang, "confirmReceipt.confirmCloseSheet", { date: thaiDate(date) }));
     if (!ok) return;
     setClearing(true);
     try {
@@ -72,7 +70,7 @@ export default function ConfirmReceiptPage() {
           branch, date,
           entries: pending.map((i) => ({
             itemId: i.itemId, receivedQty: 0, receivedQtyG: 0, isExtra: false, notReceived: true,
-            note: "ปิดใบเก่าทั้งใบ — ของไม่ได้มา",
+            note: t(lang, "confirmReceipt.closeSheetNote"),
           })),
         }),
       });
@@ -92,24 +90,22 @@ export default function ConfirmReceiptPage() {
     <div>
       <Dialog
         open={!introSeen && !loadingSheets && dueSheets.length > 0} tone="warn" icon="!"
-        title="กดยืนยันเฉพาะรายการที่ได้รับจริงวันนี้เท่านั้น"
-        actionLabel="เข้าใจแล้ว"
+        title={t(lang, "confirmReceipt.introDialogTitle")}
+        actionLabel={t(lang, "confirmReceipt.introDialogAction")}
         onClose={() => setIntroSeen(true)}
       >
-        ของที่ยังไม่มาถึง อย่าเพิ่งติ๊ก — ยอดที่ยืนยันจะเข้าช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกทันที
-        ทำให้สต็อกวันนี้เกินของที่มีจริง
+        {t(lang, "confirmReceipt.introDialogBody")}
       </Dialog>
 
-      <PageTitle title="ยืนยันรับของ" />
+      <PageTitle title={t(lang, "nav.user.confirmReceipt")} />
 
       <div className="mb-3 rounded-lg border border-warn/30 bg-warn/[.06] px-3 py-2.5 text-[12px] leading-relaxed text-warn">
-        กรุณาตรวจสอบรายการและจำนวนให้ถูกต้องก่อนกดยืนยันรับสินค้า
+        {t(lang, "confirmReceipt.bannerMain")}
         <span className="mt-1 block font-medium text-brand-ink/70">
-          ของมาครบกดปุ่ม &ldquo;เลือกทั้งหมด&rdquo; ได้เลย — แล้วแตะเปลี่ยนเป็นแดงเฉพาะตัวที่ไม่ได้รับ
-          หรือแก้จำนวนที่ไม่ตรง แล้วกดยืนยันทีเดียว
+          {t(lang, "confirmReceipt.bannerSelectAllHint")}
         </span>
         <span className="mt-1 block text-brand-ink/60">
-          รายการที่ยืนยันแล้ว จะถูกใส่ในช่อง &ldquo;รับเข้า&rdquo; ที่หน้าเช็คสต็อกให้อัตโนมัติ — ไม่ต้องกรอกซ้ำ
+          {t(lang, "confirmReceipt.bannerAutoFillHint")}
         </span>
       </div>
 
@@ -118,22 +114,22 @@ export default function ConfirmReceiptPage() {
       </GlassCard>
 
       {loadingSheets ? (
-        <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+        <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>
       ) : dueSheets.length === 0 ? (
         <GlassCard>
           <div className="py-6 text-center">
-            <p className="text-sm text-brand-ink/50">ยืนยันรับครบทุกใบแล้ว ✓</p>
+            <p className="text-sm text-brand-ink/50">{t(lang, "confirmReceipt.emptyAllConfirmed")}</p>
             <p className="mt-1 text-xs text-brand-ink/40">
-              หากต้องการตรวจสอบสินค้ารับเข้า สามารถตรวจสอบและแก้ไขได้ที่หน้า{" "}
+              {t(lang, "confirmReceipt.emptyCheckStockPrefix")}{" "}
               <Link href={`/stock?branch=${branch}`} className="font-medium text-brand-red underline underline-offset-2">
-                สต็อก
+                {t(lang, "nav.admin.stock")}
               </Link>
             </p>
           </div>
           {futureSheets.length > 0 && (
             <p className="mt-3 rounded-lg bg-black/[.03] px-3 py-2 text-center text-[11.5px] leading-relaxed text-brand-ink/45">
-              มีใบของวันที่ {futureSheets.map((x) => thaiDate(x.date)).join(" · ")} เตรียมไว้ล่วงหน้าแล้ว
-              <br />จะขึ้นให้ยืนยันเมื่อถึงวันที่ของมาส่ง
+              {t(lang, "confirmReceipt.futureSheetsNote", { dates: futureSheets.map((x) => thaiDate(x.date)).join(" · ") })}
+              <br />{t(lang, "confirmReceipt.futureSheetsNoteLine2")}
             </p>
           )}
           <TodayNextStep show hideTask="receipt" />
@@ -149,9 +145,9 @@ export default function ConfirmReceiptPage() {
                   activeDate === s.date ? "bg-brand-ink text-white" : "border border-black/5 bg-white/60 text-brand-ink"
                 }`}
               >
-                <div>ใบ {thaiDate(s.date)}</div>
+                <div>{t(lang, "confirmReceipt.sheetTabLabel", { date: thaiDate(s.date) })}</div>
                 <div className={activeDate === s.date ? "text-white/70" : "text-brand-ink/45"}>
-                  ค้าง {s.pendingCount}/{s.totalCount}
+                  {t(lang, "confirmReceipt.sheetTabPending", { pending: s.pendingCount, total: s.totalCount })}
                 </div>
               </button>
             ))}
@@ -159,10 +155,9 @@ export default function ConfirmReceiptPage() {
 
           {activeDate && activeDate < todayISO() && (
             <div className="mb-3 rounded-xl border border-black/10 bg-white/70 px-3.5 py-3">
-              <p className="text-[12.5px] font-medium">ใบนี้เป็นใบเก่า ({thaiDate(activeDate)})</p>
+              <p className="text-[12.5px] font-medium">{t(lang, "confirmReceipt.oldSheetTitle", { date: thaiDate(activeDate) })}</p>
               <p className="mt-0.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-                ควรเคลียร์ให้จบ เหลือแต่ใบล่าสุด — ถ้าของไม่ได้มาจริง กดปุ่มด้านล่างปิดทั้งใบได้เลย
-                ระบบจะแจ้งแอดมินให้เอง
+                {t(lang, "confirmReceipt.oldSheetBody")}
               </p>
               <button
                 type="button"
@@ -170,7 +165,7 @@ export default function ConfirmReceiptPage() {
                 onClick={() => clearSheetNotReceived(activeDate)}
                 className="mt-2 w-full rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-[12.5px] font-semibold text-warn disabled:opacity-50"
               >
-                {clearing ? "กำลังปิดใบ…" : "ปิดทั้งใบ — ไม่ได้รับของ"}
+                {clearing ? t(lang, "confirmReceipt.closingSheetButton") : t(lang, "confirmReceipt.closeSheetNotReceivedButton")}
               </button>
             </div>
           )}
@@ -202,6 +197,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   branch: Branch; date: string; meta: Meta | null; onChanged: () => void;
 }) {
   const me = useMe();
+  const lang = useLang();
   const isAdmin = me?.role === "admin";
   const [items, setItems] = React.useState<RestockReceiptStatus[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -231,8 +227,12 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       return true;
     } catch (e: any) {
       // เดิมไม่เช็คผลเลย พังแล้วเงียบ — พนักงานคิดว่าบันทึกแล้วทั้งที่ไม่ได้บันทึก
-      setStatus({ tone: "warn", text: e?.message ?? "บันทึกไม่สำเร็จ — ลองใหม่อีกครั้ง" });
-      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดใหม่อีกครั้ง — ถ้ายังไม่ได้ แจ้งแอดมิน" });
+      setStatus({ tone: "warn", text: e?.message ?? t(lang, "confirmReceipt.savingFailedFallback") });
+      setPopup({
+        tone: "warn",
+        title: t(lang, "confirmReceipt.saveFailedDialogTitle"),
+        body: e?.message ?? t(lang, "confirmReceipt.saveFailedDialogBodyFallback"),
+      });
       return false;
     }
   }
@@ -241,7 +241,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   async function post(url: string, init: RequestInit) {
     const res = await fetch(url, init);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || data?.error) throw new Error(data?.error ?? `บันทึกไม่สำเร็จ (${res.status})`);
+    if (!res.ok || data?.error) throw new Error(data?.error ?? t(lang, "confirmReceipt.saveFailedWithStatus", { status: res.status }));
     return data;
   }
 
@@ -274,7 +274,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   // ใช้กับ: เพิ่มรายการนอกใบ (ทันที) + แก้ไขรายการที่ยืนยันไปแล้วก่อนหน้า (ทันที)
   async function submitOne(itemId: string, qty: number, qtyG: number, isExtra: boolean, note = "", notReceived = false) {
-    await runSave("กำลังบันทึก…", "บันทึกเรียบร้อย", async () => {
+    await runSave(t(lang, "common.saving"), t(lang, "confirmReceipt.savedOk"), async () => {
       await post("/api/confirm-receipt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,8 +287,8 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   }
 
   async function handleUncheck(item: RestockReceiptStatus) {
-    if (!window.confirm(`ยกเลิกยืนยันรับ "${item.name}"? (พลาดติ๊กไป)`)) return;
-    await runSave("กำลังยกเลิก…", "ยกเลิกเรียบร้อย", async () => {
+    if (!window.confirm(t(lang, "confirmReceipt.confirmUncheck", { name: item.name }))) return;
+    await runSave(t(lang, "confirmReceipt.uncheckingButton"), t(lang, "confirmReceipt.uncheckedOk"), async () => {
       await post("/api/confirm-receipt", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
@@ -302,8 +302,8 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
 
   // admin เท่านั้น — ยกเลิกรายการที่ยังไม่ยืนยันรับ (เช่น สั่งผิด/ไม่เอาแล้ว) ให้หายจากลิสค้าง
   async function removeItem(item: RestockReceiptStatus) {
-    if (!window.confirm(`ลบรายการ "${item.name}" ออกจากใบนี้? (รายการนี้จะไม่ค้างให้ยืนยันรับอีก)`)) return;
-    await runSave("กำลังลบรายการ…", "ลบรายการแล้ว", async () => {
+    if (!window.confirm(t(lang, "confirmReceipt.confirmRemoveItem", { name: item.name }))) return;
+    await runSave(t(lang, "confirmReceipt.removingItemButton"), t(lang, "confirmReceipt.removedItemOk"), async () => {
       await post("/api/restock/selections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -389,15 +389,18 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
         const qtyG = draft ? Number(draft.qtyG || "0") : item.orderedQtyG;
         return { itemId: item.itemId, receivedQty: qty, receivedQtyG: qtyG, isExtra: item.isExtra, notReceived: false, note: noteDrafts[item.itemId] ?? "" };
       });
-    if (entries.length === 0) { window.alert("เลือกอย่างน้อย 1 รายการก่อนกดยืนยัน"); return; }
+    if (entries.length === 0) { window.alert(t(lang, "confirmReceipt.alertSelectAtLeastOne")); return; }
     const receivedCount = entries.filter((e) => !e.notReceived).length;
     const notReceivedCount = entries.filter((e) => e.notReceived).length;
-    if (!window.confirm(`ยืนยันรับ ${receivedCount} รายการ ไม่ได้รับ ${notReceivedCount} รายการ?`)) return;
+    if (!window.confirm(t(lang, "confirmReceipt.confirmBatchSubmit", { received: receivedCount, notReceived: notReceivedCount }))) return;
     setBatchSubmitting(true);
     try {
       const ok = await runSave(
-        `กำลังบันทึก ${entries.length} รายการ…`,
-        `บันทึกเรียบร้อย — ยืนยันรับ ${receivedCount} รายการ${notReceivedCount > 0 ? ` · ไม่ได้รับ ${notReceivedCount}` : ""}`,
+        t(lang, "confirmReceipt.batchSavingButton", { n: entries.length }),
+        t(lang, "confirmReceipt.batchSavedOk", {
+          received: receivedCount,
+          notReceivedSuffix: notReceivedCount > 0 ? t(lang, "confirmReceipt.batchNotReceivedSuffix", { n: notReceivedCount }) : "",
+        }),
         async () => {
           await post("/api/confirm-receipt/batch", {
             method: "POST",
@@ -412,8 +415,12 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
       if (ok) {
         setPopup({
           tone: "ok",
-          title: "บันทึกสำเร็จ",
-          body: `ยืนยันรับ ${receivedCount} รายการ${notReceivedCount > 0 ? ` · ไม่ได้รับ ${notReceivedCount} รายการ` : ""} ของใบ ${thaiDate(date)}`,
+          title: t(lang, "confirmReceipt.batchPopupTitle"),
+          body: t(lang, "confirmReceipt.batchPopupBody", {
+            received: receivedCount,
+            notReceivedSuffix: notReceivedCount > 0 ? t(lang, "confirmReceipt.batchPopupNotReceivedSuffix", { n: notReceivedCount }) : "",
+            date: thaiDate(date),
+          }),
         });
       }
     } finally {
@@ -425,14 +432,14 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
   const usedItemIds = new Set(items.map((i) => i.itemId));
   const extraCandidates = (meta?.items ?? []).filter((it) => !usedItemIds.has(it.id));
 
-  if (loading) return <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
+  if (loading) return <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>;
 
   return (
     <GlassCard>
       {popup && (
         <Dialog
           open tone={popup.tone} title={popup.title}
-          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          actionLabel={popup.tone === "ok" ? t(lang, "confirmReceipt.popupActionOk") : t(lang, "confirmReceipt.popupActionClose")}
           onClose={() => setPopup(null)}
         >
           {popup.body}
@@ -462,7 +469,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
             disabled={allSelected}
             className="flex-1 rounded-lg border border-ok/40 bg-ok/10 px-3 py-1.5 text-[12px] font-semibold text-ok disabled:opacity-40"
           >
-            เลือกทั้งหมด
+            {t(lang, "confirmReceipt.selectAllButton")}
           </button>
           <button
             type="button"
@@ -470,7 +477,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
             disabled={selectedCount === 0}
             className="flex-1 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-[12px] font-semibold text-brand-ink/70 disabled:opacity-40"
           >
-            ยกเลิกเลือกทั้งหมด
+            {t(lang, "confirmReceipt.clearAllButton")}
           </button>
         </div>
       )}
@@ -501,16 +508,21 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                 />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[12.5px] font-medium leading-tight">
-                    {item.name} {item.isExtra && <Badge tone="orange">นอกใบ</Badge>}
-                    {confirmed && item.notReceived && <Badge tone="warn">ไม่ได้รับ</Badge>}
+                    {item.name} {item.isExtra && <Badge tone="orange">{t(lang, "confirmReceipt.badgeExtra")}</Badge>}
+                    {confirmed && item.notReceived && <Badge tone="warn">{t(lang, "confirmReceipt.badgeNotReceived")}</Badge>}
                   </div>
                   <div className="truncate text-[10.5px] leading-tight text-brand-ink/45">
-                    {item.isExtra ? "เพิ่มนอกใบเดิม" : `จำนวนตามเอกสาร ${item.orderedQty} ${item.unit}${item.orderedQtyG ? ` +${item.orderedQtyG}g` : ""}`}
+                    {item.isExtra
+                      ? t(lang, "confirmReceipt.extraItemNote")
+                      : t(lang, "confirmReceipt.orderedQtyLabel", { qty: item.orderedQty, unit: item.unit }) + (item.orderedQtyG ? ` +${item.orderedQtyG}g` : "")}
                     {mismatch && (
-                      <span className="text-warn"> · ได้รับจริง {item.receivedQty}{(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}</span>
+                      <span className="text-warn">
+                        {t(lang, "confirmReceipt.receivedActualLabel", { qty: item.receivedQty as number })}
+                        {(item.receivedQtyG ?? 0) > 0 ? ` +${item.receivedQtyG}g` : ""}
+                      </span>
                     )}
-                    {confirmed && !mismatch && !item.notReceived && <span className="text-ok"> · ตรวจรับแล้ว</span>}
-                    {!confirmed && sel === "notReceived" && <span className="text-red-600"> · จะไม่บันทึกรับเข้า</span>}
+                    {confirmed && !mismatch && !item.notReceived && <span className="text-ok">{t(lang, "confirmReceipt.confirmedOkNote")}</span>}
+                    {!confirmed && sel === "notReceived" && <span className="text-red-600">{t(lang, "confirmReceipt.willNotRecordNote")}</span>}
                   </div>
                 </div>
                 {!(confirmed && item.notReceived) && (
@@ -545,7 +557,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   type="button"
                   onClick={() => setNoteOpen((o) => ({ ...o, [item.itemId]: !o[item.itemId] }))}
                   className="relative shrink-0 rounded-lg p-1 text-brand-ink/40 hover:bg-black/5"
-                  aria-label="หมายเหตุ"
+                  aria-label={t(lang, "confirmReceipt.noteButtonAriaLabel")}
                 >
                   📝
                   {!isNoteOpen && !!item.note && (
@@ -558,7 +570,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                     onClick={() => removeItem(item)}
                     className="shrink-0 text-[10.5px] font-medium text-warn underline underline-offset-2"
                   >
-                    ลบ
+                    {t(lang, "confirmReceipt.removeItemButton")}
                   </button>
                 )}
                 {!confirmed && (
@@ -566,7 +578,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                     type="checkbox"
                     checked={sel === "notReceived"}
                     onChange={() => toggleSelection(item.itemId, "notReceived")}
-                    title="ไม่ได้รับ"
+                    title={t(lang, "confirmReceipt.notReceivedCheckboxTitle")}
                     className="h-4 w-4 shrink-0 accent-warn"
                   />
                 )}
@@ -578,7 +590,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
                   onChange={(e) => setNoteDrafts((d) => ({ ...d, [item.itemId]: e.target.value }))}
                   onBlur={noteOnBlur}
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                  placeholder={confirmed ? "หมายเหตุ (ไม่บังคับ)" : "หมายเหตุ (ไม่บังคับ — บันทึกพร้อมกดยืนยันทั้งหมด)"}
+                  placeholder={confirmed ? t(lang, "confirmReceipt.notePlaceholderConfirmed") : t(lang, "confirmReceipt.notePlaceholderPending")}
                   className="field mt-1 w-full px-2 py-1 text-[12px]"
                 />
               )}
@@ -596,7 +608,7 @@ function SheetConfirm({ branch, date, meta, onChanged }: {
           disabled={batchSubmitting}
           className="mt-3 w-full rounded-xl bg-brand-red px-4 py-3 text-[15px] font-semibold text-white shadow-glass disabled:opacity-50"
         >
-          {batchSubmitting ? "กำลังบันทึก…" : "ยืนยันทั้งหมด"}
+          {batchSubmitting ? t(lang, "common.saving") : t(lang, "confirmReceipt.confirmAllButton")}
         </button>
       )}
     </GlassCard>
@@ -607,6 +619,7 @@ function AddExtraItem({ candidates, onAdd }: {
   candidates: Item[];
   onAdd: (itemId: string, qty: number, qtyG: number) => void;
 }) {
+  const lang = useLang();
   const [open, setOpen] = React.useState(false);
   const [filter, setFilter] = React.useState("");
   const [itemId, setItemId] = React.useState("");
@@ -623,7 +636,7 @@ function AddExtraItem({ candidates, onAdd }: {
         onClick={() => setOpen(true)}
         className="mt-2 flex w-full items-center gap-2 rounded-lg border-t border-black/5 px-2.5 py-3 text-left text-[13px] font-medium text-brand-red"
       >
-        + รายการอื่นๆที่รับเข้า
+        {t(lang, "confirmReceipt.addExtraItemButton")}
       </button>
     );
   }
@@ -631,10 +644,10 @@ function AddExtraItem({ candidates, onAdd }: {
     <div className="mt-2 grid gap-2 rounded-lg border-t border-black/5 bg-black/[.02] px-2.5 py-3">
       <input
         value={filter} onChange={(e) => setFilter(e.target.value)}
-        placeholder="พิมพ์ค้นหาชื่อสินค้า…" className="field"
+        placeholder={t(lang, "confirmReceipt.extraSearchPlaceholder")} className="field"
       />
       <select value={itemId} onChange={(e) => setItemId(e.target.value)} className="field">
-        <option value="">— เลือกรายการ —</option>
+        <option value="">{t(lang, "confirmReceipt.extraSelectPlaceholder")}</option>
         {filtered.map((c) => (
           <option key={c.id} value={c.id}>{c.name} ({c.unit})</option>
         ))}
@@ -642,11 +655,11 @@ function AddExtraItem({ candidates, onAdd }: {
       <div className="flex gap-2">
         <input
           inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)}
-          placeholder="จำนวน (แพ็ค)" className="field flex-1"
+          placeholder={t(lang, "confirmReceipt.extraQtyPlaceholder")} className="field flex-1"
         />
         <input
           inputMode="numeric" value={qtyG} onChange={(e) => setQtyG(e.target.value)}
-          placeholder="เศษ (g)" className="field w-20"
+          placeholder={t(lang, "confirmReceipt.extraQtyGPlaceholder")} className="field w-20"
         />
         <button
           type="button"
@@ -654,17 +667,17 @@ function AddExtraItem({ candidates, onAdd }: {
             const n = Number(qty);
             const g = Number(qtyG || "0");
             if (!itemId || !Number.isFinite(n) || n <= 0 || !Number.isFinite(g) || g < 0) {
-              window.alert("เลือกรายการและกรอกจำนวนให้ถูกต้อง"); return;
+              window.alert(t(lang, "confirmReceipt.alertExtraInvalid")); return;
             }
             if (n > 15) {
-              window.alert("จำนวนแพ็คต้องไม่เกิน 15 ต่อรายการ"); return;
+              window.alert(t(lang, "confirmReceipt.alertExtraMaxQty")); return;
             }
             onAdd(itemId, n, g);
             setOpen(false); setFilter(""); setItemId(""); setQty(""); setQtyG("");
           }}
           className="shrink-0 rounded-xl border border-black/10 bg-white/70 px-4 text-sm font-semibold text-brand-ink"
         >
-          เพิ่ม
+          {t(lang, "confirmReceipt.extraAddButton")}
         </button>
       </div>
     </div>

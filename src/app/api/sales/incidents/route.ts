@@ -4,6 +4,7 @@ import type { PaymentIncident } from "@/lib/types";
 import { PAYMENT_INCIDENT_KINDS } from "@/lib/types";
 import { requireSession, resolveBranch, assertCanEditDate, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,11 @@ const VALID_KINDS = new Set<string>(PAYMENT_INCIDENT_KINDS);
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = await req.json();
     const branch = resolveBranch(s, parseBranch(body?.branch ?? null));
     const date = body?.date ?? null;
-    if (!isDate(date)) return NextResponse.json({ error: "date ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    if (!isDate(date)) return NextResponse.json({ error: t(lang, "sales.errInvalidDate") }, { status: 400 });
     assertCanEditDate(s, date); // user ≤ 3 วัน · admin ไม่จำกัด
 
     const num = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : 0);
