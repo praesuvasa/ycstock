@@ -2399,7 +2399,7 @@ function ConfirmRow({
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-medium">{name}</span>
         {noProduce ? (
-          <Badge tone="orange">{t(lang, "restock.confirmRow.noProduceBadge", { text: haveText })}</Badge>
+          <Badge tone="orange">{t(lang, "restock.confirmRow.noProduceBadge", { text: haveText ?? "" })}</Badge>
         ) : haveText ? (
           <Badge tone="orange">{t(lang, "restock.confirmRow.partialProduceBadge", { text: haveText })}</Badge>
         ) : null}
