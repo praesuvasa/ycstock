@@ -6,7 +6,8 @@
 //
 // กล้องเปิดเฉพาะตอนจะกดจริง แล้วปิดทันทีหลังถ่าย — ไม่ค้างไว้ทั้งหน้า
 import React from "react";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 import { GlassCard, PageTitle, Button, Badge } from "@/components/ui";
 
 interface Status {
@@ -23,6 +24,7 @@ const timeOf = (iso: string) =>
   new Date(iso).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" });
 
 function useCamera() {
+  const lang = useLang();
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const streamRef = React.useRef<MediaStream | null>(null);
   const [on, setOn] = React.useState(false);
@@ -42,18 +44,18 @@ function useCamera() {
       }
       setOn(true);
     } catch {
-      setErr("เปิดกล้องไม่ได้ — กดอนุญาตให้แอปใช้กล้องในเบราว์เซอร์ก่อน");
+      setErr(t(lang, "timeClock.page.cameraError"));
     }
-  }, []);
+  }, [lang]);
 
   const stop = React.useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setOn(false);
   }, []);
 
   // ปิดกล้องเสมอเมื่อออกจากหน้า — ไม่งั้นไฟกล้องค้างจนพนักงานตกใจ
-  React.useEffect(() => () => { streamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
+  React.useEffect(() => () => { streamRef.current?.getTracks().forEach((track) => track.stop()); }, []);
 
   const capture = React.useCallback((): string | null => {
     const v = videoRef.current;
@@ -83,6 +85,7 @@ function getPosition(): Promise<{ lat: number; lng: number } | null> {
 
 export default function TimeClockPage() {
   const me = useMe();
+  const lang = useLang();
   const [st, setSt] = React.useState<Status | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ tone: "ok" | "warn"; text: string } | null>(null);
@@ -109,7 +112,7 @@ export default function TimeClockPage() {
     if (!mode) return;
     const image = st?.settings.requireFace || mode === "enroll" ? cam.capture() : null;
     if ((st?.settings.requireFace || mode === "enroll") && !image) {
-      setMsg({ tone: "warn", text: "ถ่ายรูปไม่สำเร็จ ลองใหม่อีกครั้ง" });
+      setMsg({ tone: "warn", text: t(lang, "timeClock.page.captureFailed") });
       return;
     }
     setBusy(true);
@@ -121,8 +124,8 @@ export default function TimeClockPage() {
           body: JSON.stringify({ imageBase64: image }),
         });
         const d = await res.json();
-        if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ลงทะเบียนไม่สำเร็จ");
-        setMsg({ tone: "ok", text: "ลงทะเบียนใบหน้าเรียบร้อย" });
+        if (!res.ok || !d?.ok) throw new Error(d?.error ?? t(lang, "timeClock.page.enrollFailedGeneric"));
+        setMsg({ tone: "ok", text: t(lang, "timeClock.page.enrollSuccess") });
       } else {
         const pos = st?.settings.requireLocation ? await getPosition() : await getPosition();
         const res = await fetch("/api/time-clock", {
@@ -130,45 +133,44 @@ export default function TimeClockPage() {
           body: JSON.stringify({ action: mode, imageBase64: image, lat: pos?.lat, lng: pos?.lng }),
         });
         const d = await res.json();
-        if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ลงเวลาไม่สำเร็จ");
-        setMsg({ tone: "ok", text: mode === "in" ? "บันทึกเวลาเข้างานแล้ว" : "บันทึกเวลาออกงานแล้ว" });
+        if (!res.ok || !d?.ok) throw new Error(d?.error ?? t(lang, "timeClock.page.clockFailedGeneric"));
+        setMsg({ tone: "ok", text: mode === "in" ? t(lang, "timeClock.page.clockInSuccess") : t(lang, "timeClock.page.clockOutSuccess") });
       }
       closeCamera();
       load();
     } catch (e: any) {
-      setMsg({ tone: "warn", text: e?.message ?? "ทำรายการไม่สำเร็จ" });
+      setMsg({ tone: "warn", text: e?.message ?? t(lang, "timeClock.page.actionFailedGeneric") });
     } finally {
       setBusy(false);
     }
   }
 
-  if (!st) return <p className="py-10 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
+  if (!st) return <p className="py-10 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
-      <PageTitle title="ลงเวลาเข้า-ออกงาน" />
+      <PageTitle title={t(lang, "nav.account.timeClock")} />
 
       {/* ยังไม่ได้ลงทะเบียน = ถูกพามาที่นี่โดยอัตโนมัติ ต้องบอกให้ชัดว่ามาทำอะไร
           ไม่งั้นพนักงานจะงงว่าทำไมกดหน้าอื่นไม่ได้ */}
       {!st.enrolled && (
         <div className="mb-3 rounded-xl border border-warn/35 bg-warn/[.08] px-3.5 py-3">
-          <p className="text-[15px] font-bold text-warn">ลงทะเบียนใบหน้าก่อนเริ่มใช้งาน</p>
+          <p className="text-[15px] font-bold text-warn">{t(lang, "timeClock.page.enrollRequiredTitle")}</p>
           <p className="mt-1 text-[12px] leading-relaxed text-brand-ink/70">
-            ทำครั้งเดียว ใช้ยืนยันตัวตนตอนลงเวลาเข้า-ออกงาน — ลงทะเบียนเสร็จแล้วใช้เมนูอื่นได้ตามปกติ
+            {t(lang, "timeClock.page.enrollRequiredBody")}
           </p>
         </div>
       )}
 
       {!st.settings.enabled && st.enrolled && (
         <div className="mb-3 rounded-xl border border-black/10 bg-black/[.03] px-3.5 py-3 text-[12px] leading-relaxed text-brand-ink/60">
-          ลงทะเบียนใบหน้าเรียบร้อยแล้ว — ระบบลงเวลายังไม่เปิดใช้งาน เปิดเมื่อไหร่จะแจ้งให้ทราบ
-          และใช้ได้เลยโดยไม่ต้องลงทะเบียนใหม่
+          {t(lang, "timeClock.page.disabledNotice")}
         </div>
       )}
 
       {!st.faceConfigured && (
         <div className="mb-3 rounded-xl border border-warn/35 bg-warn/[.08] px-3.5 py-3 text-[12px] leading-relaxed text-warn">
-          ยังไม่ได้ตั้งค่า AWS สำหรับสแกนใบหน้า — ใส่ AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION ที่ Vercel ก่อน
+          {t(lang, "timeClock.page.faceNotConfiguredNotice")}
         </div>
       )}
 
@@ -184,11 +186,11 @@ export default function TimeClockPage() {
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
             <p className="text-[15px] font-semibold">{st.name}</p>
-            <p className="text-[11.5px] text-brand-ink/50">สาขา {me?.branchScope}</p>
+            <p className="text-[11.5px] text-brand-ink/50">{t(lang, "store.staff.branchLabel")}{me?.branchScope}</p>
           </div>
           {st.open
-            ? <Badge tone="ok">เข้างานแล้ว {timeOf(st.open.clockIn)}</Badge>
-            : <Badge tone="neutral">ยังไม่ได้เข้างาน</Badge>}
+            ? <Badge tone="ok">{t(lang, "timeClock.page.clockedInBadgePrefix")}{timeOf(st.open.clockIn)}</Badge>
+            : <Badge tone="neutral">{t(lang, "timeClock.page.notClockedIn")}</Badge>}
         </div>
 
         {mode ? (
@@ -199,41 +201,47 @@ export default function TimeClockPage() {
             </div>
             {cam.err && <p className="text-[12px] text-warn">{cam.err}</p>}
             <p className="text-center text-[11.5px] text-brand-ink/55">
-              หันหน้าตรง อยู่ในที่สว่าง ไม่ใส่หมวกหรือแมสก์
+              {t(lang, "timeClock.page.faceInstructions")}
             </p>
             <Button onClick={submit} disabled={busy || !cam.on}>
-              {busy ? "กำลังตรวจ…" : mode === "enroll" ? "บันทึกใบหน้า" : mode === "in" ? "ยืนยันเข้างาน" : "ยืนยันออกงาน"}
+              {busy
+                ? t(lang, "timeClock.page.checking")
+                : mode === "enroll"
+                ? t(lang, "timeClock.page.saveFaceButton")
+                : mode === "in"
+                ? t(lang, "timeClock.page.confirmInButton")
+                : t(lang, "timeClock.page.confirmOutButton")}
             </Button>
-            <Button variant="ghost" onClick={closeCamera}>ยกเลิก</Button>
+            <Button variant="ghost" onClick={closeCamera}>{t(lang, "common.cancel")}</Button>
           </div>
         ) : (
           <div className="grid gap-2">
             {!st.enrolled ? (
               <>
                 <p className="text-[12.5px] leading-relaxed text-brand-ink/60">
-                  ยังไม่ได้ลงทะเบียนใบหน้า — ทำครั้งเดียว แล้วใช้ลงเวลาได้ตลอด
+                  {t(lang, "timeClock.page.notEnrolledIntro")}
                   <span className="mt-1 block text-[11.5px] text-brand-ink/45">
-                    ลงทะเบียนแล้วแก้เองไม่ได้ ถ่ายให้ชัดตั้งแต่ครั้งแรก
+                    {t(lang, "timeClock.page.notEnrolledHint")}
                   </span>
                 </p>
                 <Button onClick={() => openCamera("enroll")} disabled={!st.faceConfigured}>
-                  ลงทะเบียนใบหน้า
+                  {t(lang, "timeClock.page.enrollButton")}
                 </Button>
               </>
             ) : st.open ? (
               <Button onClick={() => openCamera("out")} disabled={!st.settings.enabled}>
-                ออกงาน
+                {t(lang, "timeClock.page.clockOutButton")}
               </Button>
             ) : (
               <Button onClick={() => openCamera("in")} disabled={!st.settings.enabled}>
-                เข้างาน
+                {t(lang, "timeClock.page.clockInButton")}
               </Button>
             )}
 
             {/* ไม่มีปุ่มลงทะเบียนใหม่โดยตั้งใจ — ถ้าแก้เองได้ ใครรู้รหัสของอีกคนก็เปลี่ยนเป็นหน้าตัวเองได้ */}
             {st.enrolled && (
               <p className="text-[11px] leading-relaxed text-brand-ink/40">
-                ลงทะเบียนใบหน้าแล้ว · แก้เองไม่ได้ — ถ้าสแกนไม่ผ่าน (ตัดผม ใส่แว่น) แจ้งแอดมินให้รีเซ็ตให้
+                {t(lang, "timeClock.page.enrolledLockedNote")}
               </p>
             )}
           </div>
@@ -241,8 +249,7 @@ export default function TimeClockPage() {
       </GlassCard>
 
       <p className="px-1 text-[11px] leading-relaxed text-brand-ink/45">
-        ระบบเก็บเฉพาะข้อมูลที่ใช้เทียบใบหน้า ไม่ได้เก็บรูปไว้ดูย้อนหลัง ·
-        ใช้เพื่อยืนยันว่าคนลงเวลาคือเจ้าของบัญชีจริงเท่านั้น
+        {t(lang, "timeClock.page.privacyFootnote")}
       </p>
     </div>
   );

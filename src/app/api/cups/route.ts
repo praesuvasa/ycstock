@@ -5,6 +5,7 @@ import type { CupRow, CupSize } from "@/lib/types";
 import { BRANCHES } from "@/lib/types";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +19,16 @@ const cupFail = (e: unknown, msg: string) => {
 // GET /api/cups?branch=NVP&date=2026-07-15 → { rows: CupRow[], summary }
 export async function GET(req: NextRequest) {
   try {
-    await requireAdmin();
+    const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const branch = parseBranch(searchParams.get("branch"));
     if (!branch) {
-      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.branchRequired", { list: BRANCHES.join(lang === "en" ? " or " : " หรือ ") }) }, { status: 400 });
     }
     const date = searchParams.get("date");
     if (!date || !ISO_DATE.test(date)) {
-      return NextResponse.json({ error: "date ต้องเป็นรูปแบบ YYYY-MM-DD" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.dateFormat") }, { status: 400 });
     }
 
     const rows = await db.getCups(branch, date);
@@ -41,21 +43,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "body ไม่ถูกต้อง" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.bodyInvalid") }, { status: 400 });
     }
 
     const branch = parseBranch(body.branch ?? null);
     if (!branch) {
-      return NextResponse.json({ error: `branch ต้องเป็น ${BRANCHES.join(" หรือ ")}` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.branchRequired", { list: BRANCHES.join(lang === "en" ? " or " : " หรือ ") }) }, { status: 400 });
     }
     const date = body.date;
     if (typeof date !== "string" || !ISO_DATE.test(date)) {
-      return NextResponse.json({ error: "date ต้องเป็นรูปแบบ YYYY-MM-DD" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.dateFormat") }, { status: 400 });
     }
     if (!Array.isArray(body.rows)) {
-      return NextResponse.json({ error: "rows ต้องเป็น array" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "cups.api.rowsMustBeArray") }, { status: 400 });
     }
 
     const num = (v: unknown): number => {
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
     };
     const rows: CupRow[] = body.rows.map((r: any): CupRow => {
       if (!r || !SIZES.includes(r.size)) {
-        throw new Error("size ต้องเป็น P, S, BOWL หรือ 14OZ");
+        throw new Error(t(lang, "cups.api.sizeInvalid"));
       }
       return {
         size: r.size,

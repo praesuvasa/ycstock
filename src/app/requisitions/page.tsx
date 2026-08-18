@@ -4,9 +4,10 @@
 // สถานะ (pending/moved) เห็นเฉพาะ admin/restock — พนักงานทั่วไป (role user) ไม่เห็นเลย ไม่ส่งไปแสดงในส่วน "คำขอของฉัน"
 import React from "react";
 import type { Branch, Meta, BranchNotice } from "@/lib/types";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { GlassCard, BranchPicker, PageTitle, Button, Badge } from "@/components/ui";
 import { todayISO } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 interface RequisitionRow {
   id: string; branch: Branch; itemId?: string; itemName: string; qty: number; unit?: string;
@@ -60,6 +61,7 @@ function computeRound(now: Date): RequestRound {
 
 export default function RequisitionsPage() {
   const me = useMe();
+  const lang = useLang();
   const isRestock = me?.role === "restock";
   const isAdmin = me?.role === "admin";
   const canSubmit = me?.role === "user" || isAdmin;
@@ -138,10 +140,10 @@ export default function RequisitionsPage() {
         body: JSON.stringify({ id: r.id, date: moveDate[r.id] ?? isoDate(round.deliveryDate) }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "ย้ายไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "requisitions.errMoveFailedGeneric"));
       loadAll();
     } catch (e: any) {
-      window.alert(`ย้ายไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(`${t(lang, "requisitions.errMoveFailedPrefix")}${e?.message ?? e}`);
     } finally {
       setMovingId(null);
     }
@@ -155,9 +157,9 @@ export default function RequisitionsPage() {
 
   async function handleSubmit() {
     const qn = parseFloat(qty);
-    if (!qn || qn <= 0) { window.alert("กรอกจำนวนให้ถูกต้อง"); return; }
+    if (!qn || qn <= 0) { window.alert(t(lang, "requisitions.errQtyInvalid")); return; }
     const itemName = pickMode === "existing" ? (meta?.items.find((i) => i.id === itemId)?.name ?? "") : customName.trim();
-    if (!itemName) { window.alert(pickMode === "existing" ? "เลือกรายการก่อน" : "พิมพ์ชื่อรายการก่อน"); return; }
+    if (!itemName) { window.alert(pickMode === "existing" ? t(lang, "requisitions.errPickItem") : t(lang, "requisitions.errTypeItemName")); return; }
 
     setSubmitting(true);
     try {
@@ -174,14 +176,14 @@ export default function RequisitionsPage() {
         }),
       });
       const data = (await res.json()) as { error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "ส่งคำขอไม่สำเร็จ");
-      setSubmitMsg("✓ ส่งคำขอแล้ว");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "requisitions.errSubmitFailedGeneric"));
+      setSubmitMsg(t(lang, "requisitions.newRequest.submitSuccess"));
       setItemId(""); setCustomName(""); setCustomUnit(""); setQty(""); setNote("");
       loadMine();
       loadAll();
       setTimeout(() => setSubmitMsg(null), 2500);
     } catch (e: any) {
-      window.alert(`ส่งไม่สำเร็จ: ${e?.message ?? e}`);
+      window.alert(`${t(lang, "requisitions.errSubmitFailedPrefix")}${e?.message ?? e}`);
     } finally {
       setSubmitting(false);
     }
@@ -189,27 +191,37 @@ export default function RequisitionsPage() {
 
   return (
     <div>
-      <PageTitle title="ขอเบิกสินค้า" />
+      <PageTitle title={t(lang, "nav.user.requisitions")} />
 
       {canSubmit && (
         <GlassCard className="mb-3">
-          <h2 className="mb-3 text-[15px] font-semibold">ส่งคำขอใหม่</h2>
+          <h2 className="mb-3 text-[15px] font-semibold">{t(lang, "requisitions.newRequest.heading")}</h2>
 
           {notices.map((n) => (
             <div key={n.id} className="mb-3 rounded-xl border border-brand-orange/35 bg-brand-orange/[.08] px-3 py-2.5">
-              <p className="text-[13px] font-semibold text-orange-700">📢 ประกาศ</p>
+              <p className="text-[13px] font-semibold text-orange-700">{t(lang, "requisitions.newRequest.noticeTitle")}</p>
               <p className="mt-0.5 text-[12px] leading-relaxed text-brand-ink/70">{n.message}</p>
             </div>
           ))}
 
           <div className="mb-3 rounded-xl border border-ok/25 bg-ok/[.06] px-3 py-2.5">
             <p className="text-[13px] font-semibold text-ok">
-              📦 เบิกครั้งนี้ของเข้าวัน{round.deliveryDay}ที่ {beDate(round.deliveryDate)}
+              {t(lang, "requisitions.newRequest.deliveryInfo", {
+                day: t(lang, `requisitions.newRequest.dayNames.${round.deliveryDay}`),
+                date: beDate(round.deliveryDate),
+              })}
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-brand-ink/55">
-              ขอเบิกได้ถึงก่อนวัน{round.cutoffDay}ที่ {beDate(round.cutoffDate)} เวลา 12.00 (เที่ยง)
+              {t(lang, "requisitions.newRequest.cutoffInfo", {
+                day: t(lang, `requisitions.newRequest.dayNames.${round.cutoffDay}`),
+                date: beDate(round.cutoffDate),
+              })}
               <br />
-              ขณะนี้ {DAY_TH[now.getDay()]}ที่ {beDate(now)} {now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+              {t(lang, "requisitions.newRequest.nowInfo", {
+                day: t(lang, `requisitions.newRequest.dayNames.${DAY_TH[now.getDay()]}`),
+                date: beDate(now),
+                time: now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+              })}
             </p>
           </div>
 
@@ -223,7 +235,7 @@ export default function RequisitionsPage() {
                   pickMode === "existing" ? "bg-brand-ink text-white" : "border border-black/5 bg-white/60 text-brand-ink"
                 }`}
               >
-                เลือกจากรายการ
+                {t(lang, "requisitions.newRequest.pickExisting")}
               </button>
               <button
                 type="button" onClick={() => setPickMode("custom")}
@@ -231,15 +243,15 @@ export default function RequisitionsPage() {
                   pickMode === "custom" ? "bg-brand-ink text-white" : "border border-black/5 bg-white/60 text-brand-ink"
                 }`}
               >
-                พิมพ์เอง (ไม่มีในระบบ)
+                {t(lang, "requisitions.newRequest.pickCustom")}
               </button>
             </div>
 
             {pickMode === "existing" ? (
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-brand-ink/50">รายการ</span>
+                <span className="text-[11px] text-brand-ink/50">{t(lang, "requisitions.newRequest.itemLabel")}</span>
                 <select value={itemId} onChange={(e) => setItemId(e.target.value)} className="field">
-                  <option value="">— เลือกรายการ —</option>
+                  <option value="">{t(lang, "requisitions.newRequest.itemPlaceholder")}</option>
                   {(meta?.items ?? []).map((it) => (
                     <option key={it.id} value={it.id}>{it.name} ({it.unit})</option>
                   ))}
@@ -248,42 +260,42 @@ export default function RequisitionsPage() {
             ) : (
               <div className="grid grid-cols-2 gap-2.5">
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-brand-ink/50">ชื่อรายการ</span>
+                  <span className="text-[11px] text-brand-ink/50">{t(lang, "requisitions.newRequest.customNameLabel")}</span>
                   <input
                     value={customName} onChange={(e) => setCustomName(e.target.value)}
-                    className="field" placeholder="เช่น แก้วพิเศษงานอีเวนต์"
+                    className="field" placeholder={t(lang, "requisitions.newRequest.customNamePlaceholder")}
                   />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-[11px] text-brand-ink/50">หน่วย</span>
+                  <span className="text-[11px] text-brand-ink/50">{t(lang, "requisitions.newRequest.customUnitLabel")}</span>
                   <input
                     value={customUnit} onChange={(e) => setCustomUnit(e.target.value)}
-                    className="field" placeholder="เช่น ชิ้น/แพ็ค"
+                    className="field" placeholder={t(lang, "requisitions.newRequest.customUnitPlaceholder")}
                   />
                 </label>
               </div>
             )}
 
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">จำนวน</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "requisitions.newRequest.qtyLabel")}</span>
               <input inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} className="field" />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">เหตุผล / โอกาสพิเศษ (ถ้ามี)</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "requisitions.newRequest.noteLabel")}</span>
               <input
                 value={note} onChange={(e) => setNote(e.target.value)}
-                className="field" placeholder="เช่น อีเวนต์วันเสาร์ ลูกค้าเยอะกว่าปกติ"
+                className="field" placeholder={t(lang, "requisitions.newRequest.notePlaceholder")}
               />
             </label>
 
             <div className="rounded-xl border border-warn/30 bg-warn/[.06] px-3 py-2.5">
               <p className="text-[11px] leading-relaxed text-warn/90">
-                ⚠️ รายการที่เบิก (บางรายการ) อาจจัดส่งไม่ตรงรอบ จะจัดส่งเมื่อมีสินค้าพร้อม
+                {t(lang, "requisitions.newRequest.deliveryWarning")}
               </p>
             </div>
 
             <Button onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "กำลังส่ง…" : "ส่งคำขอเบิก"}
+              {submitting ? t(lang, "requisitions.newRequest.submitting") : t(lang, "requisitions.newRequest.submitButton")}
             </Button>
             {submitMsg && <p className="text-center text-xs font-semibold text-ok">{submitMsg}</p>}
           </div>
@@ -292,9 +304,9 @@ export default function RequisitionsPage() {
 
       {canSubmit && (
         <GlassCard className="mb-3">
-          <h2 className="mb-2 text-[15px] font-semibold">คำขอของฉัน</h2>
+          <h2 className="mb-2 text-[15px] font-semibold">{t(lang, "requisitions.myRequests.heading")}</h2>
           {myRows.length === 0 ? (
-            <p className="py-4 text-center text-sm text-brand-ink/50">ยังไม่เคยส่งคำขอ</p>
+            <p className="py-4 text-center text-sm text-brand-ink/50">{t(lang, "requisitions.myRequests.empty")}</p>
           ) : (
             <div className="grid gap-1.5">
               {myRows.map((r) => (
@@ -314,8 +326,8 @@ export default function RequisitionsPage() {
       {(isRestock || isAdmin) && (
         <GlassCard>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[15px] font-semibold">คำขอเบิกทั้งหมด (ทุกสาขา)</h2>
-            <span className="text-xs text-brand-ink/50">{allRows.length} รายการ</span>
+            <h2 className="text-[15px] font-semibold">{t(lang, "requisitions.allRequests.heading")}</h2>
+            <span className="text-xs text-brand-ink/50">{t(lang, "requisitions.allRequests.itemCount", { n: allRows.length })}</span>
           </div>
 
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
@@ -329,7 +341,7 @@ export default function RequisitionsPage() {
                 type="button" onClick={() => setFilterDate(todayISO())}
                 className="rounded-lg border border-black/5 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-ink"
               >
-                วันนี้
+                {t(lang, "requisitions.allRequests.todayButton")}
               </button>
             )}
             {filterDate && (
@@ -337,16 +349,16 @@ export default function RequisitionsPage() {
                 type="button" onClick={() => setFilterDate("")}
                 className="rounded-lg border border-black/5 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-brand-ink"
               >
-                ดูทั้งหมด
+                {t(lang, "requisitions.allRequests.viewAllButton")}
               </button>
             )}
           </div>
 
           {loadingAll ? (
-            <p className="py-4 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+            <p className="py-4 text-center text-sm text-brand-ink/50">{t(lang, "requisitions.allRequests.loading")}</p>
           ) : allRows.length === 0 ? (
             <p className="py-4 text-center text-sm text-brand-ink/50">
-              {filterDate ? "ไม่มีคำขอเบิกในวันนี้" : "ยังไม่มีคำขอเบิก"}
+              {filterDate ? t(lang, "requisitions.allRequests.emptyToday") : t(lang, "requisitions.allRequests.emptyAll")}
             </p>
           ) : (
             <div className="grid gap-1.5">
@@ -356,7 +368,7 @@ export default function RequisitionsPage() {
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-[13px] font-medium">{fmtRow(r)}</span>
                       <Badge tone="blue">{r.branch}</Badge>
-                      {r.status === "moved" && <Badge tone="ok">ย้ายแล้ว</Badge>}
+                      {r.status === "moved" && <Badge tone="ok">{t(lang, "requisitions.allRequests.movedBadge")}</Badge>}
                     </div>
                     {r.status !== "moved" && (
                       <div className="flex shrink-0 items-center gap-1.5">
@@ -373,14 +385,14 @@ export default function RequisitionsPage() {
                           disabled={movingId === r.id}
                           className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-[11px] font-semibold text-brand-ink disabled:opacity-50"
                         >
-                          {movingId === r.id ? "กำลังย้าย…" : "ย้ายไปต้องเติม"}
+                          {movingId === r.id ? t(lang, "requisitions.allRequests.movingButton") : t(lang, "requisitions.allRequests.moveButton")}
                         </button>
                       </div>
                     )}
                   </div>
                   <div className="text-[11px] text-brand-ink/50">
                     {r.requestedBy} · {fmtWhen(r.createdAt)}{r.note ? ` · ${r.note}` : ""}
-                    {r.status === "moved" && r.movedBy ? ` · ย้ายโดย ${r.movedBy}` : ""}
+                    {r.status === "moved" && r.movedBy ? `${t(lang, "requisitions.allRequests.movedByPrefix")}${r.movedBy}` : ""}
                   </div>
                 </div>
               ))}

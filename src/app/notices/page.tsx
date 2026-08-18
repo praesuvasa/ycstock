@@ -4,13 +4,11 @@ import React from "react";
 import type { BranchNotice } from "@/lib/types";
 import { BRANCHES, BRANCH_LABEL_TH } from "@/lib/types";
 import { GlassCard, Badge, Button, Segmented, PageTitle } from "@/components/ui";
-
-const BRANCH_OPTS = [
-  { value: "ALL", label: "ทุกสาขา" },
-  ...BRANCHES.map((b) => ({ value: b as string, label: `${b} · ${BRANCH_LABEL_TH[b]}` })),
-];
+import { useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 export default function NoticesPage() {
+  const lang = useLang();
   const [notices, setNotices] = React.useState<BranchNotice[] | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [forbidden, setForbidden] = React.useState(false);
@@ -19,23 +17,31 @@ export default function NoticesPage() {
   const [branch, setBranch] = React.useState("ALL");
   const [message, setMessage] = React.useState("");
 
+  const branchOpts = React.useMemo(
+    () => [
+      { value: "ALL", label: t(lang, "notices.allBranches") },
+      ...BRANCHES.map((b) => ({ value: b as string, label: `${b} · ${BRANCH_LABEL_TH[b]}` })),
+    ],
+    [lang]
+  );
+
   const load = React.useCallback(async () => {
     setErr(null);
     try {
       const res = await fetch("/api/notices");
       if (res.status === 403) { setForbidden(true); setNotices([]); return; }
       const data = (await res.json()) as { rows?: BranchNotice[]; error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "โหลดไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "notices.loadFailedFallback"));
       setForbidden(false);
       setNotices(data.rows ?? []);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     }
-  }, []);
+  }, [lang]);
   React.useEffect(() => { load(); }, [load]);
 
   async function create() {
-    if (!message.trim()) { setErr("กรอกข้อความประกาศ"); return; }
+    if (!message.trim()) { setErr(t(lang, "notices.emptyMessageError")); return; }
     setBusy("__new");
     setErr(null);
     try {
@@ -45,7 +51,7 @@ export default function NoticesPage() {
         body: JSON.stringify({ branch: branch === "ALL" ? null : branch, message: message.trim() }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "สร้างไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "notices.createFailedFallback"));
       setMessage(""); setBranch("ALL");
       await load();
     } catch (e: any) {
@@ -56,13 +62,13 @@ export default function NoticesPage() {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("ปิดประกาศนี้?")) return;
+    if (!window.confirm(t(lang, "notices.deleteConfirm"))) return;
     setBusy(id);
     setErr(null);
     try {
       const res = await fetch(`/api/notices/${id}`, { method: "DELETE" });
       const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "ลบไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "notices.deleteFailedFallback"));
       await load();
     } catch (e: any) {
       setErr(String(e?.message ?? e));
@@ -73,32 +79,31 @@ export default function NoticesPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-24">
-      <PageTitle title="ประกาศพิเศษ" right={<Badge tone="blue">Admin</Badge>} />
+      <PageTitle title={t(lang, "notices.title")} right={<Badge tone="blue">Admin</Badge>} />
 
       {forbidden ? (
-        <GlassCard><p className="text-sm text-warn">เฉพาะ Admin เท่านั้น</p></GlassCard>
+        <GlassCard><p className="text-sm text-warn">{t(lang, "notices.adminOnly")}</p></GlassCard>
       ) : (
         <>
           <GlassCard className="mb-3">
-            <div className="mb-2 text-sm font-semibold">เพิ่มประกาศ</div>
+            <div className="mb-2 text-sm font-semibold">{t(lang, "notices.addTitle")}</div>
             <p className="mb-3 text-[11px] leading-relaxed text-brand-ink/50">
-              ใช้แจ้งเตือนกรณีของเข้าไม่ตรงรอบปกติ เช่น วันหยุดพนักงานส่งของ หรือวันหยุดเฉพาะสาขา —
-              ข้อความจะโชว์ที่หน้า &quot;ขอเบิกสินค้า&quot; ของสาขาที่เลือก จนกว่าจะกดปิด
+              {t(lang, "notices.hint")}
             </p>
             <div className="grid gap-2">
               <div>
-                <span className="mb-1 block text-[11px] text-brand-ink/50">ประกาศไปที่สาขา</span>
-                <Segmented options={BRANCH_OPTS} value={branch} onChange={setBranch} />
+                <span className="mb-1 block text-[11px] text-brand-ink/50">{t(lang, "notices.targetBranchLabel")}</span>
+                <Segmented options={branchOpts} value={branch} onChange={setBranch} />
               </div>
               <label className="flex flex-col gap-1">
-                <span className="text-[11px] text-brand-ink/50">ข้อความ</span>
+                <span className="text-[11px] text-brand-ink/50">{t(lang, "notices.messageLabel")}</span>
                 <input
-                  className="field text-left" placeholder="เช่น สัปดาห์นี้ของเข้าช้า 1 วัน เนื่องจากพนักงานส่งของลา"
+                  className="field text-left" placeholder={t(lang, "notices.messagePlaceholder")}
                   value={message} onChange={(e) => setMessage(e.target.value)}
                 />
               </label>
               <Button onClick={create} disabled={busy === "__new"}>
-                {busy === "__new" ? "กำลังบันทึก…" : "เพิ่มประกาศ"}
+                {busy === "__new" ? t(lang, "common.saving") : t(lang, "notices.addButton")}
               </Button>
             </div>
           </GlassCard>
@@ -106,16 +111,16 @@ export default function NoticesPage() {
           {err && <GlassCard className="mb-3"><p className="text-sm text-warn">{err}</p></GlassCard>}
 
           {!notices ? (
-            <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+            <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
           ) : notices.length === 0 ? (
-            <GlassCard><p className="text-sm text-brand-ink/50">ยังไม่มีประกาศ</p></GlassCard>
+            <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "notices.emptyState")}</p></GlassCard>
           ) : (
             <div className="grid gap-2.5">
               {notices.map((n) => (
                 <GlassCard key={n.id}>
                   <div className="mb-1.5 flex items-center gap-2">
                     <Badge tone={n.branch === null ? "orange" : "blue"}>
-                      {n.branch === null ? "ทุกสาขา" : `สาขา ${n.branch}`}
+                      {n.branch === null ? t(lang, "notices.allBranches") : `${t(lang, "notices.branchBadgePrefix")}${n.branch}`}
                     </Badge>
                     <span className="text-[11px] text-brand-ink/40">
                       {new Date(n.createdAt).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })} · {n.createdBy}
@@ -123,7 +128,7 @@ export default function NoticesPage() {
                   </div>
                   <p className="mb-2.5 text-sm">{n.message}</p>
                   <Button variant="ghost" onClick={() => remove(n.id)} disabled={busy === n.id}>
-                    {busy === n.id ? "กำลังปิด…" : "ปิดประกาศ"}
+                    {busy === n.id ? t(lang, "notices.closing") : t(lang, "notices.closeButton")}
                   </Button>
                 </GlassCard>
               ))}

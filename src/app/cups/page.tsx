@@ -7,7 +7,8 @@ import { todayISO, thaiDate } from "@/lib/fmt";
 import {
   PageTitle, GlassCard, BranchPicker, Stat, Badge, Button, SaveBar, Dialog,
 } from "@/components/ui";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 // ── สรุปยอดขายเทียบ POS (read-only) — จัดกลุ่มไอเทม hasRemainder===false ให้พนักงานเช็คเร็ว ──────────
 // หมายเหตุ: การจัดกลุ่มในรายงานนี้ (โดยเฉพาะ "Softserve ถ้วยกระดาษ" ที่ย้ายมาโชว์ในหมวด Shake)
@@ -26,21 +27,22 @@ interface ReportLine {
 }
 
 function ReportTable({ title, lines }: { title: string; lines: ReportLine[] }) {
+  const lang = useLang();
   return (
     <div className="mb-4">
       <div className="mb-1.5 px-1 text-[13px] font-bold">{title}</div>
       {lines.length === 0 ? (
-        <GlassCard><p className="text-center text-[12px] text-brand-ink/45">ไม่มีรายการในหมวดนี้</p></GlassCard>
+        <GlassCard><p className="text-center text-[12px] text-brand-ink/45">{t(lang, "cups.table.empty")}</p></GlassCard>
       ) : (
         <div className="overflow-hidden rounded-xl border border-black/5">
           <div className="grid grid-cols-[1fr_34px_34px_34px_34px_40px_54px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[10px] font-medium text-brand-ink/50">
-            <span>รายการ</span>
-            <span className="text-right">ยกมา</span>
-            <span className="text-right">รับเข้า</span>
-            <span className="text-right">ขาย</span>
-            <span className="text-right">ส่งคืน</span>
-            <span className="text-right">คงเหลือ</span>
-            <span className="text-right">สถานะ</span>
+            <span>{t(lang, "cups.table.colItem")}</span>
+            <span className="text-right">{t(lang, "cups.table.colCarry")}</span>
+            <span className="text-right">{t(lang, "cups.table.colIn")}</span>
+            <span className="text-right">{t(lang, "cups.table.colSold")}</span>
+            <span className="text-right">{t(lang, "cups.table.colReturned")}</span>
+            <span className="text-right">{t(lang, "cups.table.colRemain")}</span>
+            <span className="text-right">{t(lang, "cups.table.colStatus")}</span>
           </div>
           {lines.map((l, i) => (
             <div
@@ -62,7 +64,11 @@ function ReportTable({ title, lines }: { title: string; lines: ReportLine[] }) {
                   l.status === "ok" ? "text-ok font-semibold" : l.status === "warn" ? "text-warn font-bold" : "text-brand-ink/30"
                 }`}
               >
-                {l.status === "ok" ? "✓" : l.status === "warn" ? `⚠️ ต่าง ${(l.diff ?? 0) > 0 ? "+" : ""}${l.diff}` : "—"}
+                {l.status === "ok"
+                  ? "✓"
+                  : l.status === "warn"
+                    ? t(lang, "cups.table.diffBadge", { sign: (l.diff ?? 0) > 0 ? "+" : "", diff: l.diff ?? 0 })
+                    : "—"}
               </span>
             </div>
           ))}
@@ -85,6 +91,7 @@ const emptyRows = (): CupRow[] =>
 
 export default function CupsPage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
@@ -103,19 +110,19 @@ export default function CupsPage() {
     try {
       const res = await fetch(`/api/cups?branch=${branch}&date=${date}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "โหลดไม่สำเร็จ");
+      if (!res.ok) throw new Error(data?.error ?? t(lang, "cups.page.errLoadFailed"));
       // เรียงตามลำดับขนาดมาตรฐานเสมอ
       const bySize = new Map<CupSize, CupRow>(
         (data.rows as CupRow[]).map((r) => [r.size, r])
       );
       setRows(SIZES.map((s) => bySize.get(s) ?? { size: s, start: 0, in: 0, remain: 0, sold: 0 }));
     } catch (e: any) {
-      setMsg(e?.message ?? "โหลดไม่สำเร็จ");
+      setMsg(e?.message ?? t(lang, "cups.page.errLoadFailed"));
       setRows(emptyRows());
     } finally {
       setLoading(false);
     }
-  }, [branch, date]);
+  }, [branch, date, lang]);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -200,21 +207,21 @@ export default function CupsPage() {
 
   const acaiLines = React.useMemo(() => catalog.acai.map(lineFor), [catalog.acai, lineFor]);
   const smoothiesLines = React.useMemo(
-    () => [...catalog.smoothies.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.smoothies)],
-    [catalog.smoothies, lineFor, totalLine]
+    () => [...catalog.smoothies.map(lineFor), totalLine(t(lang, "cups.report.totalRowLabel"), catalog.smoothies)],
+    [catalog.smoothies, lineFor, totalLine, lang]
   );
   const yogurt500Lines = React.useMemo(
-    () => [...catalog.yogurt500.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.yogurt500)],
-    [catalog.yogurt500, lineFor, totalLine]
+    () => [...catalog.yogurt500.map(lineFor), totalLine(t(lang, "cups.report.totalRowLabel"), catalog.yogurt500)],
+    [catalog.yogurt500, lineFor, totalLine, lang]
   );
   const shakeLines = React.useMemo(() => catalog.shake.map(lineFor), [catalog.shake, lineFor]);
   const drinkLines = React.useMemo(
-    () => [...catalog.drink.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.drink)],
-    [catalog.drink, lineFor, totalLine]
+    () => [...catalog.drink.map(lineFor), totalLine(t(lang, "cups.report.totalRowLabel"), catalog.drink)],
+    [catalog.drink, lineFor, totalLine, lang]
   );
   const cerealsLines = React.useMemo(
-    () => [...catalog.cereals.map(lineFor), totalLine("รวมขายทั้งหมวด", catalog.cereals)],
-    [catalog.cereals, lineFor, totalLine]
+    () => [...catalog.cereals.map(lineFor), totalLine(t(lang, "cups.report.totalRowLabel"), catalog.cereals)],
+    [catalog.cereals, lineFor, totalLine, lang]
   );
 
   const returnsList = React.useMemo(() => {
@@ -244,12 +251,20 @@ export default function CupsPage() {
         body: JSON.stringify({ branch, date, rows }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
-      setMsg("บันทึกแล้ว ✓");
-      setPopup({ tone: "ok", title: "บันทึกสำเร็จ", body: `สาขา ${branch} · ${thaiDate(date)}` });
+      if (!res.ok) throw new Error(data?.error ?? t(lang, "cups.page.errSaveFailed"));
+      setMsg(t(lang, "cups.page.savedMsg"));
+      setPopup({
+        tone: "ok",
+        title: t(lang, "cups.page.savedPopupTitle"),
+        body: t(lang, "cups.page.savedPopupBody", { branch, date: thaiDate(date) }),
+      });
     } catch (e: any) {
-      setMsg(e?.message ?? "บันทึกไม่สำเร็จ");
-      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองกดบันทึกอีกครั้ง" });
+      setMsg(e?.message ?? t(lang, "cups.page.errSaveFailed"));
+      setPopup({
+        tone: "warn",
+        title: t(lang, "cups.page.saveFailPopupTitle"),
+        body: e?.message ?? t(lang, "cups.page.saveFailPopupBody"),
+      });
     } finally {
       setSaving(false);
     }
@@ -260,14 +275,14 @@ export default function CupsPage() {
       {popup && (
         <Dialog
           open tone={popup.tone} title={popup.title}
-          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          actionLabel={popup.tone === "ok" ? t(lang, "cups.page.popupActionOk") : t(lang, "cups.page.popupActionClose")}
           onClose={() => setPopup(null)}
         >
           {popup.body}
         </Dialog>
       )}
       <PageTitle
-        title="สรุปจำนวนขายออก 🥤"
+        title={t(lang, "cups.page.title")}
         right={<Badge tone="neutral">{thaiDate(date)}</Badge>}
       />
 
@@ -276,7 +291,7 @@ export default function CupsPage() {
         <div className="flex flex-col gap-3">
           <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "cups.page.dateLabel")}</span>
             <input
               type="date"
               value={date}
@@ -288,21 +303,21 @@ export default function CupsPage() {
       </GlassCard>
 
       <p className="mb-3 px-1 text-[12px] text-brand-ink/55">
-        📦 ตั้งต้น/รับเข้า/คงเหลือ ดึงจากหน้าสต็อก (แพ็ค×50 + เศษ) อัตโนมัติ · กรอก <b>ขายจริง</b> กับ <b>แก้วลูกค้า</b><br />
-        ใช้จริง = ตั้งต้น + รับเข้า − คงเหลือ · diff = ใช้จริง − (ขาย − แก้วลูกค้า)<br />
-        <span className="text-brand-ink/45">แก้วลูกค้า = บิลที่ลูกค้าเอาแก้วมาเอง — POS นับว่าขาย แต่ไม่ได้ใช้ถ้วยร้าน ต้องหักออกก่อนเทียบ</span>
+        {t(lang, "cups.page.instructionsIntro")} <b>{t(lang, "cups.page.soldActualLabel")}</b> {t(lang, "cups.page.andLabel")} <b>{t(lang, "cups.page.ownCupLabel")}</b><br />
+        {t(lang, "cups.page.formulaLine")}<br />
+        <span className="text-brand-ink/45">{t(lang, "cups.page.ownCupExplain")}</span>
       </p>
 
       {/* แถวรายขนาด — ตารางกระชับ (แทนการ์ดใหญ่เดิม) */}
       <div className="overflow-hidden rounded-xl border border-black/5">
         <div className="grid grid-cols-[68px_32px_32px_32px_38px_46px_46px_50px] items-center gap-1 bg-black/5 px-2 py-1.5 text-[9px] font-medium text-brand-ink/50">
-          <span>ขนาด</span>
-          <span className="text-right">ตั้งต้น</span>
-          <span className="text-right">รับเข้า</span>
-          <span className="text-right">เหลือ</span>
-          <span className="text-right">ใช้จริง</span>
-          <span className="text-right">ขาย</span>
-          <span className="text-right">แก้วลูกค้า</span>
+          <span>{t(lang, "cups.rowsTable.colSize")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colStart")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colIn")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colRemain")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colUsed")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colSold")}</span>
+          <span className="text-right">{t(lang, "cups.rowsTable.colOwnCup")}</span>
           <span className="text-right">diff</span>
         </div>
         {rows.map((r, i) => {
@@ -342,22 +357,22 @@ export default function CupsPage() {
       {/* สรุปรวม */}
       <GlassCard className="mt-3">
         <div className="mb-3 grid grid-cols-3 gap-2">
-          <Stat label="ใช้จริงรวม" value={summary.totalUsed} />
-          <Stat label="ขายที่ใช้ถ้วยร้าน" value={summary.totalSold} />
+          <Stat label={t(lang, "cups.summary.totalUsed")} value={summary.totalUsed} />
+          <Stat label={t(lang, "cups.summary.totalSold")} value={summary.totalSold} />
           <Stat
-            label="ต่างรวม"
+            label={t(lang, "cups.summary.totalDiff")}
             value={summary.totalDiff > 0 ? `+${summary.totalDiff}` : summary.totalDiff}
             tone={summary.totalDiff === 0 ? "ok" : "warn"}
           />
         </div>
         <div>
           {summary.balanced ? (
-            <Badge tone="ok">✓ ถ้วยตรงทุกขนาด</Badge>
+            <Badge tone="ok">{t(lang, "cups.summary.balanced")}</Badge>
           ) : summary.swapLikely ? (
-            <Badge tone="orange">⚠️ น่าจะสลับขนาด (ยอดรวมตรง)</Badge>
+            <Badge tone="orange">{t(lang, "cups.summary.swapLikely")}</Badge>
           ) : (
             <Badge tone="warn">
-              ⚠️ ยอดถ้วยไม่ตรง (ต่าง {Math.abs(summary.totalDiff)})
+              {t(lang, "cups.summary.mismatch", { diff: Math.abs(summary.totalDiff) })}
             </Badge>
           )}
         </div>
@@ -370,28 +385,28 @@ export default function CupsPage() {
       {/* ── สรุปยอดขายเทียบ POS (read-only) ───────────────────────────────── */}
       <div className="mt-6 border-t border-black/5 pt-4">
         <p className="mb-3 px-1 text-[12px] text-brand-ink/55">
-          เช็คยอดขายจากสต็อกเทียบ POS ได้เร็ว (read-only) · สถานะ ✓ = ยอดตรง · ⚠️ = ยอดไม่ตรง (โชว์ผลต่างจริง)
+          {t(lang, "cups.report.intro")}
         </p>
 
         {reportErr && (
-          <GlassCard className="mb-3"><p className="text-sm text-warn">โหลดข้อมูลไม่สำเร็จ: {reportErr}</p></GlassCard>
+          <GlassCard className="mb-3"><p className="text-sm text-warn">{t(lang, "cups.report.loadError", { msg: reportErr })}</p></GlassCard>
         )}
 
         {reportLoading ? (
-          <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+          <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
         ) : (
           <>
             <ReportTable title="ACAI" lines={acaiLines} />
             <ReportTable title="Smoothies (Pre-packed)" lines={smoothiesLines} />
             <ReportTable title="Yogurt 500g/Box" lines={yogurt500Lines} />
-            <ReportTable title="Shake (แช่แข็ง)" lines={shakeLines} />
+            <ReportTable title={t(lang, "cups.report.shakeTitle")} lines={shakeLines} />
             <ReportTable title="Drink/Yogurt Pouch" lines={drinkLines} />
             <ReportTable title="Cereals" lines={cerealsLines} />
 
             <div className="mb-4">
-              <div className="mb-1.5 px-1 text-[13px] font-bold">สินค้าเสีย/ส่งคืน วันนี้</div>
+              <div className="mb-1.5 px-1 text-[13px] font-bold">{t(lang, "cups.report.returnsTitle")}</div>
               {returnsList.length === 0 ? (
-                <GlassCard><p className="text-center text-[12px] text-brand-ink/45">ไม่มีรายการคืน/เสียวันนี้</p></GlassCard>
+                <GlassCard><p className="text-center text-[12px] text-brand-ink/45">{t(lang, "cups.report.returnsEmpty")}</p></GlassCard>
               ) : (
                 <div className="space-y-1.5">
                   {returnsList.map((r) => (
@@ -415,7 +430,7 @@ export default function CupsPage() {
 
       <SaveBar>
         <Button onClick={save} disabled={saving || loading}>
-          {saving ? "กำลังบันทึก…" : loading ? "กำลังโหลด…" : "บันทึก reconcile ถ้วย"}
+          {saving ? t(lang, "common.saving") : loading ? t(lang, "common.loading") : t(lang, "cups.page.saveButton")}
         </Button>
       </SaveBar>
     </div>

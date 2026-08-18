@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Branch } from "@/lib/types";
 import { requireSession, requireAdmin, authErrorResponse } from "@/lib/authz";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +32,11 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = await req.json();
     const message = String(body?.message ?? "").trim();
     if (message.length < 5) {
-      return NextResponse.json({ error: "เขียนรายละเอียดอีกนิด (อย่างน้อย 5 ตัวอักษร)" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "feedback.errMessageTooShort") }, { status: 400 });
     }
     const topic = TOPICS.has(body?.topic) ? String(body.topic) : "other";
 

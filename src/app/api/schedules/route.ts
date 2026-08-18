@@ -3,6 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { todayBangkok } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 import type { Branch } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -42,10 +43,11 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const me = await db.getUserById(s.userId);
     const allowed = s.role === "admin" || !!me?.isSenior;
     if (!allowed) {
-      return NextResponse.json({ error: "แก้ตารางได้เฉพาะแอดมินและ senior staff — คนอื่นใช้ปุ่มขอลา/ขอสลับแทน" }, { status: 403 });
+      return NextResponse.json({ error: t(lang, "schedule.api.editForbidden") }, { status: 403 });
     }
     const body = await req.json();
     const branch = resolveBranch(s, parseBranch(body?.branch ?? null)) as Branch;
@@ -53,9 +55,9 @@ export async function PATCH(req: Request) {
     const employeeName = String(body?.employeeName ?? "").trim();
     const shiftCode = String(body?.shiftCode ?? "").trim().toUpperCase();
     const reason = String(body?.reason ?? "").trim();
-    if (!isDate(workDate)) return NextResponse.json({ error: "วันที่ไม่ถูกต้อง" }, { status: 400 });
-    if (!employeeName || !shiftCode) return NextResponse.json({ error: "ต้องระบุคนและกะ" }, { status: 400 });
-    if (reason.length < 3) return NextResponse.json({ error: "เขียนเหตุผลด้วย (อย่างน้อย 3 ตัวอักษร)" }, { status: 400 });
+    if (!isDate(workDate)) return NextResponse.json({ error: t(lang, "schedule.api.invalidDate") }, { status: 400 });
+    if (!employeeName || !shiftCode) return NextResponse.json({ error: t(lang, "schedule.api.missingPersonOrShift") }, { status: 400 });
+    if (reason.length < 3) return NextResponse.json({ error: t(lang, "schedule.api.reasonTooShort") }, { status: 400 });
 
     const res = await db.setScheduleShift({ branch, workDate, employeeName, shiftCode, reason, changedBy: s.name });
     if (!res.ok) return NextResponse.json({ error: (res as any).error }, { status: 400 });

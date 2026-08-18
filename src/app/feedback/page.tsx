@@ -5,21 +5,16 @@
 // จึงต้องมีตัวเลือก "ไม่ระบุชื่อ" ที่เป็นจริง: ไม่เก็บชื่อลงฐานข้อมูลตั้งแต่แรก
 // และไม่เขียน audit log ตอนส่ง (audit เก็บชื่อผู้ทำเสมอ จะทำให้ไม่ระบุชื่อเสียความหมาย)
 import React from "react";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
 import { GlassCard, PageTitle, Button } from "@/components/ui";
 import type { FeedbackTopic, StaffFeedback } from "@/lib/types";
 import { thaiDate } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
-const TOPICS: { v: FeedbackTopic; label: string }[] = [
-  { v: "system", label: "ระบบ / แอป" },
-  { v: "work", label: "การทำงาน" },
-  { v: "team", label: "เพื่อนร่วมงาน" },
-  { v: "place", label: "หน้าร้าน / อุปกรณ์" },
-  { v: "other", label: "อื่น ๆ" },
-];
-const TOPIC_LABEL = Object.fromEntries(TOPICS.map((t) => [t.v, t.label])) as Record<string, string>;
+const TOPIC_VALUES: FeedbackTopic[] = ["system", "work", "team", "place", "other"];
 
 function StaffForm() {
+  const lang = useLang();
   const [topic, setTopic] = React.useState<FeedbackTopic>("work");
   const [message, setMessage] = React.useState("");
   const [wantedAction, setWantedAction] = React.useState("");
@@ -38,11 +33,11 @@ function StaffForm() {
         body: JSON.stringify({ topic, message, wantedAction, anonymous }),
       });
       const d = await res.json();
-      if (!res.ok || !d?.ok) throw new Error(d?.error ?? "ส่งไม่สำเร็จ");
+      if (!res.ok || !d?.ok) throw new Error(d?.error ?? t(lang, "feedback.staff.errSendFailed"));
       setSent(true);
       setMessage(""); setWantedAction("");
     } catch (e: any) {
-      setErr(e?.message ?? "ส่งไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "feedback.staff.errSendFailed"));
     } finally {
       setSaving(false);
     }
@@ -51,11 +46,11 @@ function StaffForm() {
   if (sent) {
     return (
       <GlassCard>
-        <p className="py-5 text-center text-[15px] font-medium text-ok">ส่งเรียบร้อยแล้ว ขอบคุณมาก</p>
+        <p className="py-5 text-center text-[15px] font-medium text-ok">{t(lang, "feedback.staff.sentTitle")}</p>
         <p className="mb-4 text-center text-[12px] leading-relaxed text-brand-ink/55">
-          ข้อความถึงบริษัทแล้ว — ถ้าเป็นเรื่องที่ต้องคุยต่อจะมีคนติดต่อกลับ
+          {t(lang, "feedback.staff.sentBody")}
         </p>
-        <Button variant="ghost" onClick={() => setSent(false)}>เขียนเรื่องใหม่</Button>
+        <Button variant="ghost" onClick={() => setSent(false)}>{t(lang, "feedback.staff.writeAnother")}</Button>
       </GlassCard>
     );
   }
@@ -63,40 +58,39 @@ function StaffForm() {
   return (
     <GlassCard>
       <p className="mb-3 text-[12.5px] leading-relaxed text-brand-ink/60">
-        เขียนได้ทุกเรื่อง — ระบบใช้ยาก งานติดขัด อุปกรณ์เสีย เรื่องกับเพื่อนร่วมงาน
-        หรือไอเดียที่อยากให้ร้านดีขึ้น
+        {t(lang, "feedback.staff.intro")}
       </p>
 
       <div className="grid gap-3">
         <div>
-          <span className="mb-1.5 block text-[11px] text-brand-ink/50">เรื่องเกี่ยวกับ</span>
+          <span className="mb-1.5 block text-[11px] text-brand-ink/50">{t(lang, "feedback.staff.topicLabel")}</span>
           <div className="flex flex-wrap gap-1.5">
-            {TOPICS.map((t) => (
+            {TOPIC_VALUES.map((v) => (
               <button
-                key={t.v}
+                key={v}
                 type="button"
-                onClick={() => setTopic(t.v)}
+                onClick={() => setTopic(v)}
                 className={`rounded-full px-3 py-1.5 text-[12px] font-medium transition ${
-                  topic === t.v ? "bg-brand-red text-white" : "border border-black/10 bg-white/70 text-brand-ink"
+                  topic === v ? "bg-brand-red text-white" : "border border-black/10 bg-white/70 text-brand-ink"
                 }`}
               >
-                {t.label}
+                {t(lang, `feedback.topics.${v}`)}
               </button>
             ))}
           </div>
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-brand-ink/50">อยากเล่าอะไร</span>
+          <span className="text-[11px] text-brand-ink/50">{t(lang, "feedback.staff.messageLabel")}</span>
           <textarea
             rows={5} value={message} onChange={(e) => setMessage(e.target.value)}
             className="field text-left leading-relaxed"
-            placeholder="เล่าตามที่เกิดขึ้นจริงได้เลย ไม่ต้องเกรงใจ"
+            placeholder={t(lang, "feedback.staff.messagePlaceholder")}
           />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-brand-ink/50">อยากให้บริษัททำอะไรต่อจากนี้</span>
+          <span className="text-[11px] text-brand-ink/50">{t(lang, "feedback.staff.wantedActionLabel")}</span>
           <textarea
             rows={3} value={wantedAction} onChange={(e) => setWantedAction(e.target.value)}
             className="field text-left leading-relaxed"
@@ -118,11 +112,11 @@ function StaffForm() {
             {anonymous ? "✓" : ""}
           </span>
           <span className="min-w-0">
-            <span className="block text-[12.5px] font-medium">ส่งแบบไม่ระบุชื่อ</span>
+            <span className="block text-[12.5px] font-medium">{t(lang, "feedback.staff.anonymousLabel")}</span>
             <span className="block text-[11px] leading-relaxed text-brand-ink/50">
               {anonymous
-                ? "ระบบจะไม่เก็บชื่อคุณเลย — ไม่มีใครดูย้อนหลังได้ว่าใครส่ง (ยังบอกสาขาไว้ เพื่อให้แก้ปัญหาถูกที่)"
-                : "ตอนนี้จะส่งพร้อมชื่อคุณ — ทำให้ติดต่อกลับได้ถ้าต้องคุยต่อ"}
+                ? t(lang, "feedback.staff.anonymousOnHint")
+                : t(lang, "feedback.staff.anonymousOffHint")}
             </span>
           </span>
         </button>
@@ -130,7 +124,7 @@ function StaffForm() {
         {err && <p className="rounded-lg bg-brand-red/10 px-2.5 py-2 text-[12px] text-brand-red">{err}</p>}
 
         <Button onClick={send} disabled={saving || message.trim().length < 5}>
-          {saving ? "กำลังส่ง…" : "ส่งถึงบริษัท"}
+          {saving ? t(lang, "feedback.staff.sending") : t(lang, "feedback.staff.submit")}
         </Button>
       </div>
     </GlassCard>
@@ -138,6 +132,7 @@ function StaffForm() {
 }
 
 function AdminList() {
+  const lang = useLang();
   const [rows, setRows] = React.useState<StaffFeedback[] | null>(null);
   React.useEffect(() => {
     fetch("/api/feedback")
@@ -146,9 +141,9 @@ function AdminList() {
       .catch(() => setRows([]));
   }, []);
 
-  if (!rows) return <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
+  if (!rows) return <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>;
   if (rows.length === 0) {
-    return <GlassCard><p className="py-8 text-center text-sm text-brand-ink/45">ยังไม่มีข้อความ</p></GlassCard>;
+    return <GlassCard><p className="py-8 text-center text-sm text-brand-ink/45">{t(lang, "feedback.admin.empty")}</p></GlassCard>;
   }
 
   return (
@@ -156,16 +151,16 @@ function AdminList() {
       {rows.map((r) => (
         <GlassCard key={r.id}>
           <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-brand-ink/50">
-            <span className="rounded-full bg-black/[.06] px-2 py-0.5">{TOPIC_LABEL[r.topic] ?? r.topic}</span>
-            {r.branch && <span>สาขา {r.branch}</span>}
+            <span className="rounded-full bg-black/[.06] px-2 py-0.5">{t(lang, `feedback.topics.${r.topic}`)}</span>
+            {r.branch && <span>{t(lang, "store.staff.branchLabel")}{r.branch}</span>}
             <span>·</span>
-            <span>{r.anonymous ? "ไม่ระบุชื่อ" : r.userName ?? "—"}</span>
+            <span>{r.anonymous ? t(lang, "feedback.admin.anonymous") : r.userName ?? "—"}</span>
             {r.createdAt && <span className="ml-auto">{thaiDate(r.createdAt.slice(0, 10))}</span>}
           </div>
           <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{r.message}</p>
           {r.wantedAction && (
             <div className="mt-2 rounded-lg bg-brand-blue/15 px-2.5 py-2">
-              <p className="text-[10.5px] font-medium text-sky-700">อยากให้บริษัททำอะไรต่อ</p>
+              <p className="text-[10.5px] font-medium text-sky-700">{t(lang, "feedback.admin.wantedActionLabel")}</p>
               <p className="whitespace-pre-wrap text-[12.5px] leading-relaxed text-sky-900">{r.wantedAction}</p>
             </div>
           )}
@@ -177,12 +172,13 @@ function AdminList() {
 
 export default function FeedbackPage() {
   const me = useMe();
+  const lang = useLang();
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
-      <PageTitle title="ความคิดเห็นและข้อเสนอแนะ" />
+      <PageTitle title={t(lang, "nav.account.feedback")} />
       {/* รอ /api/me โหลดก่อนเลือกฟอร์ม — ไม่งั้นแอดมินจะเห็นฟอร์มพนักงานแวบหนึ่งก่อนสลับเป็นรายการจริง */}
       {!me ? (
-        <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+        <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>
       ) : me.role === "admin" ? (
         <AdminList />
       ) : (

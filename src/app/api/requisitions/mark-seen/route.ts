@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession, AuthError, authErrorResponse } from "@/lib/authz";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic";
 export async function POST() {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     if (s.role !== "restock" && s.role !== "admin") {
-      throw new AuthError("ไม่มีสิทธิ์เข้าถึงส่วนนี้", 403);
+      throw new AuthError(t(lang, "requisitions.errNoAccessSection"), 403);
     }
     await db.markAllRequisitionsSeen();
     return NextResponse.json({ ok: true });

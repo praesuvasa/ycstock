@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSession, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { enrollFace, identifyFace, faceConfigured, FaceNotConfiguredError } from "@/lib/face";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +14,12 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     if (!faceConfigured()) throw new FaceNotConfiguredError();
 
     const body = await req.json();
     const imageBase64 = String(body?.imageBase64 ?? "");
-    if (!imageBase64) return NextResponse.json({ error: "ไม่มีรูป" }, { status: 400 });
+    if (!imageBase64) return NextResponse.json({ error: t(lang, "timeClock.errors.noImage") }, { status: 400 });
 
     const prev = await db.getFaceEnrollment(s.userId);
 
@@ -27,7 +29,7 @@ export async function POST(req: Request) {
     // เปลี่ยนทรงผมจนสแกนไม่ผ่าน = ให้แอดมินกดรีเซ็ตให้ แล้วลงทะเบียนใหม่เหมือนครั้งแรก
     if (prev.faceId) {
       return NextResponse.json({
-        error: "บัญชีนี้ลงทะเบียนใบหน้าไว้แล้ว แก้เองไม่ได้ — ถ้าสแกนไม่ผ่าน แจ้งแอดมินให้รีเซ็ตให้",
+        error: t(lang, "timeClock.errors.alreadyEnrolled"),
       }, { status: 403 });
     }
 
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
         detail: `พยายามลงทะเบียนด้วยใบหน้าที่ตรงกับบัญชี ${other.userId} (${other.similarity}%)`,
       });
       return NextResponse.json({
-        error: "ใบหน้านี้ลงทะเบียนไว้กับบัญชีอื่นแล้ว — ลงทะเบียนซ้ำในอีกบัญชีไม่ได้",
+        error: t(lang, "timeClock.errors.faceTakenByOther"),
       }, { status: 403 });
     }
 

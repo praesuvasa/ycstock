@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { monthKeyOf } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -11,10 +12,11 @@ const isMonth = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d
 // GET /api/allowance/overview?month=YYYY-MM → { summaries, needsReview } (admin เท่านั้น)
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const month = searchParams.get("month") ?? monthKeyOf(todayISO());
-    if (!isMonth(month)) return NextResponse.json({ error: "month ไม่ถูกต้อง (YYYY-MM)" }, { status: 400 });
+    if (!isMonth(month)) return NextResponse.json({ error: t(lang, "allowance.errors.invalidMonth") }, { status: 400 });
 
     const { summaries, needsReview } = await db.getAllowanceOverview(month);
     // แนบ signed url ให้เฉพาะบิลที่ต้องตรวจ — ไม่ต้องเสียเวลา sign ทุกบิลในเดือน

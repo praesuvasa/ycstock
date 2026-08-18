@@ -5,6 +5,7 @@ import { requireSession, authErrorResponse } from "@/lib/authz";
 import { monthKeyOf, ALLOWANCE_DEFAULT_MONTHLY } from "@/lib/calc";
 import { todayISO } from "@/lib/fmt";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -31,9 +32,10 @@ async function myAllowance(userId: string, month: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const month = searchParams.get("month") ?? monthKeyOf(todayISO());
-    if (!isMonth(month)) return NextResponse.json({ error: "month ไม่ถูกต้อง (YYYY-MM)" }, { status: 400 });
+    if (!isMonth(month)) return NextResponse.json({ error: t(lang, "allowance.errors.invalidMonth") }, { status: 400 });
     return NextResponse.json({ month, ...(await myAllowance(s.userId, month)) });
   } catch (e) {
     return fail(e, "getAllowance failed");
@@ -48,18 +50,19 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = await req.json();
     const useDate = body?.useDate;
-    if (!isDate(useDate)) return NextResponse.json({ error: "วันที่ไม่ถูกต้อง" }, { status: 400 });
+    if (!isDate(useDate)) return NextResponse.json({ error: t(lang, "allowance.errors.invalidDate") }, { status: 400 });
 
     const month = monthKeyOf(useDate);
     const mine = await myAllowance(s.userId, month);
-    if (!mine.enabled) return NextResponse.json({ error: "บัญชีนี้ยังไม่ได้รับสิทธิ์" }, { status: 403 });
+    if (!mine.enabled) return NextResponse.json({ error: t(lang, "allowance.notEnabled") }, { status: 403 });
 
     const billTotal = num(body?.billTotal);
     const discountAmount = num(body?.discountAmount);
     const paidAmount = num(body?.paidAmount);
-    if (discountAmount <= 0) return NextResponse.json({ error: "ยอดส่วนลดต้องมากกว่า 0" }, { status: 400 });
+    if (discountAmount <= 0) return NextResponse.json({ error: t(lang, "allowance.errors.discountMustBePositive") }, { status: 400 });
 
     // เหตุผลที่ต้องให้แอดมินตรวจ — เก็บทุกข้อที่เข้าเงื่อนไข ไม่ใช่เจอข้อแรกแล้วหยุด
     const reasons: string[] = [];

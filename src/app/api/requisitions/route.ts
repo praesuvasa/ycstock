@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, resolveBranch, AuthError, authErrorResponse } from "@/lib/authz";
 import type { Requisition } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +17,14 @@ function fail(e: unknown, msg: string) {
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const mineOnly = s.role === "user" || searchParams.get("mine") === "1";
     const branch = parseBranch(searchParams.get("branch"));
     // NCD เห็นเฉพาะแอดมิน (แพรสั่ง 2026-08-07) — เหมือน /api/restock: role restock ไม่ผ่าน resolveBranch
     // ตรงนี้ (list ทุกสาขาได้ปกติ) จึงต้องกันเฉพาะ NCD เพิ่มเอง
     if (branch === "NCD" && s.role !== "admin") {
-      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงสาขานี้" }, { status: 403 });
+      return NextResponse.json({ error: t(lang, "requisitions.errNoAccessBranch") }, { status: 403 });
     }
     const dateParam = searchParams.get("date");
     const date = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined;
@@ -42,16 +44,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
-    if (s.role === "restock") throw new AuthError("จนท. Restock ไม่ต้องส่งคำขอเบิก", 403);
+    const lang = s.lang ?? "th";
+    if (s.role === "restock") throw new AuthError(t(lang, "requisitions.errRestockNoSubmit"), 403);
 
     const body = (await req.json()) as {
       branch?: string; itemId?: string; itemName?: string; qty?: number; unit?: string; note?: string;
     };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
     const itemName = (body.itemName ?? "").trim();
-    if (!itemName) return NextResponse.json({ error: "ต้องระบุชื่อรายการ" }, { status: 400 });
+    if (!itemName) return NextResponse.json({ error: t(lang, "requisitions.errItemNameRequired") }, { status: 400 });
     const qty = Number(body.qty);
-    if (!Number.isFinite(qty) || qty <= 0) return NextResponse.json({ error: "จำนวนต้องมากกว่า 0" }, { status: 400 });
+    if (!Number.isFinite(qty) || qty <= 0) return NextResponse.json({ error: t(lang, "requisitions.errQtyMustBePositive") }, { status: 400 });
 
     const input: Omit<Requisition, "id" | "createdAt" | "status"> = {
       branch, itemId: body.itemId || undefined, itemName, qty,

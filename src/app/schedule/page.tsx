@@ -8,13 +8,15 @@
 // แก้ตาราง/ขอลา = แตะช่องนั้นตรง ๆ ไม่ต้องกรอกฟอร์มเลือกคน+วันที่ซ้ำอีก
 import React from "react";
 import { GlassCard, PageTitle, Badge, BranchPicker, Dialog } from "@/components/ui";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t, type Lang } from "@/lib/i18n";
 import { thaiDate, todayISO } from "@/lib/fmt";
 import type { Branch, ScheduleRow } from "@/lib/types";
 
 type Row = ScheduleRow & { workDate: string };
 
-const DOW = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+// key ของ t(lang, `schedule.dow.${...}`) — ไม่ใช่ข้อความที่โชว์ตรง ๆ
+const DOW_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const WORKING = new Set(["F", "M", "A", "FH", "PT"]);
 
 // สีเดียวกับไฟล์ Roster ที่ทีมคุ้นอยู่แล้ว — ส้ม=เต็มวัน ฟ้า=เช้า เขียว=บ่าย เหลือง=ครึ่งวัน เทา=หยุด แดง=ลา
@@ -32,18 +34,30 @@ const CELL: Record<string, string> = {
   PL: "bg-brand-red/15 text-brand-red",
   LWP: "bg-brand-red/15 text-brand-red",
 };
-const SHORT: Record<string, string> = {
-  F: "F", M: "M", A: "A", FH: "ครึ่ง", PT: "PT",
-  OFF: "หยุด", CLOSED: "ปิด", PH: "หยุดปี", AL: "พักร้อน", SL: "ป่วย", PL: "กิจ", LWP: "ไม่รับเงิน",
+// F/M/A/PT เป็นรหัสกะตรงกับไฟล์ Roster ทั้งสองภาษา ไม่ต้องแปล — ที่เหลือแปลผ่าน t()
+const SHORT_KEY: Record<string, string> = {
+  FH: "schedule.shift.short.fh",
+  OFF: "schedule.shift.short.off",
+  CLOSED: "schedule.shift.short.closed",
+  PH: "schedule.shift.short.ph",
+  AL: "schedule.shift.short.al",
+  SL: "schedule.shift.short.sl",
+  PL: "schedule.shift.short.pl",
+  LWP: "schedule.shift.short.lwp",
 };
+function shortLabel(code: string, lang: Lang): string {
+  const key = SHORT_KEY[code];
+  return key ? t(lang, key) : code;
+}
 
 const WORK_CODES = [
-  { code: "F", label: "เต็มวัน" }, { code: "M", label: "กะเช้า" },
-  { code: "A", label: "กะบ่าย" }, { code: "FH", label: "ครึ่งวัน" }, { code: "OFF", label: "หยุด" },
+  { code: "F", textKey: "schedule.shift.work.f" }, { code: "M", textKey: "schedule.shift.work.m" },
+  { code: "A", textKey: "schedule.shift.work.a" }, { code: "FH", textKey: "schedule.shift.work.fh" },
+  { code: "OFF", textKey: "schedule.shift.work.off" },
 ];
 const LEAVE_CODES = [
-  { code: "AL", label: "ลาพักร้อน" }, { code: "PL", label: "ลากิจ" },
-  { code: "SL", label: "ลาป่วย" }, { code: "PH", label: "หยุดประจำปี" },
+  { code: "AL", textKey: "schedule.shift.leave.al" }, { code: "PL", textKey: "schedule.shift.leave.pl" },
+  { code: "SL", textKey: "schedule.shift.leave.sl" }, { code: "PH", textKey: "schedule.shift.leave.ph" },
 ];
 
 function addMonth(month: string, delta: number): string {
@@ -51,10 +65,12 @@ function addMonth(month: string, delta: number): string {
   const m = Number(month.slice(5, 7)) - 1 + delta;
   return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
 }
-function thaiMonthLabel(month: string): string {
+const MONTH_KEYS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"] as const;
+function monthLabel(month: string, lang: Lang): string {
   const [y, m] = month.split("-").map(Number);
-  const names = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-  return `${names[m - 1]} ${y + 543}`;
+  const name = t(lang, `schedule.months.${MONTH_KEYS[m - 1]}`);
+  const year = lang === "th" ? y + 543 : y; // ปีพุทธศักราชเฉพาะภาษาไทย
+  return `${name} ${year}`;
 }
 function daysInMonth(month: string): string[] {
   const y = Number(month.slice(0, 4)), m = Number(month.slice(5, 7));
@@ -64,6 +80,7 @@ function daysInMonth(month: string): string[] {
 
 export default function SchedulePage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const canEdit = me?.role === "admin" || !!me?.isSenior;
   const [branch, setBranch] = React.useState<Branch>("NVP");
@@ -119,11 +136,11 @@ export default function SchedulePage() {
   async function apply(code: string, asLeaveRequest: boolean) {
     if (!pick) return;
     const reason = window.prompt(
-      asLeaveRequest ? "เหตุผลการลา (แอดมินเห็นทุกครั้ง)" : "เหตุผลที่แก้ตาราง (แอดมินเห็นทุกครั้ง)"
+      asLeaveRequest ? t(lang, "schedule.picker.promptLeaveReason") : t(lang, "schedule.picker.promptEditReason")
     );
     if (reason === null) return;
     if (reason.trim().length < 3) {
-      setMsg({ tone: "warn", title: "ต้องเขียนเหตุผล", body: "อย่างน้อย 3 ตัวอักษร" });
+      setMsg({ tone: "warn", title: t(lang, "schedule.picker.reasonRequiredTitle"), body: t(lang, "schedule.picker.reasonRequiredBody") });
       return;
     }
     try {
@@ -137,16 +154,16 @@ export default function SchedulePage() {
             body: JSON.stringify({ branch, workDate: pick.date, employeeName: pick.name, shiftCode: code, reason }),
           });
       const d = await res.json();
-      if (!res.ok || d?.error) throw new Error(d?.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || d?.error) throw new Error(d?.error ?? t(lang, "schedule.picker.errSaveFailed"));
       setPick(null);
       setMsg({
         tone: "ok",
-        title: d.downgraded ? "สิทธิ์ลาหมด — บันทึกเป็นลาไม่รับค่าจ้าง" : "บันทึกแล้ว",
-        body: !d.downgraded && d.remaining !== undefined ? `เหลือสิทธิ์อีก ${d.remaining} วันในปีนี้` : undefined,
+        title: d.downgraded ? t(lang, "schedule.picker.savedDowngradedTitle") : t(lang, "schedule.picker.savedTitle"),
+        body: !d.downgraded && d.remaining !== undefined ? t(lang, "schedule.picker.remainingLeaveBody", { n: d.remaining }) : undefined,
       });
       load();
     } catch (e: any) {
-      setMsg({ tone: "warn", title: "บันทึกไม่ได้", body: e?.message });
+      setMsg({ tone: "warn", title: t(lang, "schedule.picker.saveFailedTitle"), body: e?.message });
     }
   }
 
@@ -154,36 +171,36 @@ export default function SchedulePage() {
     try {
       const res = await fetch("/api/schedule-requests/decide", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, approve, note: approve ? "" : "ไม่อนุมัติ" }),
+        body: JSON.stringify({ id, approve, note: approve ? "" : t(lang, "schedule.requests.reject") }),
       });
       const d = await res.json();
-      if (!res.ok || d?.error) throw new Error(d?.error ?? "ทำรายการไม่สำเร็จ");
-      setMsg({ tone: "ok", title: approve ? "อนุมัติแล้ว — สลับกะให้เรียบร้อย" : "ปฏิเสธคำขอแล้ว" });
+      if (!res.ok || d?.error) throw new Error(d?.error ?? t(lang, "schedule.requests.actionFailedTitle"));
+      setMsg({ tone: "ok", title: approve ? t(lang, "schedule.requests.approvedTitle") : t(lang, "schedule.requests.rejectedTitle") });
       load();
     } catch (e: any) {
-      setMsg({ tone: "warn", title: "ทำรายการไม่สำเร็จ", body: e?.message });
+      setMsg({ tone: "warn", title: t(lang, "schedule.requests.actionFailedTitle"), body: e?.message });
     }
   }
 
   return (
     <div className="mx-auto max-w-3xl px-3 py-4 pb-16">
-      <PageTitle title="ตารางงาน" right={<Badge tone="blue">{thaiMonthLabel(month)}</Badge>} />
+      <PageTitle title={t(lang, "nav.account.schedule")} right={<Badge tone="blue">{monthLabel(month, lang)}</Badge>} />
 
       <div className="glass mb-2.5 p-2.5">
         <div className="grid gap-2">
           <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => setMonth((m) => addMonth(m, -1))}
-              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">← ก่อนหน้า</button>
-            <span className="flex-1 text-center text-[13px] font-semibold">{thaiMonthLabel(month)}</span>
+              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">{t(lang, "schedule.monthNav.prev")}</button>
+            <span className="flex-1 text-center text-[13px] font-semibold">{monthLabel(month, lang)}</span>
             <button type="button" onClick={() => setMonth((m) => addMonth(m, 1))}
-              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">ถัดไป →</button>
+              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12.5px] font-medium">{t(lang, "schedule.monthNav.next")}</button>
           </div>
         </div>
       </div>
 
       {msg && (
-        <Dialog open tone={msg.tone} title={msg.title} actionLabel="ปิด" onClose={() => setMsg(null)}>
+        <Dialog open tone={msg.tone} title={msg.title} actionLabel={t(lang, "schedule.picker.close")} onClose={() => setMsg(null)}>
           {msg.body}
         </Dialog>
       )}
@@ -195,60 +212,60 @@ export default function SchedulePage() {
           <div className="w-full rounded-2xl bg-white/95 px-4 pb-5 pt-4 shadow-glass" onClick={(e) => e.stopPropagation()}>
             <p className="text-[15px] font-semibold">{pick.name}</p>
             <p className="mb-3 text-[12px] text-brand-ink/55">
-              {thaiDate(pick.date)} · ตอนนี้ {pick.code ? SHORT[pick.code] ?? pick.code : "ยังไม่มีตาราง"}
+              {thaiDate(pick.date)} · {t(lang, "schedule.picker.nowPrefix")}{pick.code ? shortLabel(pick.code, lang) : t(lang, "schedule.picker.noSchedule")}
             </p>
 
             {canEdit ? (
               <>
-                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">เปลี่ยนเป็นกะ</p>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "schedule.picker.changeToShift")}</p>
                 <div className="mb-3 grid grid-cols-5 gap-1.5">
                   {WORK_CODES.map((o) => (
                     <button key={o.code} type="button" onClick={() => apply(o.code, false)}
-                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{o.label}</button>
+                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{t(lang, o.textKey)}</button>
                   ))}
                 </div>
-                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">บันทึกเป็นวันลา</p>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "schedule.picker.saveAsLeave")}</p>
                 <div className="grid grid-cols-4 gap-1.5">
                   {LEAVE_CODES.map((o) => (
                     <button key={o.code} type="button" onClick={() => apply(o.code, false)}
-                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{o.label}</button>
+                      className={`rounded-xl px-1 py-2.5 text-[11.5px] font-semibold ${CELL[o.code]}`}>{t(lang, o.textKey)}</button>
                   ))}
                 </div>
               </>
             ) : (
               <>
-                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">ขอลาวันนี้</p>
+                <p className="mb-1.5 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "schedule.picker.requestLeaveToday")}</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   <button type="button" onClick={() => apply("AL", true)}
-                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.AL}`}>ลาพักร้อน</button>
+                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.AL}`}>{t(lang, "schedule.shift.leave.al")}</button>
                   <button type="button" onClick={() => apply("PL", true)}
-                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.PL}`}>ลากิจ</button>
+                    className={`rounded-xl px-2 py-3 text-[13px] font-semibold ${CELL.PL}`}>{t(lang, "schedule.shift.leave.pl")}</button>
                 </div>
                 <p className="mt-2 text-[11px] leading-relaxed text-brand-ink/45">
-                  ลาป่วยและการสลับวันหยุด แจ้ง senior staff หรือแอดมินให้บันทึกให้
+                  {t(lang, "schedule.picker.sickSwapHint")}
                 </p>
               </>
             )}
 
             <button type="button" onClick={() => setPick(null)}
-              className="mt-3 w-full rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55">ปิด</button>
+              className="mt-3 w-full rounded-xl px-4 py-2.5 text-[13px] font-medium text-brand-ink/55">{t(lang, "schedule.picker.close")}</button>
           </div>
         </div>
       )}
 
       {canEdit && reqs.length > 0 && (
         <GlassCard className="mb-3">
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">คำขอรออนุมัติ ({reqs.length})</p>
+          <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "schedule.requests.pendingTitle", { n: reqs.length })}</p>
           <div className="grid gap-2">
             {reqs.map((r) => (
               <div key={r.id} className="rounded-lg bg-white/70 px-2.5 py-2">
                 <p className="text-[12.5px] font-medium">{r.employeeName} ↔ {r.swapWith} · {thaiDate(r.workDate)}</p>
-                <p className="text-[11.5px] text-brand-ink/55">{r.reason} — ขอโดย {r.requestedBy}</p>
+                <p className="text-[11.5px] text-brand-ink/55">{r.reason} — {t(lang, "schedule.requests.requestedByPrefix")}{r.requestedBy}</p>
                 <div className="mt-1.5 flex gap-1.5">
                   <button type="button" onClick={() => decide(r.id, true)}
-                    className="flex-1 rounded-lg bg-ok px-3 py-1.5 text-[12px] font-semibold text-white">อนุมัติ</button>
+                    className="flex-1 rounded-lg bg-ok px-3 py-1.5 text-[12px] font-semibold text-white">{t(lang, "schedule.requests.approve")}</button>
                   <button type="button" onClick={() => decide(r.id, false)}
-                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium">ไม่อนุมัติ</button>
+                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-medium">{t(lang, "schedule.requests.reject")}</button>
                 </div>
               </div>
             ))}
@@ -259,11 +276,11 @@ export default function SchedulePage() {
       {err && <GlassCard className="mb-3"><p className="text-sm text-warn">{err}</p></GlassCard>}
 
       {rows === null ? (
-        <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+        <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p></GlassCard>
       ) : names.length === 0 ? (
         <GlassCard>
-          <p className="text-[13.5px] font-medium">ยังไม่มีตารางของเดือนนี้</p>
-          <p className="mt-0.5 text-[11.5px] text-brand-ink/55">แอดมินหรือ senior staff เป็นคนจัดตาราง</p>
+          <p className="text-[13.5px] font-medium">{t(lang, "schedule.table.emptyMonthTitle")}</p>
+          <p className="mt-0.5 text-[11.5px] text-brand-ink/55">{t(lang, "schedule.table.emptyMonthHint")}</p>
         </GlassCard>
       ) : (
         <>
@@ -273,7 +290,7 @@ export default function SchedulePage() {
               <thead>
                 <tr>
                   <th className="sticky left-0 z-10 bg-white/90 px-1.5 py-1 text-left text-[10px] font-medium text-brand-ink/45">
-                    วันที่ →
+                    {t(lang, "schedule.table.dateColumnHeader")}
                   </th>
                   {days.map((d) => {
                     const dt = new Date(d + "T00:00:00Z");
@@ -281,7 +298,7 @@ export default function SchedulePage() {
                     return (
                       <th key={d} className={`min-w-[32px] px-0.5 py-1 text-center text-[9.5px] font-medium leading-tight ${
                         isToday ? "text-brand-red" : "text-brand-ink/45"}`}>
-                        {DOW[dt.getUTCDay()]}<br /><span className="text-[11px]">{dt.getUTCDate()}</span>
+                        {t(lang, `schedule.dow.${DOW_KEYS[dt.getUTCDay()]}`)}<br /><span className="text-[11px]">{dt.getUTCDate()}</span>
                       </th>
                     );
                   })}
@@ -305,7 +322,7 @@ export default function SchedulePage() {
                               c ? CELL[c] ?? "bg-black/5" : "bg-black/[.02] text-brand-ink/20"
                             } ${isToday ? "ring-1 ring-brand-red/60" : ""}`}
                           >
-                            {c ? SHORT[c] ?? c : "–"}
+                            {c ? shortLabel(c, lang) : "–"}
                           </button>
                         </td>
                       );
@@ -318,20 +335,20 @@ export default function SchedulePage() {
 
           <p className="mb-3 px-1 text-[11px] leading-relaxed text-brand-ink/50">
             {canEdit
-              ? "แตะช่องไหนก็แก้ได้เลย — ระบบเช็คให้ก่อนบันทึกว่าคนเข้ากะวันนั้นครบเงื่อนไขไหม และหยุดเกินโควตาหรือยัง"
-              : "แตะช่องของตัวเองเพื่อขอลา · ทุกคำขอแจ้ง senior staff และแอดมินอัตโนมัติ"}
+              ? t(lang, "schedule.table.hintEditable")
+              : t(lang, "schedule.table.hintReadonly")}
           </p>
 
           <GlassCard>
-            <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">สรุปทั้งเดือน</p>
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "schedule.summary.title")}</p>
             <div className="grid gap-1.5">
               {summary.map((s) => (
                 <div key={s.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/60 px-2.5 py-1.5">
                   <span className="text-[13px] font-medium">{s.name}</span>
                   <span className="text-[11.5px] tabular-nums text-brand-ink/55">
-                    ทำงาน <b className="text-[13px] text-brand-ink">{s.work}</b> ·
-                    หยุด <b className="text-[13px] text-brand-ink">{s.off}</b>
-                    {s.leave > 0 && <> · ลา <b className="text-[13px] text-brand-red">{s.leave}</b></>}
+                    {t(lang, "schedule.summary.work")} <b className="text-[13px] text-brand-ink">{s.work}</b> ·
+                    {t(lang, "schedule.summary.off")} <b className="text-[13px] text-brand-ink">{s.off}</b>
+                    {s.leave > 0 && <> · {t(lang, "schedule.summary.leave")} <b className="text-[13px] text-brand-red">{s.leave}</b></>}
                   </span>
                 </div>
               ))}

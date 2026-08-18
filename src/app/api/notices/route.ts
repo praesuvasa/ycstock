@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, parseBranch } from "@/lib/db";
 import { requireSession, requireAdmin, authErrorResponse } from "@/lib/authz";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { branch?: string | null; message?: string };
     const message = (body.message ?? "").trim();
-    if (!message) return NextResponse.json({ error: "ต้องระบุข้อความ" }, { status: 400 });
+    if (!message) return NextResponse.json({ error: t(lang, "notices.errMessageRequired") }, { status: 400 });
     const branch = body.branch ? parseBranch(body.branch) : null;
-    if (body.branch && !branch) return NextResponse.json({ error: "สาขาไม่ถูกต้อง" }, { status: 400 });
+    if (body.branch && !branch) return NextResponse.json({ error: t(lang, "notices.errInvalidBranch") }, { status: 400 });
     const notice = await db.createNotice({ branch, message }, s.name);
     return NextResponse.json({ ok: true, notice });
   } catch (e) {

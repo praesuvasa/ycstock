@@ -7,11 +7,12 @@
 // ปลายทางมี 2 ทาง: แกะขายหน้าร้าน (ลง ขาย/ใช้) · ส่งคืนครัวกลาง (ลง ส่งคืน/เสีย) — ของทิ้งก็ส่งคืน ไม่ทิ้งเอง
 import React from "react";
 import type { Branch, Item, Meta, ExpiryCheckRow, ExpiryDisposition } from "@/lib/types";
-import { useMe, EXPIRY_SAVED_EVENT } from "@/components/nav";
+import { useMe, useLang, EXPIRY_SAVED_EVENT } from "@/components/nav";
 import { TodayNextStep } from "@/components/today-next-step";
 import { GlassCard, BranchPicker, PageTitle, Badge, Button, SaveBar, Stat } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
 import { weekdayFromDate, isExpiryCheckDue, expiryStatus, daysUntil, effectiveWarnDays } from "@/lib/calc";
+import { t } from "@/lib/i18n";
 
 // แถวบนหน้าจอ = 1 ชุดวันหมดอายุ · ให้ key ท้องถิ่นไว้ track ตอนแก้/ลบ (ยังไม่มี id จาก DB ตอนเพิ่งเพิ่ม)
 interface Draft extends ExpiryCheckRow {
@@ -23,19 +24,21 @@ const newDraft = (itemId: string): Draft => ({
 });
 
 // โน้ตต่อหมวด — อธิบายเฉพาะหมวดที่กติกาต่างจากปกติ ไม่ใส่ทุกหมวดให้รก
+// (ค่าเป็น i18n key ไม่ใช่ข้อความตรง ๆ — แปลตอนใช้งานผ่าน t(lang, ...) เพราะ module scope ไม่มี lang)
 const CATEGORY_NOTE: Record<string, string> = {
-  "Yogurt 500g/Box":
-    "ถ้าแกะไปใช้หน้าร้าน ระบบจะคำนวณของเข้าให้เองอัตโนมัติ — ไม่ต้องไปกรอกรับเข้าที่หน้าสต็อก",
+  "Yogurt 500g/Box": "expiry.categoryNoteYogurt500g",
 };
 
+// labelKey แทนข้อความตรง ๆ ด้วยเหตุผลเดียวกับ CATEGORY_NOTE ข้างบน
 const STATUS_STYLE = {
-  expired: { label: "หมดอายุแล้ว", tone: "warn" as const, bar: "border-l-brand-red" },
-  near: { label: "ใกล้หมดอายุ", tone: "orange" as const, bar: "border-l-brand-orange" },
-  ok: { label: "ยังไม่ใกล้หมด", tone: "ok" as const, bar: "border-l-ok" },
+  expired: { labelKey: "expiry.statusExpired", tone: "warn" as const, bar: "border-l-brand-red" },
+  near: { labelKey: "expiry.statusNear", tone: "orange" as const, bar: "border-l-brand-orange" },
+  ok: { labelKey: "expiry.statusOk", tone: "ok" as const, bar: "border-l-ok" },
 };
 
 export default function ExpiryPage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   const [date, setDate] = React.useState<string>(todayISO());
@@ -109,12 +112,18 @@ export default function ExpiryPage() {
     const convertTo = it.expiryConvertToItemId ?? null;
     const convertReady = !!convertTo && Number(it.expiryConvertG ?? 0) > 0;
     if (it.expiryAllowSellFront !== false) {
-      if (convertReady) out.push({ v: "convert", label: `แกะรวมกับ ${nameById.get(convertTo!) ?? "รายการอื่น"}` });
-      else if (!convertTo) out.push({ v: "sell_front", label: "แกะขายหน้าร้าน" });
+      if (convertReady) {
+        out.push({
+          v: "convert",
+          label: t(lang, "expiry.optionConvertWith", {
+            name: nameById.get(convertTo!) ?? t(lang, "expiry.optionOtherItemFallback"),
+          }),
+        });
+      } else if (!convertTo) out.push({ v: "sell_front", label: t(lang, "expiry.optionSellFront") });
     }
-    if (it.expiryAllowReturn !== false) out.push({ v: "return", label: "ส่งคืนครัวกลาง" });
+    if (it.expiryAllowReturn !== false) out.push({ v: "return", label: t(lang, "expiry.optionReturn") });
     return out;
-  }, [nameById]);
+  }, [nameById, lang]);
 
   const filled = React.useMemo(
     () => drafts.filter((d) => d.expiryDate && d.qty > 0),
@@ -140,10 +149,7 @@ export default function ExpiryPage() {
 
   async function save() {
     if (pendingDecision.length > 0) {
-      const ok = window.confirm(
-        `มี ${pendingDecision.length} ชุดที่ใกล้/หมดอายุแล้วแต่ยังไม่ได้เลือกปลายทาง\n` +
-        `ถ้าบันทึกตอนนี้ ระบบจะถือว่ายังวางขายต่อ (ไม่ลงสต็อก)\n\nต้องการบันทึกเลยไหม?`
-      );
+      const ok = window.confirm(t(lang, "expiry.confirmPendingDecision", { n: pendingDecision.length }));
       if (!ok) return;
     }
     setSaving(true);
@@ -158,16 +164,16 @@ export default function ExpiryPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "expiry.errSaveFailed"));
       window.dispatchEvent(new Event(EXPIRY_SAVED_EVENT)); // ให้ badge ที่เมนูหายทันที
       setSavedOnce(true);
       // มีของส่งคืน → เด้งหน้าต่างบอกขั้นตอนต่อ · ไม่มีของส่งคืนก็ไม่ต้องให้กดปิดหน้าต่างเปล่า ๆ
       if (countReturn > 0) setDone({ ret: countReturn, sell: countSell });
-      else window.alert(`บันทึกผลตรวจแล้ว ✓\nแกะออกจากชั้น ${countSell} ชุด`);
+      else window.alert(t(lang, "expiry.alertSavedNoReturn", { n: countSell }));
       load();
     } catch (e: any) {
-      setErr(e?.message ?? "บันทึกไม่สำเร็จ");
-      window.alert(e?.message ?? "บันทึกไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "expiry.errSaveFailed"));
+      window.alert(e?.message ?? t(lang, "expiry.errSaveFailed"));
     } finally {
       setSaving(false);
     }
@@ -175,18 +181,18 @@ export default function ExpiryPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-28">
-      <PageTitle title="ตรวจวันหมดอายุ" right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
+      <PageTitle title={t(lang, "expiry.title")} right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
 
       <GlassCard className="mb-3">
         <div className="grid gap-3">
           <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-brand-ink/50">วันที่ตรวจ</span>
+            <span className="text-[11px] text-brand-ink/50">{t(lang, "expiry.dateLabel")}</span>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
           </label>
           {!isDue && (
             <p className="rounded-lg bg-black/[.03] px-2.5 py-2 text-[11.5px] leading-relaxed text-brand-ink/55">
-              วันนี้ไม่ใช่รอบตรวจ (รอบปกติคือ อังคาร + ศุกร์) — ยังบันทึกได้ถ้าต้องตรวจนอกรอบ
+              {t(lang, "expiry.notDueHint")}
             </p>
           )}
         </div>
@@ -195,16 +201,15 @@ export default function ExpiryPage() {
       {/* กล่องเดียวจบ (แพรขอ 2026-07-28) — เดิมมี 3 กล่องซ้อนกัน: เตือนรอบตรวจ + วิธีทำ + คำอธิบาย
           พนักงานต้องอ่าน 3 ที่กว่าจะรู้ว่าต้องทำอะไร */}
       <div className={`mb-3 rounded-xl border px-3.5 py-3 ${isDue ? "border-warn/35 bg-warn/[.07]" : "border-black/10 bg-black/[.02]"}`}>
-        {isDue && <p className="mb-1.5 text-[19px] font-bold leading-tight text-warn">ถึงรอบตรวจวันนี้</p>}
+        {isDue && <p className="mb-1.5 text-[19px] font-bold leading-tight text-warn">{t(lang, "expiry.dueTitle")}</p>}
         <p className="text-[12.5px] leading-relaxed text-brand-ink/75">
-          <b className="font-semibold">สิ่งที่ต้องทำ:</b> เดินดูของบนชั้น แล้วกรอกวันหมดอายุกับจำนวน
-          — นับของจริงทุกครั้ง ไม่ต้องอิงตัวเลขรอบก่อน
+          <b className="font-semibold">{t(lang, "expiry.instructionsLabel")}</b>{t(lang, "expiry.instructionsBody")}
         </p>
         <div className="mt-2 flex items-start gap-2 rounded-lg border border-ok/40 bg-ok/[.12] px-2.5 py-2">
           <span className="mt-[1px] grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok text-[10px] font-bold text-white">✓</span>
           <p className="text-[12px] font-medium leading-relaxed text-ok">
-            ของที่ส่งคืนและแกะขายหน้าร้าน ระบบหักออกจากสต็อกให้เอง
-            <span className="block font-semibold">ไม่ต้องไปกรอกซ้ำที่หน้าเช็คสต็อก</span>
+            {t(lang, "expiry.autoDeductNote")}
+            <span className="block font-semibold">{t(lang, "expiry.noRepeatEntryNote")}</span>
           </p>
         </div>
       </div>
@@ -216,11 +221,11 @@ export default function ExpiryPage() {
       )}
 
       {loading ? (
-        <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+        <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>
       ) : items.length === 0 ? (
         <GlassCard>
           <p className="py-8 text-center text-sm text-brand-ink/50">
-            สาขานี้ยังไม่มีรายการที่ตั้งให้ตรวจวันหมดอายุ
+            {t(lang, "expiry.emptyNoItems")}
           </p>
         </GlassCard>
       ) : (
@@ -230,7 +235,7 @@ export default function ExpiryPage() {
               <p className="mb-1 text-[11px] uppercase tracking-wide text-brand-ink/45">{g.category}</p>
               {CATEGORY_NOTE[g.category] && (
                 <p className="mb-2 rounded-lg bg-black/[.03] px-2.5 py-1.5 text-[11px] leading-relaxed text-brand-ink/55">
-                  {CATEGORY_NOTE[g.category]}
+                  {t(lang, CATEGORY_NOTE[g.category])}
                 </p>
               )}
               <div className="grid gap-2">
@@ -242,12 +247,12 @@ export default function ExpiryPage() {
                       <div className="mb-1.5 flex items-center justify-between gap-2">
                         <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{it.name}</span>
                         <span className="shrink-0 text-[10.5px] text-brand-ink/40">
-                          เตือนล่วงหน้า {effectiveWarnDays(it.expiryWarnDays ?? 5, weekday)} วัน
+                          {t(lang, "expiry.warnDaysLabel", { n: effectiveWarnDays(it.expiryWarnDays ?? 5, weekday) })}
                         </span>
                       </div>
 
                       {rows.length === 0 && (
-                        <p className="mb-1.5 text-[11px] text-brand-ink/40">ยังไม่ได้กรอก</p>
+                        <p className="mb-1.5 text-[11px] text-brand-ink/40">{t(lang, "expiry.notFilledYet")}</p>
                       )}
 
                       {rows.map((d) => {
@@ -261,7 +266,7 @@ export default function ExpiryPage() {
                             className={`mb-1.5 rounded-lg border-l-[3px] bg-white/70 px-2 py-1.5 ${style?.bar ?? "border-l-black/10"}`}
                           >
                             <label className="flex flex-col gap-0.5">
-                              <span className="text-[9.5px] text-brand-ink/45">วันหมดอายุ</span>
+                              <span className="text-[9.5px] text-brand-ink/45">{t(lang, "expiry.expiryDateLabel")}</span>
                               <input
                                 type="date" value={d.expiryDate}
                                 onChange={(e) => patch(d.key, { expiryDate: e.target.value })}
@@ -270,7 +275,7 @@ export default function ExpiryPage() {
                             </label>
                             <div className="mt-1 flex items-end gap-2">
                               <label className="flex flex-1 flex-col gap-0.5">
-                                <span className="text-[9.5px] text-brand-ink/45">จำนวน ({it.unit})</span>
+                                <span className="text-[9.5px] text-brand-ink/45">{t(lang, "expiry.qtyLabel", { unit: it.unit })}</span>
                                 <input
                                   inputMode="numeric" value={d.qty || ""}
                                   onChange={(e) => patch(d.key, { qty: Number(e.target.value) || 0 })}
@@ -281,16 +286,20 @@ export default function ExpiryPage() {
                                 type="button" onClick={() => removeRow(d.key)}
                                 className="shrink-0 pb-2 text-[11px] font-medium text-warn underline underline-offset-2"
                               >
-                                ลบชุดนี้
+                                {t(lang, "expiry.removeRowButton")}
                               </button>
                             </div>
 
                             {style && (
                               <div className="mt-1 flex items-center gap-1.5">
-                                <Badge tone={style.tone}>{style.label}</Badge>
+                                <Badge tone={style.tone}>{t(lang, style.labelKey)}</Badge>
                                 {left !== null && (
                                   <span className="text-[10.5px] text-brand-ink/45">
-                                    {left < 0 ? `เลยมา ${-left} วัน` : left === 0 ? "หมดอายุวันนี้" : `อีก ${left} วัน`}
+                                    {left < 0
+                                      ? t(lang, "expiry.daysOverdue", { n: -left })
+                                      : left === 0
+                                      ? t(lang, "expiry.expiresToday")
+                                      : t(lang, "expiry.daysRemaining", { n: left })}
                                   </span>
                                 )}
                               </div>
@@ -298,13 +307,13 @@ export default function ExpiryPage() {
 
                             {needDecision && opts.length === 0 && (
                               <p className="mt-1.5 rounded-lg bg-warn/10 px-2 py-1.5 text-[10.5px] leading-relaxed text-warn">
-                                รายการนี้ยังไม่ได้ตั้งปลายทางไว้ — แจ้งแอดมินก่อนจัดการของชุดนี้
+                                {t(lang, "expiry.noDispositionSetWarning")}
                               </p>
                             )}
 
                             {needDecision && opts.length > 0 && (
                               <div className="mt-1.5">
-                                <p className="mb-1 text-[10.5px] text-brand-ink/50">ทำอย่างไรกับของชุดนี้</p>
+                                <p className="mb-1 text-[10.5px] text-brand-ink/50">{t(lang, "expiry.chooseDispositionLabel")}</p>
                                 <div className="flex gap-1.5">
                                   {opts.map((opt) => (
                                     <button
@@ -332,7 +341,7 @@ export default function ExpiryPage() {
                         onClick={() => setDrafts((prev) => [...prev, newDraft(it.id)])}
                         className="text-[11.5px] font-medium text-brand-red"
                       >
-                        + เพิ่มวันหมดอายุ{rows.length > 0 ? "อีกชุด" : ""}
+                        {rows.length > 0 ? t(lang, "expiry.addRowButtonMore") : t(lang, "expiry.addRowButton")}
                       </button>
                     </div>
                   );
@@ -346,15 +355,16 @@ export default function ExpiryPage() {
       {done && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 px-4 py-8">
           <div className="w-full max-w-sm rounded-2xl bg-brand-cream p-4 shadow-2xl">
-            <p className="text-center text-[17px] font-bold text-ok">บันทึกผลตรวจแล้ว</p>
+            <p className="text-center text-[17px] font-bold text-ok">{t(lang, "expiry.doneTitle")}</p>
             <p className="mb-3 text-center text-[12px] text-brand-ink/55">
-              ส่งคืน {done.ret} ชุด{done.sell > 0 ? ` · แกะขายหน้าร้าน ${done.sell} ชุด` : ""}
+              {t(lang, "expiry.doneSummaryReturn", { n: done.ret })}
+              {done.sell > 0 ? t(lang, "expiry.doneSummarySellSuffix", { n: done.sell }) : ""}
             </p>
 
             {[
-              { n: 1, t: "แยกของที่ส่งคืนออกมา", s: "เอาออกจากชั้นเลย กันหยิบไปใช้ผิด" },
-              { n: 2, t: "กรอกใบส่งคืนเตรียมไว้", s: "เขียนตามรายการที่เพิ่งบันทึก" },
-              { n: 3, t: "ส่งคืนพร้อมรถรอบถัดไป", s: "ฝากคนขับพร้อมใบส่งคืน" },
+              { n: 1, t: t(lang, "expiry.step1Title"), s: t(lang, "expiry.step1Sub") },
+              { n: 2, t: t(lang, "expiry.step2Title"), s: t(lang, "expiry.step2Sub") },
+              { n: 3, t: t(lang, "expiry.step3Title"), s: t(lang, "expiry.step3Sub") },
             ].map((st) => (
               <div key={st.n} className="flex items-start gap-2.5 border-t border-black/[.07] py-2.5">
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-ink text-[11px] font-bold text-white">
@@ -370,8 +380,8 @@ export default function ExpiryPage() {
             <div className="mt-3 flex items-start gap-2 rounded-xl border border-ok/40 bg-ok/[.12] px-3 py-2.5">
               <span className="mt-[1px] grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok text-[10px] font-bold text-white">✓</span>
               <p className="text-[12px] font-medium leading-relaxed text-ok">
-                ยอดส่งคืนถูกหักออกจากสต็อกให้แล้ว
-                <span className="block font-semibold">ไม่ต้องไปกรอกซ้ำที่หน้าเช็คสต็อก</span>
+                {t(lang, "expiry.doneAutoDeductNote")}
+                <span className="block font-semibold">{t(lang, "expiry.noRepeatEntryNote")}</span>
               </p>
             </div>
 
@@ -380,7 +390,7 @@ export default function ExpiryPage() {
               onClick={() => setDone(null)}
               className="mt-3 w-full rounded-xl bg-brand-ink px-4 py-3 text-[13px] font-semibold text-white"
             >
-              รับทราบ
+              {t(lang, "expiry.acknowledgeButton")}
             </button>
           </div>
         </div>
@@ -391,16 +401,15 @@ export default function ExpiryPage() {
       {!loading && items.length > 0 && (
         <SaveBar>
           <div className="mb-2 grid grid-cols-3 gap-2">
-            <Stat label="ส่งคืน" value={`${countReturn}`} tone={countReturn > 0 ? "warn" : "default"} />
-            <Stat label="แกะออกจากชั้น" value={`${countSell}`} tone={countSell > 0 ? "ok" : "default"} />
-            <Stat label="ตรวจแล้ว" value={`${itemsChecked}/${items.length}`} />
+            <Stat label={t(lang, "expiry.statReturn")} value={`${countReturn}`} tone={countReturn > 0 ? "warn" : "default"} />
+            <Stat label={t(lang, "expiry.statSellFront")} value={`${countSell}`} tone={countSell > 0 ? "ok" : "default"} />
+            <Stat label={t(lang, "expiry.statChecked")} value={`${itemsChecked}/${items.length}`} />
           </div>
           <Button onClick={save} disabled={saving || loading}>
-            {saving ? "กำลังบันทึก…" : "บันทึกผลตรวจ"}
+            {saving ? t(lang, "common.saving") : t(lang, "expiry.saveButton")}
           </Button>
           <p className="mt-1.5 text-center text-[10.5px] leading-relaxed text-brand-ink/45">
-            ทุกปลายทางลงหน้าสต็อกให้เอง — ส่งคืนเข้าช่องส่งคืน · แกะออกจากชั้นเข้าช่องขาย/ใช้
-            · แกะรวมยังไปบวก &ldquo;รับเข้า&rdquo; ให้รายการปลายทางด้วย ไม่ต้องกรอกซ้ำที่ไหน
+            {t(lang, "expiry.footerNote")}
           </p>
         </SaveBar>
       )}

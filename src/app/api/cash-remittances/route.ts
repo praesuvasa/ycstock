@@ -4,6 +4,7 @@ import { requireSession, resolveBranch, authErrorResponse } from "@/lib/authz";
 import { readEvidenceImage, computeMatchStatus, describeMismatch, checkFlags } from "@/lib/ocr";
 import type { MatchStatus } from "@/lib/types";
 import { thaiDate } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -34,22 +35,23 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as {
       branch?: string; transferredAt?: string; dates?: string[]; imageBase64?: string; mediaType?: string;
     };
     const branch = resolveBranch(s, parseBranch(body.branch ?? null));
-    if (!isDate(body.transferredAt)) return NextResponse.json({ error: "transferredAt ไม่ถูกต้อง (YYYY-MM-DD)" }, { status: 400 });
+    if (!isDate(body.transferredAt)) return NextResponse.json({ error: t(lang, "cashRemittance.errInvalidTransferredAt") }, { status: 400 });
     const dates = Array.isArray(body.dates) ? body.dates.filter(isDate) : [];
-    if (dates.length === 0) return NextResponse.json({ error: "ต้องเลือกอย่างน้อย 1 วัน" }, { status: 400 });
+    if (dates.length === 0) return NextResponse.json({ error: t(lang, "cashRemittance.errNoDateSelected") }, { status: 400 });
     const mediaType = body.mediaType ?? "";
-    if (!EXT[mediaType]) return NextResponse.json({ error: "รองรับเฉพาะ JPEG/PNG/WebP" }, { status: 400 });
-    if (!body.imageBase64) return NextResponse.json({ error: "ไม่มีรูปแนบ" }, { status: 400 });
+    if (!EXT[mediaType]) return NextResponse.json({ error: t(lang, "cashRemittance.errUnsupportedFormat") }, { status: 400 });
+    if (!body.imageBase64) return NextResponse.json({ error: t(lang, "cashRemittance.errNoImage") }, { status: 400 });
 
     // กันเลือกวันที่ถูกโอนไปแล้ว (race) — เช็คซ้ำจาก pending list ปัจจุบัน
     const pending = await db.listUnremittedCashDays(branch);
     const pendingSet = new Set(pending.map((p) => p.date));
     const invalid = dates.filter((d) => !pendingSet.has(d));
-    if (invalid.length > 0) return NextResponse.json({ error: `วันที่ ${invalid.join(", ")} ถูกโอนไปแล้วหรือไม่มียอด` }, { status: 409 });
+    if (invalid.length > 0) return NextResponse.json({ error: t(lang, "cashRemittance.errDatesAlreadyTransferred", { dates: invalid.join(", ") }) }, { status: 409 });
     const declaredAmount = dates.reduce((sum, d) => sum + (pending.find((p) => p.date === d)?.cash ?? 0), 0);
 
     const bytes = Buffer.from(body.imageBase64, "base64");

@@ -14,13 +14,31 @@ import { th as thErrors } from "./th/errors";
 import { en as enErrors } from "./en/errors";
 import { th as thStore } from "./th/store";
 import { en as enStore } from "./en/store";
+import { th as thNotices } from "./th/notices";
+import { en as enNotices } from "./en/notices";
+import { th as thFeedback } from "./th/feedback";
+import { en as enFeedback } from "./en/feedback";
+import { th as thCashRemittance } from "./th/cashRemittance";
+import { en as enCashRemittance } from "./en/cashRemittance";
+import { th as thRequisitions } from "./th/requisitions";
+import { en as enRequisitions } from "./en/requisitions";
+import { th as thAllowance } from "./th/allowance";
+import { en as enAllowance } from "./en/allowance";
+import { th as thExpiry } from "./th/expiry";
+import { en as enExpiry } from "./en/expiry";
+import { th as thCups } from "./th/cups";
+import { en as enCups } from "./en/cups";
+import { th as thTimeClock } from "./th/timeClock";
+import { en as enTimeClock } from "./en/timeClock";
+import { th as thSchedule } from "./th/schedule";
+import { en as enSchedule } from "./en/schedule";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {

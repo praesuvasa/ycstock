@@ -5,6 +5,7 @@ import { requireSession, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { identifyFace, faceConfigured, FaceNotConfiguredError } from "@/lib/face";
 import { todayBangkok } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -52,15 +53,16 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const settings = await db.getTimeClockSettings();
     if (!settings.enabled) {
-      return NextResponse.json({ error: "ระบบลงเวลายังไม่เปิดใช้งาน" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "timeClock.errors.disabled") }, { status: 400 });
     }
     // ฝ่ายผลิตไม่ได้สังกัดสาขาขาย — ลงเวลาได้โดย branch = null (v1.24)
     const me = await db.getUserById(s.userId);
     const isProduction = me?.workUnit === "production";
     if (!isProduction && s.branchScope === "all") {
-      return NextResponse.json({ error: "บัญชีที่ไม่ผูกสาขาลงเวลาไม่ได้" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "timeClock.errors.noBranchScope") }, { status: 400 });
     }
     const branch = (isProduction ? null : (s.branchScope as Branch)) as Branch | null;
     const body = await req.json();
@@ -69,14 +71,14 @@ export async function POST(req: Request) {
     // ── ด่าน 1: ใบหน้า ──
     let similarity: number | null = null;
     if (settings.requireFace) {
-      if (!body?.imageBase64) return NextResponse.json({ error: "ต้องถ่ายรูปหน้าก่อนลงเวลา" }, { status: 400 });
+      if (!body?.imageBase64) return NextResponse.json({ error: t(lang, "timeClock.errors.imageRequired") }, { status: 400 });
       const enrollment = await db.getFaceEnrollment(s.userId);
       if (!enrollment.faceId) {
-        return NextResponse.json({ error: "ยังไม่ได้ลงทะเบียนใบหน้า — ไปที่ 'ข้อมูลของฉัน' เพื่อลงทะเบียนก่อน" }, { status: 400 });
+        return NextResponse.json({ error: t(lang, "timeClock.errors.notEnrolled") }, { status: 400 });
       }
       const matches = await identifyFace(String(body.imageBase64));
       if (matches.length === 0) {
-        return NextResponse.json({ error: "ไม่พบใบหน้าในรูป หรือไม่ตรงกับผู้ใช้คนไหน — ถ่ายใหม่ในที่สว่าง หันหน้าตรง" }, { status: 400 });
+        return NextResponse.json({ error: t(lang, "timeClock.errors.faceNotFound") }, { status: 400 });
       }
       // ถามว่า "ตรงกับหน้าที่บัญชีนี้ลงทะเบียนไว้ไหม" ไม่ใช่ "หน้านี้คือใคร"
       // คนหนึ่งคนมีได้หลายบัญชี ถ้าถามแบบหลัง จะสุ่มได้บัญชีอื่นของคนเดียวกันแล้วปฏิเสธผิด ๆ
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
         await writeAudit(s, "time_clock_face_mismatch", {
           branch, detail: `หน้าที่สแกนตรงกับผู้ใช้ ${matches.map((m) => `${m.userId} (${m.similarity}%)`).join(", ")} ไม่ใช่เจ้าของบัญชี`,
         });
-        return NextResponse.json({ error: "ใบหน้าไม่ตรงกับเจ้าของบัญชี — ลงเวลาแทนกันไม่ได้" }, { status: 403 });
+        return NextResponse.json({ error: t(lang, "timeClock.errors.faceMismatch") }, { status: 403 });
       }
       similarity = mine.similarity;
     }
@@ -99,18 +101,19 @@ export async function POST(req: Request) {
     if (settings.requireLocation && branch) {
       const geo = await db.getBranchGeo(branch);
       if (!geo) {
-        return NextResponse.json({ error: "ยังไม่ได้ตั้งพิกัดร้านของสาขานี้ — แจ้งแอดมินก่อน" }, { status: 400 });
+        return NextResponse.json({ error: t(lang, "timeClock.errors.noGeoSet") }, { status: 400 });
       }
       if (lat === null || lng === null) {
-        return NextResponse.json({ error: "เปิดให้แอปเข้าถึงตำแหน่งก่อนลงเวลา" }, { status: 400 });
+        return NextResponse.json({ error: t(lang, "timeClock.errors.locationPermission") }, { status: 400 });
       }
       dist = distanceM(lat, lng, geo.lat, geo.lng);
       if (dist > geo.radiusM) {
         // บอกให้ครบว่าเทียบกับสาขาไหนและรัศมีเท่าไหร่ — เคสที่เจอจริงคือบัญชีผูกผิดสาขา
         // (ยืนอยู่สาขา A แต่บัญชีผูกสาขา B) ถ้าบอกแค่ระยะ จะไล่หาสาเหตุไม่ถูก
         return NextResponse.json({
-          error: `อยู่ห่างจากร้านสาขา ${branch} ${dist.toLocaleString()} เมตร (รัศมีที่ตั้งไว้ ${geo.radiusM} เมตร) — ` +
-            `ถ้ายืนอยู่ที่ร้านจริง แปลว่าพิกัดร้านหรือสาขาของบัญชีนี้ตั้งไว้ไม่ตรง`,
+          error: t(lang, "timeClock.errors.tooFar", {
+            branch: String(branch), dist: dist.toLocaleString(), radius: String(geo.radiusM),
+          }),
         }, { status: 403 });
       }
     } else if (lat !== null && lng !== null && branch) {
@@ -121,7 +124,7 @@ export async function POST(req: Request) {
     // ── บันทึก ──
     const open = await db.getOpenShift(s.userId);
     if (action === "in") {
-      if (open) return NextResponse.json({ error: "ยังไม่ได้กดออกงานของกะก่อนหน้า" }, { status: 400 });
+      if (open) return NextResponse.json({ error: t(lang, "timeClock.errors.alreadyOpen") }, { status: 400 });
       const row = await db.clockIn({
         branch, userId: s.userId, userName: s.name, workDate: todayBangkok(),
         similarity, lat, lng, distanceM: dist,
@@ -130,7 +133,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, entry: row });
     }
 
-    if (!open) return NextResponse.json({ error: "ยังไม่ได้กดเข้างาน" }, { status: 400 });
+    if (!open) return NextResponse.json({ error: t(lang, "timeClock.errors.notOpen") }, { status: 400 });
     const row = await db.clockOut(open.id, { similarity, lat, lng, distanceM: dist });
     await writeAudit(s, "clock_out", { branch, detail: "ออกงาน" });
     return NextResponse.json({ ok: true, entry: row });

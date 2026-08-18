@@ -5,19 +5,21 @@ import React from "react";
 import type { Branch, CashRemittance, MatchStatus } from "@/lib/types";
 import { baht, thaiDate, todayISO } from "@/lib/fmt";
 import { GlassCard, BranchPicker, Button, PageTitle, Badge, Dialog } from "@/components/ui";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 import { resizeImageToBase64 } from "@/lib/image-client";
 
-const MATCH_LABEL: Record<MatchStatus, { text: string; tone: "ok" | "warn" | "neutral" }> = {
-  ok: { text: "✅ ตรงกับยอดที่เลือก", tone: "ok" },
-  mismatch: { text: "⚠️ ไม่ตรง", tone: "warn" },
-  unclear: { text: "⚠️ อ่านไม่ชัด ตรวจสอบเอง", tone: "warn" },
-  duplicate: { text: "🚫 สลิปนี้ถูกใช้ไปแล้ว", tone: "warn" },
-  pending: { text: "⏳ กำลังตรวจสอบ", tone: "neutral" },
+const MATCH_LABEL: Record<MatchStatus, { key: string; tone: "ok" | "warn" | "neutral" }> = {
+  ok: { key: "cashRemittance.matchOk", tone: "ok" },
+  mismatch: { key: "cashRemittance.matchMismatch", tone: "warn" },
+  unclear: { key: "cashRemittance.matchUnclear", tone: "warn" },
+  duplicate: { key: "cashRemittance.matchDuplicate", tone: "warn" },
+  pending: { key: "cashRemittance.matchPending", tone: "neutral" },
 };
 
 export default function CashRemittancePage() {
   const me = useMe();
+  const lang = useLang();
   const scoped = !!me && me.branchScope !== "all";
   const [branch, setBranch] = React.useState<Branch>("NVP");
   React.useEffect(() => {
@@ -48,11 +50,11 @@ export default function CashRemittancePage() {
       setSelected(new Set());
       setHistory(histRes.rows ?? []);
     } catch (e: any) {
-      setErr(e?.message ?? "โหลดข้อมูลไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "cashRemittance.errLoadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [branch]);
+  }, [branch, lang]);
   React.useEffect(() => { load(); }, [load]);
 
   const toggle = (date: string) =>
@@ -65,7 +67,7 @@ export default function CashRemittancePage() {
   const total = pending.filter((p) => selected.has(p.date)).reduce((s, p) => s + p.cash, 0);
 
   async function handleFile(file: File) {
-    if (selected.size === 0) { setErr("เลือกวันที่ที่จะโอนก่อน"); return; }
+    if (selected.size === 0) { setErr(t(lang, "cashRemittance.errSelectDateFirst")); return; }
     setSubmitting(true);
     setErr(null);
     try {
@@ -76,28 +78,28 @@ export default function CashRemittancePage() {
         body: JSON.stringify({ branch, transferredAt, dates: [...selected], imageBase64: base64, mediaType }),
       });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "บันทึกไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "cashRemittance.errSaveFailed"));
       await load();
-      setPopup({ tone: "ok", title: "บันทึกสำเร็จ", body: "แนบสลิปโอนเงินสดเรียบร้อย" });
+      setPopup({ tone: "ok", title: t(lang, "cashRemittance.saveSuccessTitle"), body: t(lang, "cashRemittance.saveSuccessBody") });
     } catch (e: any) {
-      setErr(e?.message ?? "บันทึกไม่สำเร็จ");
-      setPopup({ tone: "warn", title: "ยังบันทึกไม่สำเร็จ", body: e?.message ?? "ลองแนบสลิปใหม่อีกครั้ง" });
+      setErr(e?.message ?? t(lang, "cashRemittance.errSaveFailed"));
+      setPopup({ tone: "warn", title: t(lang, "cashRemittance.saveFailTitle"), body: e?.message ?? t(lang, "cashRemittance.saveFailBodyDefault") });
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("ลบเอกสารนี้? ยอดนี้จะกลับไปเป็น \"ยังไม่โอน\"")) return;
+    if (!window.confirm(t(lang, "cashRemittance.deleteConfirm"))) return;
     setDeletingId(id);
     setErr(null);
     try {
       const res = await fetch(`/api/cash-remittances/${id}`, { method: "DELETE" });
       const data = await res.json();
-      if (!res.ok || !data?.ok) throw new Error(data?.error ?? "ลบไม่สำเร็จ");
+      if (!res.ok || !data?.ok) throw new Error(data?.error ?? t(lang, "cashRemittance.errDeleteFailed"));
       await load();
     } catch (e: any) {
-      setErr(e?.message ?? "ลบไม่สำเร็จ");
+      setErr(e?.message ?? t(lang, "cashRemittance.errDeleteFailed"));
     } finally {
       setDeletingId(null);
     }
@@ -108,13 +110,13 @@ export default function CashRemittancePage() {
       {popup && (
         <Dialog
           open tone={popup.tone} title={popup.title}
-          actionLabel={popup.tone === "ok" ? "เรียบร้อย" : "ปิด"}
+          actionLabel={popup.tone === "ok" ? t(lang, "cashRemittance.popupOkAction") : t(lang, "cashRemittance.popupCloseAction")}
           onClose={() => setPopup(null)}
         >
           {popup.body}
         </Dialog>
       )}
-      <PageTitle title="การจัดการเงินสด" />
+      <PageTitle title={t(lang, "cashRemittance.pageTitle")} />
 
       <GlassCard className="mb-3">
         <BranchPicker value={branch} onChange={setBranch} locked={scoped} />
@@ -127,11 +129,11 @@ export default function CashRemittancePage() {
       )}
 
       <GlassCard className="mb-3">
-        <h2 className="mb-3 text-[15px] font-semibold">เลือกวันที่ค้างโอน</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">{t(lang, "cashRemittance.pendingSectionTitle")}</h2>
         {loading ? (
-          <p className="text-sm text-brand-ink/50">กำลังโหลด…</p>
+          <p className="text-sm text-brand-ink/50">{t(lang, "common.loading")}</p>
         ) : pending.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">ไม่มียอดเงินสดค้างโอน</p>
+          <p className="text-sm text-brand-ink/50">{t(lang, "cashRemittance.noPendingDays")}</p>
         ) : (
           <div className="grid gap-2">
             {pending.map((p) => (
@@ -147,15 +149,15 @@ export default function CashRemittancePage() {
         {selected.size > 0 && (
           <div className="mt-3 grid gap-2.5">
             <div className="rounded-xl border border-ok/25 bg-ok/[.06] px-3 py-2.5">
-              <div className="text-[11px] text-brand-ink/50">ยอดรวมที่เลือก ({selected.size} วัน)</div>
+              <div className="text-[11px] text-brand-ink/50">{t(lang, "cashRemittance.selectedTotalLabel", { n: selected.size })}</div>
               <div className="text-[17px] font-semibold text-ok">{baht(total)}</div>
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-brand-ink/50">วันที่โอนจริง</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "cashRemittance.transferDateLabel")}</span>
               <input type="date" value={transferredAt} onChange={(e) => setTransferredAt(e.target.value)} className="field" />
             </label>
             <Button onClick={() => inputRef.current?.click()} disabled={submitting}>
-              {submitting ? "กำลังส่ง…" : "แนบสลิปโอนเงิน"}
+              {submitting ? t(lang, "cashRemittance.sending") : t(lang, "cashRemittance.attachSlipButton")}
             </Button>
             <input
               ref={inputRef} type="file" accept="image/*" className="hidden"
@@ -166,9 +168,9 @@ export default function CashRemittancePage() {
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-3 text-[15px] font-semibold">ประวัติการโอน</h2>
+        <h2 className="mb-3 text-[15px] font-semibold">{t(lang, "cashRemittance.historySectionTitle")}</h2>
         {history.length === 0 ? (
-          <p className="text-sm text-brand-ink/50">ยังไม่มีประวัติ</p>
+          <p className="text-sm text-brand-ink/50">{t(lang, "cashRemittance.noHistory")}</p>
         ) : (
           <div className="grid gap-2.5">
             {history.map((r) => {
@@ -177,21 +179,21 @@ export default function CashRemittancePage() {
                 <div key={r.id} className="flex items-start gap-3 rounded-xl border border-black/5 bg-white/60 p-3">
                   {r.imageUrl && (
                     <a href={r.imageUrl} target="_blank" rel="noreferrer" className="shrink-0">
-                      <img src={r.imageUrl} alt="สลิป" className="h-12 w-12 rounded-lg object-cover" />
+                      <img src={r.imageUrl} alt={t(lang, "cashRemittance.slipAlt")} className="h-12 w-12 rounded-lg object-cover" />
                     </a>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13px] font-medium">วันที่แนบเอกสาร {thaiDate(r.transferredAt)} · {baht(r.declaredAmount)}</div>
+                    <div className="text-[13px] font-medium">{t(lang, "cashRemittance.attachedRow", { date: thaiDate(r.transferredAt), amount: baht(r.declaredAmount) })}</div>
                     <div className="mt-0.5 text-[11px] text-brand-ink/45">
-                      ยอดเงินสดวันที่: {r.coveredDates.map(thaiDate).join(", ")}
+                      {t(lang, "cashRemittance.coveredDatesLabel", { dates: r.coveredDates.map(thaiDate).join(", ") })}
                     </div>
                     <div className="mt-1.5 flex items-center gap-2">
-                      <Badge tone={m.tone}>{m.text}</Badge>
+                      <Badge tone={m.tone}>{t(lang, m.key)}</Badge>
                       <button
                         type="button" onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}
                         className="ml-auto rounded-lg border border-brand-red/25 bg-brand-red/5 px-2.5 py-1 text-[11px] font-medium text-brand-red disabled:opacity-50"
                       >
-                        {deletingId === r.id ? "กำลังลบ…" : "ลบ / อัปโหลดใหม่"}
+                        {deletingId === r.id ? t(lang, "cashRemittance.deleting") : t(lang, "cashRemittance.deleteButton")}
                       </button>
                     </div>
                     {r.matchStatus === "mismatch" && r.mismatchNote && (

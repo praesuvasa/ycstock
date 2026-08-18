@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession, AuthError, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +11,15 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     if (s.role !== "admin" && s.role !== "restock") {
-      throw new AuthError("เฉพาะแอดมินและ จนท. เติมของ/สั่งผลิตเท่านั้น", 403);
+      throw new AuthError(t(lang, "requisitions.errMoveRestrictedRole"), 403);
     }
     const body = (await req.json()) as { id?: string; date?: string };
     const id = String(body.id ?? "");
     const date = String(body.date ?? "");
-    if (!id) return NextResponse.json({ error: "ต้องระบุคำขอเบิก" }, { status: 400 });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: "วันที่ไม่ถูกต้อง" }, { status: 400 });
+    if (!id) return NextResponse.json({ error: t(lang, "requisitions.errRequisitionRequired") }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ error: t(lang, "requisitions.errInvalidDate") }, { status: 400 });
 
     const updated = await db.moveRequisitionToRestock(id, date, s.userId, s.name);
     await writeAudit(s, "requisition_moved", {
