@@ -3,8 +3,10 @@
 // อ่านอย่างเดียว ไม่มีการแก้ไข — ใช้ดูภาพรวมเร็ว ๆ โดยไม่ต้องสลับ BranchPicker ทีละสาขา
 import React from "react";
 import type { Branch } from "@/lib/types";
+import { useLang } from "@/components/nav";
 import { GlassCard, PageTitle, Badge } from "@/components/ui";
 import { todayISO, thaiDate } from "@/lib/fmt";
+import { t } from "@/lib/i18n";
 
 type OverviewRow = {
   itemId: string;
@@ -21,6 +23,7 @@ function fmtCell(v: { remainPack: number; remainG: number } | null, hasRemainder
 }
 
 export default function StockOverviewPage() {
+  const lang = useLang();
   const [date, setDate] = React.useState(todayISO());
   const [rows, setRows] = React.useState<OverviewRow[] | null>(null);
   const [branches, setBranches] = React.useState<Branch[]>([]);
@@ -33,14 +36,14 @@ export default function StockOverviewPage() {
       const res = await fetch(`/api/stock-overview?date=${d}`);
       if (res.status === 403) { setForbidden(true); setRows([]); return; }
       const data = (await res.json()) as { rows?: OverviewRow[]; branches?: Branch[]; error?: string };
-      if (!res.ok || data.error) throw new Error(data.error ?? "โหลดไม่สำเร็จ");
+      if (!res.ok || data.error) throw new Error(data.error ?? t(lang, "stockOverview.errLoadFailed"));
       setForbidden(false);
       setRows(data.rows ?? []);
       setBranches(data.branches ?? []);
     } catch (e: any) {
       setErr(String(e?.message ?? e));
     }
-  }, []);
+  }, [lang]);
   React.useEffect(() => { load(date); }, [load, date]);
 
   const groups = React.useMemo(() => {
@@ -54,22 +57,22 @@ export default function StockOverviewPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 pb-24">
-      <PageTitle title="สรุปสต็อกคงเหลือ" right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
+      <PageTitle title={t(lang, "nav.adminMenu.stockOverview")} right={<Badge tone="blue">{thaiDate(date)}</Badge>} />
 
       {forbidden ? (
-        <GlassCard><p className="text-sm text-warn">เฉพาะ Admin เท่านั้น</p></GlassCard>
+        <GlassCard><p className="text-sm text-warn">{t(lang, "stockOverview.forbidden")}</p></GlassCard>
       ) : (
         <>
           <GlassCard className="mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-brand-ink/50">วันที่</span>
+              <span className="text-[11px] text-brand-ink/50">{t(lang, "stockOverview.dateLabel")}</span>
               <input
                 type="date" value={date} max={todayISO()}
                 onChange={(e) => setDate(e.target.value)}
                 className="rounded-lg border border-black/10 bg-white/70 px-2.5 py-1.5 text-sm"
               />
               {date !== todayISO() && (
-                <span className="text-[11px] font-medium text-warn">⚠️ ไม่ใช่วันนี้</span>
+                <span className="text-[11px] font-medium text-warn">{t(lang, "stockOverview.notTodayWarning")}</span>
               )}
             </div>
           </GlassCard>
@@ -77,9 +80,9 @@ export default function StockOverviewPage() {
           {err && <GlassCard className="mb-3"><p className="text-sm text-warn">{err}</p></GlassCard>}
 
           {!rows ? (
-            <GlassCard><p className="text-sm text-brand-ink/50">กำลังโหลด…</p></GlassCard>
+            <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "stockOverview.loading")}</p></GlassCard>
           ) : rows.length === 0 ? (
-            <GlassCard><p className="text-sm text-brand-ink/50">ไม่มีรายการ</p></GlassCard>
+            <GlassCard><p className="text-sm text-brand-ink/50">{t(lang, "stockOverview.emptyState")}</p></GlassCard>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-black/5">
               <div className="min-w-[420px]">
@@ -87,7 +90,7 @@ export default function StockOverviewPage() {
                   className="grid items-center gap-1 bg-black/5 px-2 py-1.5 text-[10px] font-medium text-brand-ink/50"
                   style={{ gridTemplateColumns: `1fr repeat(${branches.length}, 60px)` }}
                 >
-                  <span>รายการ</span>
+                  <span>{t(lang, "stockOverview.itemColumnHeader")}</span>
                   {branches.map((b) => <span key={b} className="text-right">{b}</span>)}
                 </div>
                 {groups.map(([category, items]) => (

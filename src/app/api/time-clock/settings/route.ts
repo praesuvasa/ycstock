@@ -4,6 +4,7 @@ import { BRANCHES } from "@/lib/types";
 import type { Branch } from "@/lib/types";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = await req.json();
 
     // เมนูตรวจวันหมดอายุ — เปิดวันที่พนักงานเริ่มใช้จริง (แพรสั่งปิดไว้ก่อน 2026-07-28)
@@ -71,12 +73,12 @@ export async function POST(req: Request) {
     }
 
     const branch = parseBranch(body?.branch ?? null) as Branch | null;
-    if (!branch) return NextResponse.json({ error: "ต้องระบุสาขา" }, { status: 400 });
+    if (!branch) return NextResponse.json({ error: t(lang, "timeclockAdmin.errBranchRequired") }, { status: 400 });
     const lat = Number(body?.lat);
     const lng = Number(body?.lng);
     const radiusM = Math.max(30, Math.min(2000, Number(body?.radiusM) || 150));
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return NextResponse.json({ error: "พิกัดไม่ถูกต้อง" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "timeclockAdmin.errInvalidGeo") }, { status: 400 });
     }
     await db.setBranchGeo(branch, lat, lng, radiusM);
     await writeAudit(s, "branch_geo", { branch, detail: `ตั้งพิกัดร้าน ${lat},${lng} รัศมี ${radiusM}m` });

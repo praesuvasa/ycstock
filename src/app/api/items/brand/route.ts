@@ -4,6 +4,7 @@ import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import { ITEM_BRAND_LABEL } from "@/lib/types";
 import type { ItemBrand } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +17,12 @@ const BRANDS: ItemBrand[] = ["yc", "staple", "shared"];
 export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { itemId?: string; brand?: string };
-    if (!body.itemId) return NextResponse.json({ error: "itemId จำเป็น" }, { status: 400 });
+    if (!body.itemId) return NextResponse.json({ error: t(lang, "settings.errItemIdRequired") }, { status: 400 });
     const brand = body.brand as ItemBrand;
     if (!BRANDS.includes(brand)) {
-      return NextResponse.json({ error: `brand ไม่ถูกต้อง (${BRANDS.join("|")})` }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "settings.errInvalidBrand", { brands: BRANDS.join("|") }) }, { status: 400 });
     }
     const res = await db.setItemBrand(body.itemId, brand);
     await writeAudit(s, "update_item", { entity: body.itemId, detail: `แบรนด์: ${ITEM_BRAND_LABEL[brand]}` });

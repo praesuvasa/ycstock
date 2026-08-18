@@ -3,6 +3,7 @@ import { db, parseBranch } from "@/lib/db";
 import type { Branch, TimeClockEntry } from "@/lib/types";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,11 @@ function shiftMinutes(e: TimeClockEntry): number | null {
 // ถ้าปัดเป็นชั่วโมงตั้งแต่รายกะ แล้วเอามาบวกกัน เศษจะหายไปทีละนิดจนยอดเดือนเพี้ยน
 export async function GET(req: Request) {
   try {
-    await requireAdmin();
+    const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const { searchParams } = new URL(req.url);
     const month = searchParams.get("month");
-    if (!isMonth(month)) return NextResponse.json({ error: "month ไม่ถูกต้อง (YYYY-MM)" }, { status: 400 });
+    if (!isMonth(month)) return NextResponse.json({ error: t(lang, "timeclockReport.errInvalidMonth") }, { status: 400 });
     const branch = parseBranch(searchParams.get("branch")) as Branch | null;
 
     const entries = await db.listTimeClock(month, branch ?? undefined);
@@ -68,21 +70,22 @@ export async function GET(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = await req.json();
     const id = Number(body?.id);
-    if (!Number.isFinite(id)) return NextResponse.json({ error: "ต้องระบุ id" }, { status: 400 });
+    if (!Number.isFinite(id)) return NextResponse.json({ error: t(lang, "timeclockReport.errIdRequired") }, { status: 400 });
 
     const note = String(body?.note ?? "").trim();
     if (note.length < 3) {
-      return NextResponse.json({ error: "ต้องเขียนเหตุผลที่แก้ (อย่างน้อย 3 ตัวอักษร)" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "timeclockReport.errNoteRequired") }, { status: 400 });
     }
 
     const clockIn = body?.clockIn ? new Date(body.clockIn) : null;
     const clockOut = body?.clockOut ? new Date(body.clockOut) : null;
-    if (clockIn && Number.isNaN(clockIn.getTime())) return NextResponse.json({ error: "เวลาเข้างานไม่ถูกต้อง" }, { status: 400 });
-    if (clockOut && Number.isNaN(clockOut.getTime())) return NextResponse.json({ error: "เวลาออกงานไม่ถูกต้อง" }, { status: 400 });
+    if (clockIn && Number.isNaN(clockIn.getTime())) return NextResponse.json({ error: t(lang, "timeclockReport.errClockInInvalid") }, { status: 400 });
+    if (clockOut && Number.isNaN(clockOut.getTime())) return NextResponse.json({ error: t(lang, "timeclockReport.errClockOutInvalid") }, { status: 400 });
     if (clockIn && clockOut && clockOut.getTime() <= clockIn.getTime()) {
-      return NextResponse.json({ error: "เวลาออกงานต้องหลังเวลาเข้างาน" }, { status: 400 });
+      return NextResponse.json({ error: t(lang, "timeclockReport.errClockOutAfterClockIn") }, { status: 400 });
     }
 
     await db.editTimeClock(id, {

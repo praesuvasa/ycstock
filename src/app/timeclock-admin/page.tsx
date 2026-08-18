@@ -7,6 +7,8 @@ import React from "react";
 import { GlassCard, PageTitle, Button, Badge } from "@/components/ui";
 import { BRANCHES, BRANCH_LABEL_TH } from "@/lib/types";
 import type { Branch } from "@/lib/types";
+import { useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
 interface Geo { lat: number; lng: number; radiusM: number }
 interface Resp {
@@ -38,6 +40,7 @@ function Toggle({ on, label, hint, onChange }: {
 }
 
 export default function TimeClockAdminPage() {
+  const lang = useLang();
   const [data, setData] = React.useState<Resp | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
@@ -60,7 +63,7 @@ export default function TimeClockAdminPage() {
         body: JSON.stringify({ settings: next }),
       });
       setData((d) => (d ? { ...d, settings: next } : d));
-      setMsg("บันทึกแล้ว");
+      setMsg(t(lang, "timeclockAdmin.saved"));
     } finally {
       setSaving(false);
     }
@@ -69,7 +72,7 @@ export default function TimeClockAdminPage() {
   // ตั้งพิกัดจากตำแหน่งปัจจุบัน — ต้องยืนอยู่ที่ร้านตอนกด
   async function useHere(branch: Branch) {
     setMsg(null);
-    if (!navigator.geolocation) { setMsg("เครื่องนี้ไม่รองรับการอ่านตำแหน่ง"); return; }
+    if (!navigator.geolocation) { setMsg(t(lang, "timeclockAdmin.geoNotSupported")); return; }
     setSaving(true);
     navigator.geolocation.getCurrentPosition(
       async (p) => {
@@ -82,16 +85,16 @@ export default function TimeClockAdminPage() {
             }),
           });
           const d = await res.json();
-          if (!res.ok || !d?.ok) throw new Error(d?.error ?? "บันทึกไม่สำเร็จ");
-          setMsg(`ตั้งพิกัดสาขา ${branch} แล้ว (แม่นยำ ±${Math.round(p.coords.accuracy)} ม.)`);
+          if (!res.ok || !d?.ok) throw new Error(d?.error ?? t(lang, "timeclockAdmin.saveFailed"));
+          setMsg(t(lang, "timeclockAdmin.geoSetMsg", { branch, accuracy: Math.round(p.coords.accuracy) }));
           load();
         } catch (e: any) {
-          setMsg(e?.message ?? "บันทึกไม่สำเร็จ");
+          setMsg(e?.message ?? t(lang, "timeclockAdmin.saveFailed"));
         } finally {
           setSaving(false);
         }
       },
-      () => { setMsg("อ่านตำแหน่งไม่ได้ — กดอนุญาตให้เบราว์เซอร์ใช้ตำแหน่งก่อน"); setSaving(false); },
+      () => { setMsg(t(lang, "timeclockAdmin.geoReadFailed")); setSaving(false); },
       { enableHighAccuracy: true, timeout: 10000 }
     );
   }
@@ -103,21 +106,21 @@ export default function TimeClockAdminPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ branch, lat: geo.lat, lng: geo.lng, radiusM: Number(radius[branch]) || 150 }),
       });
-      setMsg(`อัปเดตรัศมีสาขา ${branch} แล้ว`);
+      setMsg(t(lang, "timeclockAdmin.radiusUpdatedMsg", { branch }));
       load();
     } finally {
       setSaving(false);
     }
   }
 
-  if (!data) return <p className="py-10 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>;
+  if (!data) return <p className="py-10 text-center text-sm text-brand-ink/50">{t(lang, "timeclockAdmin.loading")}</p>;
   if (data.error) return <p className="py-10 text-center text-sm text-brand-red">{data.error}</p>;
 
   const s = data.settings;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 pb-16">
-      <PageTitle title="ตั้งค่าระบบ" />
+      <PageTitle title={t(lang, "nav.adminMenu.timeclockAdmin")} />
 
       {msg && (
         <div className="mb-3 rounded-xl border border-ok/35 bg-ok/10 px-3.5 py-2.5 text-[12.5px] font-medium text-ok">
@@ -126,10 +129,10 @@ export default function TimeClockAdminPage() {
       )}
 
       <GlassCard className="mb-3">
-        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">เมนูที่เปิดให้พนักงานใช้</p>
+        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "timeclockAdmin.sectionMenusTitle")}</p>
         <Toggle
-          on={data.expiryCheckEnabled} label="ตรวจสอบวันหมดอายุ"
-          hint="ปิดอยู่ = ไม่มีเมนูนี้ ไม่มีในเช็คลิสต์งานวันนี้ และไม่มีเลขเตือน · ของที่ต้องส่งคืนให้กรอกที่หน้า “ส่งคืน” ตามเดิม"
+          on={data.expiryCheckEnabled} label={t(lang, "timeclockAdmin.toggleExpiryLabel")}
+          hint={t(lang, "timeclockAdmin.toggleExpiryHint")}
           onChange={async (v) => {
             setSaving(true);
             try {
@@ -138,13 +141,13 @@ export default function TimeClockAdminPage() {
                 body: JSON.stringify({ expiryCheckEnabled: v }),
               });
               setData((d) => (d ? { ...d, expiryCheckEnabled: v } : d));
-              setMsg("บันทึกแล้ว");
+              setMsg(t(lang, "timeclockAdmin.saved"));
             } finally { setSaving(false); }
           }}
         />
         <Toggle
-          on={data.staffTimeMenuEnabled} label="เมนูลงเวลา + ตารางงาน (ของพนักงาน)"
-          hint="ปิดอยู่ = พนักงานไม่เห็น 2 เมนูนี้เลย · แอดมินยังเห็นและทดสอบได้ตลอด · เปิดวันที่สร้างบัญชีและให้ทุกคนลงทะเบียนใบหน้าแล้ว"
+          on={data.staffTimeMenuEnabled} label={t(lang, "timeclockAdmin.toggleStaffTimeLabel")}
+          hint={t(lang, "timeclockAdmin.toggleStaffTimeHint")}
           onChange={async (v) => {
             setSaving(true);
             try {
@@ -153,38 +156,37 @@ export default function TimeClockAdminPage() {
                 body: JSON.stringify({ staffTimeMenuEnabled: v }),
               });
               setData((d) => (d ? { ...d, staffTimeMenuEnabled: v } : d));
-              setMsg("บันทึกแล้ว");
+              setMsg(t(lang, "timeclockAdmin.saved"));
             } finally { setSaving(false); }
           }}
         />
       </GlassCard>
 
       <GlassCard className="mb-3">
-        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">ลงเวลาเข้า-ออกงาน</p>
+        <p className="mb-2 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "timeclockAdmin.sectionTimeClockTitle")}</p>
         <div className="grid gap-2">
           <Toggle
-            on={s.enabled} label="เปิดให้พนักงานลงเวลา"
-            hint="ปิดอยู่ = พนักงานยังลงทะเบียนใบหน้าได้ แต่กดเข้า-ออกงานไม่ได้"
+            on={s.enabled} label={t(lang, "timeclockAdmin.toggleEnabledLabel")}
+            hint={t(lang, "timeclockAdmin.toggleEnabledHint")}
             onChange={(v) => saveSettings({ ...s, enabled: v })}
           />
           <Toggle
-            on={s.requireFace} label="บังคับสแกนใบหน้า"
-            hint="ปิดแล้วจะกดลงเวลาได้เลยโดยไม่ต้องถ่ายหน้า — ลงเวลาแทนกันได้ทันที ไม่แนะนำให้ปิด"
+            on={s.requireFace} label={t(lang, "timeclockAdmin.toggleRequireFaceLabel")}
+            hint={t(lang, "timeclockAdmin.toggleRequireFaceHint")}
             onChange={(v) => saveSettings({ ...s, requireFace: v })}
           />
           <Toggle
-            on={s.requireLocation} label="บังคับให้อยู่ในรัศมีร้าน"
-            hint="ต้องตั้งพิกัดร้านของสาขานั้นก่อน ไม่งั้นพนักงานสาขานั้นจะลงเวลาไม่ได้เลย"
+            on={s.requireLocation} label={t(lang, "timeclockAdmin.toggleRequireLocationLabel")}
+            hint={t(lang, "timeclockAdmin.toggleRequireLocationHint")}
             onChange={(v) => saveSettings({ ...s, requireLocation: v })}
           />
         </div>
       </GlassCard>
 
       <GlassCard>
-        <p className="mb-1 text-[11px] uppercase tracking-wide text-brand-ink/45">พิกัดร้าน</p>
+        <p className="mb-1 text-[11px] uppercase tracking-wide text-brand-ink/45">{t(lang, "timeclockAdmin.sectionGeoTitle")}</p>
         <p className="mb-2.5 text-[11.5px] leading-relaxed text-brand-ink/55">
-          กด &ldquo;ใช้ตำแหน่งปัจจุบัน&rdquo; ตอนยืนอยู่ที่ร้านสาขานั้น · รัศมีแนะนำ 150 ม.
-          เผื่อความคลาดเคลื่อนของ GPS ในอาคาร (ห้างมักจับตำแหน่งเพี้ยนได้หลายสิบเมตร)
+          {t(lang, "timeclockAdmin.geoSectionHint")}
         </p>
         <div className="grid gap-2">
           {data.branches.map(({ branch, geo }) => (
@@ -193,7 +195,7 @@ export default function TimeClockAdminPage() {
                 <span className="text-[13.5px] font-semibold">{branch}</span>
                 <span className="text-[11.5px] text-brand-ink/50">{BRANCH_LABEL_TH[branch]}</span>
                 <span className="ml-auto">
-                  {geo ? <Badge tone="ok">ตั้งแล้ว</Badge> : <Badge tone="warn">ยังไม่ได้ตั้ง</Badge>}
+                  {geo ? <Badge tone="ok">{t(lang, "timeclockAdmin.geoSetBadge")}</Badge> : <Badge tone="warn">{t(lang, "timeclockAdmin.geoNotSetBadge")}</Badge>}
                 </span>
               </div>
               {geo && (
@@ -208,7 +210,7 @@ export default function TimeClockAdminPage() {
                   onChange={(e) => setRadius((r) => ({ ...r, [branch]: e.target.value }))}
                   className="field w-16 px-2 py-1.5 text-center text-[12.5px]"
                 />
-                <span className="text-[11px] text-brand-ink/45">เมตร</span>
+                <span className="text-[11px] text-brand-ink/45">{t(lang, "timeclockAdmin.metersUnit")}</span>
                 <div className="ml-auto flex gap-1.5">
                   {geo && (
                     <button
@@ -217,7 +219,7 @@ export default function TimeClockAdminPage() {
                       disabled={saving}
                       className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[11.5px] font-medium text-brand-ink disabled:opacity-50"
                     >
-                      บันทึกรัศมี
+                      {t(lang, "timeclockAdmin.saveRadiusBtn")}
                     </button>
                   )}
                   <button
@@ -226,7 +228,7 @@ export default function TimeClockAdminPage() {
                     disabled={saving}
                     className="rounded-lg bg-brand-ink px-2.5 py-1.5 text-[11.5px] font-semibold text-white disabled:opacity-50"
                   >
-                    ใช้ตำแหน่งปัจจุบัน
+                    {t(lang, "timeclockAdmin.useHereBtn")}
                   </button>
                 </div>
               </div>
@@ -236,7 +238,7 @@ export default function TimeClockAdminPage() {
       </GlassCard>
 
       <p className="mt-3 px-1 text-[11px] leading-relaxed text-brand-ink/45">
-        ถ้าไม่ได้ไปที่ร้าน: เปิด Google Maps ที่หน้าร้าน กดค้างบนแผนที่จะได้พิกัด แล้วบอกผมได้ ผมใส่ให้
+        {t(lang, "timeclockAdmin.footerNote")}
       </p>
     </div>
   );

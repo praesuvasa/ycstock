@@ -1,0 +1,28 @@
+import type { th } from "../th/adminFlags";
+
+export const en: typeof th = {
+  reasonReceiptMismatch: "Receipt doesn't match order",
+  reasonReceiptNotReceived: "Item not received",
+  reasonReceiptExtra: "Extra item not on order",
+  reasonStockOverride: "Overrode auto-fill amount",
+  reasonReceiptEdited: "Edited received amount",
+  reasonStockImpossible: "Stock exceeds what's available",
+  reasonStockBackdatedEdit: "Backdated edit",
+  reasonStockSameDayEdit: "Edited again (same day)",
+  reasonReceiptVsManual: "Receipt doesn't match manual entry",
+  reasonCupPackMismatch: "Cup pack count mismatch",
+  reasonReceiptAfterCount: "Receipt confirmed after stock count",
+  reasonScheduleChanged: "Schedule changed",
+  itemCountSuffix: "{n} item(s)",
+  resolveAll: "Mark all as reviewed",
+  resolvingAll: "Reviewing…",
+  confirmResolveAll: "Mark all {n} items as reviewed?",
+  seniorBranchNote: "Showing your branch ({branch}) only · Review is for admin visibility only",
+  loading: "Loading…",
+  emptyState: "Nothing to review ✓",
+  editedByPrefix: "Edited by",
+  resolveOne: "Reviewed",
+  errAdminOrSeniorOnly: "Admin and senior staff only",
+  errIdsRequired: "ids is required",
+  errIdRequired: "id is required",
+};

@@ -2,14 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { itemId?: string; hasRemainder?: boolean; gramsPerUOM?: number; remainderGroup?: string };
-    if (!body.itemId) return NextResponse.json({ error: "itemId จำเป็น" }, { status: 400 });
+    if (!body.itemId) return NextResponse.json({ error: t(lang, "settings.errItemIdRequired") }, { status: 400 });
     const hasRemainder = !!body.hasRemainder;
     const gramsPerUOM = Number(body.gramsPerUOM) || 0;
     const remainderGroup = typeof body.remainderGroup === "string" ? body.remainderGroup : undefined;

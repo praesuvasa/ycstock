@@ -6,21 +6,23 @@ import React from "react";
 import type { AdminFlag, AdminFlagReason } from "@/lib/types";
 import { GlassCard, PageTitle, Badge } from "@/components/ui";
 import { thaiDate } from "@/lib/fmt";
-import { useMe } from "@/components/nav";
+import { useMe, useLang } from "@/components/nav";
+import { t } from "@/lib/i18n";
 
-const REASON_LABEL: Record<AdminFlagReason, string> = {
-  receipt_mismatch: "รับไม่ตรงยอดสั่ง",
-  receipt_not_received: "ไม่ได้รับสินค้า",
-  receipt_extra: "เพิ่มนอกใบ",
-  stock_override: "แก้ทับยอด auto-fill",
-  receipt_edited: "แก้ไขยอดรับเข้า",
-  stock_impossible: "คงเหลือเกินของที่มี",
-  stock_backdated_edit: "แก้ยอดย้อนหลัง",
-  stock_same_day_edit: "แก้ยอดซ้ำ (วันนี้)",
-  receipt_vs_manual: "ยืนยันรับไม่ตรงยอดที่กรอกเอง",
-  cup_pack_mismatch: "แพคถ้วยไม่ครบ/เกิน",
-  receipt_after_count: "ยืนยันรับของหลังนับสต็อก",
-  schedule_changed: "ตารางกะเปลี่ยน",
+// ค่าเป็นชื่อ key ใน adminFlags.reasonXxx — resolve เป็นข้อความจริงตอน render ผ่าน t(lang, ...) เพราะ const นี้อยู่นอก component เลยไม่มี lang
+const REASON_LABEL_KEY: Record<AdminFlagReason, string> = {
+  receipt_mismatch: "reasonReceiptMismatch",
+  receipt_not_received: "reasonReceiptNotReceived",
+  receipt_extra: "reasonReceiptExtra",
+  stock_override: "reasonStockOverride",
+  receipt_edited: "reasonReceiptEdited",
+  stock_impossible: "reasonStockImpossible",
+  stock_backdated_edit: "reasonStockBackdatedEdit",
+  stock_same_day_edit: "reasonStockSameDayEdit",
+  receipt_vs_manual: "reasonReceiptVsManual",
+  cup_pack_mismatch: "reasonCupPackMismatch",
+  receipt_after_count: "reasonReceiptAfterCount",
+  schedule_changed: "reasonScheduleChanged",
 };
 const REASON_TONE: Record<AdminFlagReason, "warn" | "orange"> = {
   receipt_mismatch: "warn",
@@ -46,6 +48,7 @@ function fmtWhen(iso: string): string {
 
 export default function AdminFlagsPage() {
   const me = useMe();
+  const lang = useLang();
   const isAdmin = me?.role === "admin";
   const isSenior = !isAdmin && !!me?.isSenior;
 
@@ -82,7 +85,7 @@ export default function AdminFlagsPage() {
   async function resolveAll() {
     const ids = flags.map((f) => f.id);
     if (ids.length === 0) return;
-    if (!window.confirm(`ตรวจแล้วทั้งหมด ${ids.length} รายการ?`)) return;
+    if (!window.confirm(t(lang, "adminFlags.confirmResolveAll", { n: ids.length }))) return;
     setResolvingAll(true);
     try {
       await fetch("/api/admin-flags", {
@@ -99,30 +102,30 @@ export default function AdminFlagsPage() {
   return (
     <div>
       <PageTitle
-        title={isSenior ? "ประวัติการแก้ไข" : "รายการรอตรวจสอบ"}
+        title={isSenior ? t(lang, "nav.logging.adminFlags") : t(lang, "nav.adminMenu.adminFlags")}
         right={
           <div className="flex items-center gap-2">
-            <span className="text-xs text-brand-ink/50">{flags.length} รายการ</span>
+            <span className="text-xs text-brand-ink/50">{t(lang, "adminFlags.itemCountSuffix", { n: flags.length })}</span>
             {isAdmin && flags.length > 0 && (
               <button
                 onClick={resolveAll}
                 disabled={resolvingAll || resolvingId !== null}
                 className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
               >
-                {resolvingAll ? "กำลังตรวจ…" : "ตรวจแล้วทั้งหมด"}
+                {resolvingAll ? t(lang, "adminFlags.resolvingAll") : t(lang, "adminFlags.resolveAll")}
               </button>
             )}
           </div>
         }
       />
       {isSenior && (
-        <p className="mb-3 text-[12px] text-brand-ink/50">เห็นเฉพาะสาขา {me?.branchScope} · ตรวจสอบให้แอดมินดูอย่างเดียว</p>
+        <p className="mb-3 text-[12px] text-brand-ink/50">{t(lang, "adminFlags.seniorBranchNote", { branch: me?.branchScope ?? "" })}</p>
       )}
       <GlassCard>
         {loading ? (
-          <p className="py-8 text-center text-sm text-brand-ink/50">กำลังโหลด…</p>
+          <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "adminFlags.loading")}</p>
         ) : flags.length === 0 ? (
-          <p className="py-8 text-center text-sm text-brand-ink/50">ไม่มีรายการต้องตรวจ ✓</p>
+          <p className="py-8 text-center text-sm text-brand-ink/50">{t(lang, "adminFlags.emptyState")}</p>
         ) : (
           <div className="grid gap-1.5">
             {flags.map((f) => (
@@ -130,11 +133,11 @@ export default function AdminFlagsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[13px] font-medium">{f.itemName}</span>
-                    <Badge tone={REASON_TONE[f.reason]}>{REASON_LABEL[f.reason]}</Badge>
+                    <Badge tone={REASON_TONE[f.reason]}>{t(lang, `adminFlags.${REASON_LABEL_KEY[f.reason]}`)}</Badge>
                     <Badge tone="blue">{f.branch}</Badge>
                   </div>
                   <div className="mt-0.5 text-[11px] text-brand-ink/50">
-                    {f.editedBy && <>แก้โดย <span className="font-medium text-brand-ink/70">{f.editedBy}</span> · </>}
+                    {f.editedBy && <>{t(lang, "adminFlags.editedByPrefix")} <span className="font-medium text-brand-ink/70">{f.editedBy}</span> · </>}
                     {f.detail} · {thaiDate(f.date)} · {fmtWhen(f.createdAt)}
                   </div>
                 </div>
@@ -144,7 +147,7 @@ export default function AdminFlagsPage() {
                     disabled={resolvingId === f.id}
                     className="shrink-0 rounded-lg border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-semibold text-brand-ink disabled:opacity-50"
                   >
-                    ตรวจแล้ว
+                    {t(lang, "adminFlags.resolveOne")}
                   </button>
                 )}
               </div>

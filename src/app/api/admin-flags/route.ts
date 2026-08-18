@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, requireSession, AuthError, authErrorResponse } from "@/lib/authz";
 import { writeAudit } from "@/lib/audit";
 import type { AdminFlagReason } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,13 @@ function fail(e: unknown, msg: string) {
 export async function GET() {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const isAdmin = s.role === "admin";
     let isSenior = false;
     if (!isAdmin) {
       const me = await db.getUserById(s.userId);
       isSenior = !!me?.isSenior;
-      if (!isSenior) throw new AuthError("เฉพาะ Admin และ senior staff เท่านั้น", 403);
+      if (!isSenior) throw new AuthError(t(lang, "adminFlags.errAdminOrSeniorOnly"), 403);
     }
     const flags = isAdmin
       ? await db.listAdminFlags({ includeResolved: false })
@@ -46,14 +48,15 @@ export async function GET() {
 export async function PATCH(req: Request) {
   try {
     const s = await requireAdmin();
+    const lang = s.lang ?? "th";
     const body = (await req.json()) as { id?: number; ids?: number[] };
     if (Array.isArray(body.ids)) {
-      if (body.ids.length === 0) return NextResponse.json({ error: "ids จำเป็น" }, { status: 400 });
+      if (body.ids.length === 0) return NextResponse.json({ error: t(lang, "adminFlags.errIdsRequired") }, { status: 400 });
       await db.resolveAdminFlags(body.ids, s.name);
       await writeAudit(s, "resolve_admin_flag", { detail: `ตรวจสอบรายการแจ้งเตือนแล้ว ${body.ids.length} รายการ` });
       return NextResponse.json({ ok: true });
     }
-    if (!body.id) return NextResponse.json({ error: "id จำเป็น" }, { status: 400 });
+    if (!body.id) return NextResponse.json({ error: t(lang, "adminFlags.errIdRequired") }, { status: 400 });
     await db.resolveAdminFlag(body.id, s.name);
     await writeAudit(s, "resolve_admin_flag", { entity: String(body.id), detail: "ตรวจสอบรายการแจ้งเตือนแล้ว" });
     return NextResponse.json({ ok: true });

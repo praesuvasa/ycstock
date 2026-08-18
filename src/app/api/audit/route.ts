@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireSession, AuthError, authErrorResponse } from "@/lib/authz";
+import { t } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -9,12 +10,13 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const s = await requireSession();
+    const lang = s.lang ?? "th";
     const isAdmin = s.role === "admin";
     let isSenior = false;
     if (!isAdmin) {
       const me = await db.getUserById(s.userId);
       isSenior = !!me?.isSenior;
-      if (!isSenior) throw new AuthError("เฉพาะ Admin และ senior staff เท่านั้น", 403);
+      if (!isSenior) throw new AuthError(t(lang, "audit.errForbidden"), 403);
     }
     const { searchParams } = new URL(req.url);
     const filter: { userId?: string; branch?: string; action?: string; limit?: number } = {};

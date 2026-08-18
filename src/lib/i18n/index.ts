@@ -46,13 +46,27 @@ import { th as thReturns } from "./th/returns";
 import { en as enReturns } from "./en/returns";
 import { th as thStockIn } from "./th/stockIn";
 import { en as enStockIn } from "./en/stockIn";
+import { th as thUsers } from "./th/users";
+import { en as enUsers } from "./en/users";
+import { th as thAudit } from "./th/audit";
+import { en as enAudit } from "./en/audit";
+import { th as thSettings } from "./th/settings";
+import { en as enSettings } from "./en/settings";
+import { th as thTimeclockAdmin } from "./th/timeclockAdmin";
+import { en as enTimeclockAdmin } from "./en/timeclockAdmin";
+import { th as thTimeclockReport } from "./th/timeclockReport";
+import { en as enTimeclockReport } from "./en/timeclockReport";
+import { th as thAdminFlags } from "./th/adminFlags";
+import { en as enAdminFlags } from "./en/adminFlags";
+import { th as thStockOverview } from "./th/stockOverview";
+import { en as enStockOverview } from "./en/stockOverview";
 
 export type Lang = "th" | "en";
 export const DEFAULT_LANG: Lang = "th";
 
 const DICT = {
-  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock, todayNextStep: thTodayNextStep, returns: thReturns, stockIn: thStockIn },
-  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock, todayNextStep: enTodayNextStep, returns: enReturns, stockIn: enStockIn },
+  th: { common: thCommon, nav: thNav, login: thLogin, setPin: thSetPin, errors: thErrors, store: thStore, notices: thNotices, feedback: thFeedback, cashRemittance: thCashRemittance, requisitions: thRequisitions, allowance: thAllowance, expiry: thExpiry, cups: thCups, timeClock: thTimeClock, schedule: thSchedule, confirmReceipt: thConfirmReceipt, sales: thSales, stock: thStock, restock: thRestock, todayNextStep: thTodayNextStep, returns: thReturns, stockIn: thStockIn, users: thUsers, audit: thAudit, settings: thSettings, timeclockAdmin: thTimeclockAdmin, timeclockReport: thTimeclockReport, adminFlags: thAdminFlags, stockOverview: thStockOverview },
+  en: { common: enCommon, nav: enNav, login: enLogin, setPin: enSetPin, errors: enErrors, store: enStore, notices: enNotices, feedback: enFeedback, cashRemittance: enCashRemittance, requisitions: enRequisitions, allowance: enAllowance, expiry: enExpiry, cups: enCups, timeClock: enTimeClock, schedule: enSchedule, confirmReceipt: enConfirmReceipt, sales: enSales, stock: enStock, restock: enRestock, todayNextStep: enTodayNextStep, returns: enReturns, stockIn: enStockIn, users: enUsers, audit: enAudit, settings: enSettings, timeclockAdmin: enTimeclockAdmin, timeclockReport: enTimeclockReport, adminFlags: enAdminFlags, stockOverview: enStockOverview },
 } as const;
 
 function lookup(dict: unknown, key: string): string | undefined {
