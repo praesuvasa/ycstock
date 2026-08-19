@@ -1,7 +1,7 @@
 // In-memory seeded store — default (ไม่ต้องต่อ DB). ใช้ dev/test/preview
 // process เดียว (next dev / vercel lambda warm) → ข้อมูลคงอยู่ระหว่าง request
 import type { ScheduleRequest, ScheduleRow, ItemBrand, Branch, StockRow, SalesRow, CupRow, RestockRow, Meta, CupSize, User, Role, BranchScope, AuditEntry, Weekday, Requisition, RestockSelectionEntry, RestockExtraItem, ReturnHistoryRow, PaymentIncident, PaymentIncidentKind, ExpiryCheckRow, ProdBranchKey, ProductionOrder, ProductionOrderSummary, ProductionOrderItem, ProductionOrderItemInput, BranchNotice, SalesEvidence, EvidenceType, MatchStatus, CashRemittance, RestockReceiptStatus, RestockSheetSummary, AdminFlag, AdminFlagReason, PendingReturnRow, TimeClockEntry, TimeClockSettings, StaffAllowanceUse, AllowanceSummary, StaffFeedback } from "./types";
-import { BRANCHES } from "./types";
+import { BRANCHES, displayNameFor, displayCategoryFor } from "./types";
 import { ITEMS, PAR } from "./seed-data";
 import { variance, restockNeed, isSpecialActive, monthRange, ALLOWANCE_DEFAULT_MONTHLY, incidentAdjustment } from "./calc";
 import { todayBangkok } from "./fmt";
@@ -402,7 +402,7 @@ export const memoryStore = {
       // ไม่ตัด special ที่ไม่ถึงรอบออกอีกต่อไป — ส่งกลับมาให้หน้า UI แยกไปโชว์ในส่วน "สั่งฉุกเฉินนอกรอบ" แทน
       const remain = remainMap.get(it.id) ?? 0;
       rows.push({
-        itemId: it.id, name: it.name, category: it.category, unit: it.unit,
+        itemId: it.id, name: displayNameFor(it, branch), category: displayCategoryFor(it, branch), unit: it.unit,
         par, remain, need: restockNeed(par, remain), isSpecial: it.isSpecial,
         remainG: it.showRemainderOnRestock ? (remainGMap.get(it.id) ?? 0) : undefined,
         isCup: it.isCup || undefined, hasVariableYield: it.variableYield || undefined,

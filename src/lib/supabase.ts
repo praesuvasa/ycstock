@@ -176,7 +176,7 @@ export const supabaseStore = {
   async getMeta(): Promise<Meta> {
     const itemsRes = await sb()
       .from("items")
-      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield,expiry_check,expiry_warn_days,expiry_allow_sell_front,expiry_allow_return,expiry_convert_to_item_id,expiry_convert_g,brand");
+      .select("id,name,category,unit,is_special,is_cup,cup_size,has_remainder,grams_per_uom,remainder_group,sort,check_frequency,show_remainder,variable_yield,expiry_check,expiry_warn_days,expiry_allow_sell_front,expiry_allow_return,expiry_convert_to_item_id,expiry_convert_g,brand,ncd_display_name,ncd_to_go_category");
     if (itemsRes.error) throw new Error("query items: " + itemsRes.error.message);
     const parsRes = await sb().from("par_levels").select("item_id,branch_id,level");
     if (parsRes.error) throw new Error("query par_levels: " + parsRes.error.message);
@@ -196,6 +196,8 @@ export const supabaseStore = {
       expiryConvertToItemId: r.expiry_convert_to_item_id ?? null,
       expiryConvertG: r.expiry_convert_g == null ? null : Number(r.expiry_convert_g),
       brand: (r.brand ?? "yc") as Item["brand"],
+      ncdDisplayName: r.ncd_display_name ?? null,
+      ncdToGoCategory: r.ncd_to_go_category ?? null,
     }));
     const par: ParMap = {};
     for (const it of mapped) par[it.id] = Object.fromEntries(BRANCHES.map((b) => [b, null]));
