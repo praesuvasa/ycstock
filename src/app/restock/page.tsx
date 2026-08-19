@@ -66,6 +66,14 @@ const PRINT_RIGHT_CATEGORIES = [
   // เฉพาะ NCD — "Bags" เป็นหมวดแยกจาก "BAG/ถุง" เดิม (ชื่อจากไฟล์ Excel ไม่ตรงกัน แต่เป็นคนละหมวดจริง)
   "Box", "Bags",
 ];
+// ── ลำดับหมวดบนหน้าจอ (checklist ที่ต้องกรอกจริง) — ต่างจากใบพิมพ์ ──
+// แพรขอ 2026-08-19: หมวด To-Go ทั้งหมดให้อยู่ล่างสุดของรายการเสมอ (ไม่ใช่แค่ท้ายคอลัมน์ซ้ายเหมือนใบพิมพ์)
+// เพราะตอนกรอกจริงหน้าจอเดียวไม่มีแนวคิดคอลัมน์ซ้าย/ขวาแบบใบพิมพ์ ไล่จากบนลงล่างอย่างเดียว
+const SCREEN_CATEGORY_ORDER = [
+  ...PRINT_LEFT_CATEGORIES.filter((c) => !c.startsWith("To-Go ")),
+  ...PRINT_RIGHT_CATEGORIES,
+  ...PRINT_LEFT_CATEGORIES.filter((c) => c.startsWith("To-Go ")),
+];
 
 // ── ไอคอนผลไม้/ถ้วย — ช่วยคนจัดของที่อ่านภาษาไทยไม่ออกจำรายการจากรูปแทน ──
 // v2 (2026-07-21): เปลี่ยนจาก SVG วาดเองมาใช้ emoji จริงแทน — ของเดิมแพรบอกว่าดูไม่รู้เรื่องเลย
@@ -641,6 +649,13 @@ function RestockByBranch() {
       if (!g) { g = { category: r.category, items: [] }; out.push(g); }
       g.items.push(r);
     }
+    // เรียงตาม SCREEN_CATEGORY_ORDER (หมวด To-Go อยู่ล่างสุดเสมอ) — หมวดที่ไม่อยู่ในลิสต์ (ไม่ควรเกิดขึ้น
+    // เพราะ PRINT_LEFT/RIGHT_CATEGORIES ครอบคลุมทุกหมวดในระบบแล้ว) ตกไปอยู่ท้ายสุดแทนที่จะพัง
+    out.sort((a, b) => {
+      const ia = SCREEN_CATEGORY_ORDER.indexOf(a.category);
+      const ib = SCREEN_CATEGORY_ORDER.indexOf(b.category);
+      return (ia === -1 ? SCREEN_CATEGORY_ORDER.length : ia) - (ib === -1 ? SCREEN_CATEGORY_ORDER.length : ib);
+    });
     return out;
   }, [rows, specialActive]);
 
