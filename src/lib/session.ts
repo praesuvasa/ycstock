@@ -6,6 +6,10 @@ export const SESSION_COOKIE = "yc_session";
 // ตอนบ่าย) กติกา "หลุดทุกเช้าเมื่อข้ามวัน" ข้างล่าง (verifySession) ยังอยู่เหมือนเดิม ไม่เปลี่ยน —
 // นี่แค่กันไม่ให้ 12 ชม.เดิมมาตัดจบก่อนกติกาข้ามวันจะทำงานเอง
 const SESSION_HOURS = 24;
+// v1.33 (2026-08-22) — admin ไม่ต้อง logout ทุกเช้าเหมือนพนักงานทั่วไป (แพรขอ — หลุดบ่อยเท่าไหร่
+// ยิ่งมีโอกาสพิมพ์ PIN ผิดตอนเข้าใหม่บ่อยเท่านั้น เจอเคสรหัสผิดซ้ำๆ ช่วงนี้เพราะข้ามวันแล้วหลุดทุกครั้ง)
+// พนักงานทั่วไปยังหลุดทุกเช้าเหมือนเดิม — กติกานี้ตั้งใจไว้ให้เป็นตัวเช็คว่าเข้าเวรตรงเวลา
+const ADMIN_SESSION_HOURS = 24 * 90; // 90 วัน — ยังมี ceiling อยู่ ไม่ใช่ไม่หมดอายุเลย (กันเคสเครื่องหาย/ถูกขโมย)
 
 /**
  * วันที่ตามเวลาไทยจาก epoch — บวก 7 ชั่วโมงตรง ๆ ไม่พึ่ง Intl
@@ -36,10 +40,11 @@ async function hmac(data: string): Promise<string> {
   return b64u(sig);
 }
 
-/** สร้าง token: base64url(payload).base64url(hmac) · เซ็ต exp = now + 12h */
+/** สร้าง token: base64url(payload).base64url(hmac) · เซ็ต exp = now + 24h (admin = 90 วัน) */
 export async function signSession(s: Omit<Session, "exp">): Promise<string> {
   const now = Date.now();
-  const payload: Session = { ...s, exp: now + SESSION_HOURS * 3600_000, day: bkkDay(now) };
+  const hours = s.role === "admin" ? ADMIN_SESSION_HOURS : SESSION_HOURS;
+  const payload: Session = { ...s, exp: now + hours * 3600_000, day: bkkDay(now) };
   const body = b64u(enc.encode(JSON.stringify(payload)));
   const sig = await hmac(body);
   return `${body}.${sig}`;
@@ -55,9 +60,10 @@ export async function verifySession(token: string | undefined | null): Promise<S
   try {
     const s = JSON.parse(new TextDecoder().decode(fromB64u(body))) as Session;
     if (!s.exp || s.exp < Date.now()) return null;
-    // ข้ามวันแล้วถือว่าหมดอายุเสมอ — พนักงานต้องใส่ PIN ใหม่ทุกเช้าก่อนเริ่มงาน
-    // session เก่าที่ยังไม่มีฟิลด์นี้ ก็ให้หมดอายุไปเลยรอบเดียว
-    if (!s.day || s.day !== bkkDay(Date.now())) return null;
+    // ข้ามวันแล้วถือว่าหมดอายุเสมอ — พนักงานต้องใส่ PIN ใหม่ทุกเช้าก่อนเริ่มงาน (เช็คว่าเข้าเวรตรงเวลา)
+    // admin ยกเว้นกติกานี้ (v1.33 — แพรขอ ไม่ต้องหลุดทุกเช้า) ยังผูกกับ exp ด้านบนอยู่ดี (90 วัน) ไม่ใช่ไม่มีวันหมดอายุเลย
+    // session เก่าที่ยังไม่มีฟิลด์ day เลย ก็ให้หมดอายุไปเลยรอบเดียว (เว้น admin เหมือนกัน)
+    if (s.role !== "admin" && (!s.day || s.day !== bkkDay(Date.now()))) return null;
     return s;
   } catch {
     return null;
